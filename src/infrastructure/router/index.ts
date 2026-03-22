@@ -6,19 +6,36 @@
 import { json, notFound, badRequest } from '../utils/helpers';
 
 // ============================================================
+// Environment Types
+// ============================================================
+
+export interface CloudflareEnv {
+  KV?: KVNamespace;
+  R2?: R2Bucket;
+  D1?: D1Database;
+  DO?: Record<string, DurableObjectNamespace>;
+  QUEUE?: Record<string, Queue>;
+  AI?: any;
+  vars?: Record<string, string>;
+}
+
+// Type alias for backwards compatibility
+export type Env = CloudflareEnv;
+
+// ============================================================
 // Route Handler Types
 // ============================================================
 
 export type RouteHandler = (
   request: Request,
   params?: Record<string, string>,
-  env?: Env,
+  env?: CloudflareEnv,
   ctx?: ExecutionContext
 ) => Promise<Response> | Response;
 
 export type Middleware = (
   request: Request,
-  env?: Env,
+  env?: CloudflareEnv,
   ctx?: ExecutionContext
 ) => Promise<Response | null> | Response | null;
 
@@ -147,7 +164,7 @@ export class Router {
    */
   async handle(
     request: Request,
-    env?: Env,
+    env?: CloudflareEnv,
     ctx?: ExecutionContext
   ): Promise<Response> {
     const url = new URL(request.url);
@@ -499,7 +516,12 @@ export async function body<T = unknown>(request: Request): Promise<T> {
  */
 export function query(request: Request): Record<string, string> {
   const url = new URL(request.url);
-  return Object.fromEntries(url.searchParams.entries());
+  const result: Record<string, string> = {};
+  // URLSearchParams.keys() is not available in Workers runtime
+  url.searchParams.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
 }
 
 /**

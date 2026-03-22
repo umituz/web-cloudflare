@@ -11,7 +11,7 @@ export interface WorkerResponse extends Response {
   waitUntil?: (promise: Promise<unknown>) => void;
 }
 
-export interface WorkerConfig {
+export interface CloudflareWorkerConfig {
   readonly name: string;
   readonly routes?: string[];
   readonly schedule?: string;

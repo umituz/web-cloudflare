@@ -132,9 +132,9 @@ export interface WorkerVersionInfo {
 }
 
 /**
- * Analytics data
+ * Wrangler analytics data
  */
-export interface AnalyticsData {
+export interface WranglerAnalyticsData {
   requests?: number;
   errors?: number;
   statusCodes?: Record<string, number>;

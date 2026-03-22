@@ -29,12 +29,12 @@
 export * from "./domains/wrangler";
 export * from "./domains/workers";
 export * from "./domains/ai-gateway";
-export * from "./infrastructure/services/kv";
-export * from "./infrastructure/services/r2";
-export * from "./infrastructure/services/d1";
-export * from "./infrastructure/services/images";
-export * from "./infrastructure/services/analytics";
-export * from "./infrastructure/services/workflows";
+export * from "./domains/r2";
+export * from "./domains/d1";
+export * from "./domains/kv";
+export * from "./domains/images";
+export * from "./domains/analytics";
+export * from "./domains/workflows";
 
 // Infrastructure - Router, Middleware, Utils
 export * from "./infrastructure/router";
