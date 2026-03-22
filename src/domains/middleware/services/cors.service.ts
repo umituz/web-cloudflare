@@ -1,17 +1,9 @@
 /**
- * CORS Middleware
+ * CORS Service
  * @description Cross-Origin Resource Sharing middleware for Cloudflare Workers
  */
 
-export interface CORSConfig {
-  enabled: boolean;
-  allowedOrigins: string[];
-  allowedMethods: string[];
-  allowedHeaders: string[];
-  exposedHeaders?: string[];
-  allowCredentials?: boolean;
-  maxAge?: number;
-}
+import type { CORSConfig } from '../entities';
 
 /**
  * Add CORS headers to response

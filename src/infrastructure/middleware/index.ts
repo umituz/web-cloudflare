@@ -1,10 +1,14 @@
 /**
  * Cloudflare Middleware Collection
  * @description Comprehensive middleware for Cloudflare Workers
+ * @deprecated Import from '@umituz/web-cloudflare/middleware' instead
  */
 
+// Re-export from middleware domain
+export * from '../../domains/middleware';
+
 // ============================================================
-// Environment Types
+// Environment Types (kept for backwards compatibility)
 // ============================================================
 
 export interface CloudflareMiddlewareEnv {
@@ -19,12 +23,6 @@ export interface CloudflareMiddlewareEnv {
 
 // Type alias for backwards compatibility
 export type Env = CloudflareMiddlewareEnv;
-
-// Re-export existing middleware
-export { cors, addCorsHeaders } from './cors';
-export { cache, setCache, invalidateCache } from './cache';
-export { checkRateLimit } from './rate-limit';
-export { requireAuth, addUserContext } from './auth';
 
 // ============================================================
 // New Middleware
