@@ -177,7 +177,16 @@ const versions = await wrangler.versionsList();
 await wrangler.versionsRollback(versions[0].id);
 ```
 
-**Note:** Wrangler CLI, Workers, and AI Gateway services now follow Domain-Driven Design (DDD) architecture with their own domain structures at `src/domains/wrangler/`, `src/domains/workers/`, and `src/domains/ai-gateway/`.
+**Note:** All services now follow Domain-Driven Design (DDD) architecture with their own domain structures:
+- Wrangler CLI: `src/domains/wrangler/`
+- Workers: `src/domains/workers/`
+- AI Gateway: `src/domains/ai-gateway/`
+- R2: `src/domains/r2/`
+- D1: `src/domains/d1/`
+- KV: `src/domains/kv/`
+- Images: `src/domains/images/`
+- Analytics: `src/domains/analytics/`
+- Workflows: `src/domains/workflows/`
 
 ## 📚 Subpath Exports
 
@@ -187,20 +196,23 @@ await wrangler.versionsRollback(versions[0].id);
 // Workers service (now in domains/)
 import { WorkersService, workersService } from '@umituz/web-cloudflare/workers';
 
-// KV cache
-import { KVService } from '@umituz/web-cloudflare/kv';
+// KV cache (now in domains/)
+import { KVService, kvService } from '@umituz/web-cloudflare/kv';
 
-// R2 storage
-import { R2Service } from '@umituz/web-cloudflare/r2';
+// R2 storage (now in domains/)
+import { R2Service, r2Service } from '@umituz/web-cloudflare/r2';
 
-// D1 database
-import { D1Service } from '@umituz/web-cloudflare/d1';
+// D1 database (now in domains/)
+import { D1Service, d1Service } from '@umituz/web-cloudflare/d1';
 
-// Images optimization
-import { ImagesService } from '@umituz/web-cloudflare/images';
+// Images optimization (now in domains/)
+import { ImagesService, imagesService } from '@umituz/web-cloudflare/images';
 
-// Analytics
-import { AnalyticsService } from '@umituz/web-cloudflare/analytics';
+// Analytics (now in domains/)
+import { AnalyticsService, analyticsService } from '@umituz/web-cloudflare/analytics';
+
+// Workflows (now in domains/)
+import { WorkflowService } from '@umituz/web-cloudflare/workflows';
 
 // Wrangler CLI
 import { WranglerService } from '@umituz/web-cloudflare/wrangler';
@@ -661,21 +673,15 @@ Contributions are welcome!
 │   ├── config/              # Config patterns and types
 │   ├── domains/             # Domain-driven design structure
 │   │   ├── wrangler/        # Wrangler CLI domain
-│   │   │   ├── entities/    # Domain entities
-│   │   │   ├── services/    # Domain services
-│   │   │   ├── types/       # Domain types
-│   │   │   └── index.ts     # Domain exports
 │   │   ├── workers/         # Workers domain
-│   │   │   ├── entities/    # Domain entities
-│   │   │   ├── services/    # Domain services
-│   │   │   ├── types/       # Domain types
-│   │   │   └── index.ts     # Domain exports
-│   │   └── ai-gateway/      # AI Gateway domain
-│   │       ├── entities/    # Domain entities
-│   │       ├── services/    # Domain services
-│   │       └── index.ts     # Domain exports
+│   │   ├── ai-gateway/      # AI Gateway domain
+│   │   ├── r2/              # R2 storage domain
+│   │   ├── d1/              # D1 database domain
+│   │   ├── kv/              # KV storage domain
+│   │   ├── images/          # Images optimization domain
+│   │   ├── analytics/       # Analytics domain
+│   │   └── workflows/       # Workflows domain
 │   ├── infrastructure/
-│   │   ├── services/        # Services (kv, r2, d1, etc.)
 │   │   ├── router/          # Express-like router
 │   │   ├── middleware/      # Middleware collection
 │   │   └── utils/           # Helper functions

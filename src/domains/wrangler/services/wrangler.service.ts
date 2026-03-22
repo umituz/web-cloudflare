@@ -118,6 +118,14 @@ export class WranglerService implements IWranglerService {
     }
   }
 
+  /**
+   * Convert string result to void result
+   */
+  private asVoidResult(result: WranglerResult<string>): WranglerResult<void> {
+    const { data, ...rest } = result;
+    return rest;
+  }
+
   // ==================== Authentication ====================
 
   async login(options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
@@ -132,7 +140,7 @@ export class WranglerService implements IWranglerService {
   }
 
   async logout(options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
-    return this.execute(['logout'], options);
+    return this.asVoidResult(await this.execute(['logout'], options));
   }
 
   async whoami(options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
@@ -158,7 +166,7 @@ export class WranglerService implements IWranglerService {
     if (template) {
       args.push('--template', template);
     }
-    return this.execute(args, options);
+    return this.asVoidResult(await this.execute(args, options));
   }
 
   async dev(
@@ -237,7 +245,7 @@ export class WranglerService implements IWranglerService {
     value: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>> {
-    return this.execute(['kv:key', 'put', '--namespace-id', namespaceId, key, value], options);
+    return this.asVoidResult(await this.execute(['kv:key', 'put', '--namespace-id', namespaceId, key, value], options));
   }
 
   async kvKeyGet(
@@ -253,7 +261,7 @@ export class WranglerService implements IWranglerService {
     key: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>> {
-    return this.execute(['kv:key', 'delete', '--namespace-id', namespaceId, key], options);
+    return this.asVoidResult(await this.execute(['kv:key', 'delete', '--namespace-id', namespaceId, key], options));
   }
 
   // ==================== R2 Operations ====================
@@ -289,7 +297,7 @@ export class WranglerService implements IWranglerService {
     bucketName: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>> {
-    return this.execute(['r2', 'bucket', 'delete', bucketName], options);
+    return this.asVoidResult(await this.execute(['r2', 'bucket', 'delete', bucketName], options));
   }
 
   async r2ObjectPut(
@@ -298,7 +306,7 @@ export class WranglerService implements IWranglerService {
     file: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>> {
-    return this.execute(['r2', 'object', 'put', bucketName, key, '--file', file], options);
+    return this.asVoidResult(await this.execute(['r2', 'object', 'put', bucketName, key, '--file', file], options));
   }
 
   // ==================== D1 Operations ====================
@@ -412,7 +420,7 @@ export class WranglerService implements IWranglerService {
     secretName: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>> {
-    return this.execute(['secret', 'delete', secretName], options);
+    return this.asVoidResult(await this.execute(['secret', 'delete', secretName], options));
   }
 
   // ==================== Monitoring ====================
@@ -446,7 +454,7 @@ export class WranglerService implements IWranglerService {
     versionId: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>> {
-    return this.execute(['versions', 'rollback', '--version-id', versionId], options);
+    return this.asVoidResult(await this.execute(['versions', 'rollback', '--version-id', versionId], options));
   }
 
   // ==================== Generic Command Execution ====================

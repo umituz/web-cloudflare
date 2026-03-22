@@ -1,34 +1,37 @@
 /**
  * KV Entity
- * @description Cloudflare KV configuration and types
+ * @description Basic KV entity placeholder
  */
 
-export interface KVNamespaceConfig {
-  readonly namespace: string;
-  readonly ttl?: number;
+export interface KVEntity {
+  namespaceId: string;
+  key: string;
+  value: string;
 }
 
-export interface KVEntry<T = unknown> {
-  readonly key: string;
-  readonly value: T;
-  readonly metadata?: Record<string, unknown>;
-  readonly expiration?: number;
+export interface KVNamespaceConfig {
+  id: string;
+  ttl?: number;
+}
+
+export interface KVEntry {
+  key: string;
+  value: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface KVListOptions {
-  readonly limit?: number;
-  readonly cursor?: string;
-  readonly prefix?: string;
+  limit?: number;
+  cursor?: string;
+  prefix?: string;
 }
 
 export interface KVListResult {
-  readonly keys: readonly KVKey[];
-  readonly list_complete: boolean;
-  readonly cursor?: string;
+  keys: KVEntry[];
+  cursor?: string;
 }
 
 export interface KVKey {
-  readonly name: string;
-  readonly metadata?: Record<string, unknown>;
-  readonly expiration?: number;
+  name: string;
+  metadata?: Record<string, unknown>;
 }

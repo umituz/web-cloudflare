@@ -115,12 +115,13 @@ export const transformUtils = {
    */
   async streamToBlob(stream: ReadableStream): Promise<Blob> {
     const reader = stream.getReader();
-    const chunks: Uint8Array[] = [];
+    const chunks: BlobPart[] = [];
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value);
+      // Convert Uint8Array to BlobPart
+      chunks.push(value as BlobPart);
     }
 
     return new Blob(chunks);

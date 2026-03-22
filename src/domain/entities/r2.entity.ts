@@ -1,55 +1,49 @@
 /**
  * R2 Entity
- * @description Cloudflare R2 storage configuration and types
+ * @description Basic R2 entity placeholder
  */
 
+export interface R2Entity {
+  bucketName: string;
+  key: string;
+}
+
 export interface R2BucketConfig {
-  readonly bucket: string;
-  readonly customDomain?: string;
+  name: string;
+  location?: string;
 }
 
 export interface R2Object {
-  readonly key: string;
-  readonly size: number;
-  readonly uploaded: Date;
-  readonly httpMetadata?: R2HTTPMetadata;
-  readonly customMetadata?: Record<string, string>;
-}
-
-export interface R2HTTPMetadata {
-  readonly contentType?: string;
-  readonly cacheControl?: string;
-  readonly contentEncoding?: string;
-  readonly contentLanguage?: string;
-  readonly cacheExpiry?: Date;
+  key: string;
+  size: number;
+  uploaded: Date;
 }
 
 export interface R2UploadResult {
-  readonly key: string;
-  readonly size: number;
-  readonly etag?: string;
-  readonly version?: string;
+  key: string;
+  etag?: string;
 }
 
 export interface R2ListOptions {
-  readonly limit?: number;
-  readonly prefix?: string;
-  readonly cursor?: string;
+  limit?: number;
+  cursor?: string;
+  prefix?: string;
 }
 
 export interface R2ListResult {
-  readonly objects: readonly R2Object[];
-  readonly truncated: boolean;
-  readonly cursor?: string;
+  objects: R2Object[];
+  cursor?: string;
 }
 
 export interface R2PutOptions {
-  readonly httpMetadata?: R2HTTPMetadata;
-  readonly customMetadata?: Record<string, string>;
-  readonly checksum?: string;
+  customMetadata?: Record<string, string>;
+  httpMetadata?: {
+    contentType?: string;
+    cacheControl?: string;
+  };
 }
 
 export interface R2PresignedURL {
-  readonly url: string;
-  readonly expiresAt: Date;
+  url: string;
+  expires: number;
 }

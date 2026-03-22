@@ -12,8 +12,8 @@ import type {
   D1DatabaseInfo,
   SecretInfo,
   WorkerVersionInfo,
-  AnalyticsData,
-} from '../entities/wrangler.entity';
+  WranglerAnalyticsData,
+} from '../entities';
 
 export interface IWranglerService {
   // Authentication

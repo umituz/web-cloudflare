@@ -3,8 +3,8 @@
  * @description Reusable configuration patterns for different use cases
  */
 
-import type { AIGatewayConfig } from '../infrastructure/domain/ai-gateway.entity';
-import type { WorkflowDefinition } from '../infrastructure/domain/workflows.entity';
+import type { AIGatewayConfig } from '../domains/ai-gateway/entities';
+import type { WorkflowDefinition } from '../domains/workflows/entities';
 import type { WorkerConfig } from './types';
 
 // ============================================================
@@ -106,6 +106,8 @@ export const saasConfig: Partial<WorkerConfig> = {
   },
   workflows: {
     enabled: true,
+    maxExecutionTime: 300,
+    defaultRetries: 2,
   },
 };
 
@@ -149,6 +151,8 @@ export const cdnConfig: Partial<WorkerConfig> = {
   },
   rateLimit: {
     enabled: false,
+    maxRequests: 0,
+    window: 0,
   },
   compression: {
     enabled: true,
@@ -194,7 +198,7 @@ export const aiFirstConfig: Partial<WorkerConfig> = {
           baseURL: 'https://api.openai.com/v1',
           apiKey: '',
           models: ['gpt-4', 'gpt-3.5-turbo'],
-          fallback: 'workers-ai',
+          fallbackProvider: 'workers-ai',
           weight: 1,
         },
       ],
@@ -206,6 +210,8 @@ export const aiFirstConfig: Partial<WorkerConfig> = {
   },
   workflows: {
     enabled: true,
+    maxExecutionTime: 600,
+    defaultRetries: 3,
   },
 };
 
@@ -215,13 +221,18 @@ export const aiFirstConfig: Partial<WorkerConfig> = {
 export const minimalConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: false,
+    defaultTTL: 0,
   },
   rateLimit: {
     enabled: false,
+    maxRequests: 0,
+    window: 0,
   },
   cors: {
     enabled: true,
     allowedOrigins: ['*'],
+    allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['*'],
   },
 };
 
@@ -234,26 +245,34 @@ export const minimalConfig: Partial<WorkerConfig> = {
  */
 export function mergeConfigs<T extends Record<string, any>>(
   base: T,
-  ...overrides: Partial<T>[]
+  ...overrides: Array<Partial<Record<string, any>>>
 ): T {
   return overrides.reduce((acc, override) => {
     return deepMerge(acc, override);
   }, base);
 }
 
-function deepMerge<T>(target: T, source: Partial<T>): T {
-  const output = { ...target } as T;
+function deepMerge<T extends Record<string, any>>(
+  target: T,
+  source: Partial<Record<string, any>>
+): T {
+  const output = { ...target };
 
   if (isObject(target) && isObject(source)) {
     Object.keys(source).forEach((key) => {
-      if (isObject(source[key as keyof T])) {
+      const sourceValue = source[key];
+      const targetValue = target[key as keyof T];
+
+      if (isObject(sourceValue)) {
         if (!(key in target)) {
-          Object.assign(output, { [key]: source[key as keyof T] });
+          (output as any)[key] = sourceValue;
+        } else if (isObject(targetValue)) {
+          (output as any)[key] = deepMerge(targetValue, sourceValue);
         } else {
-          (output as any)[key] = deepMerge(target[key as keyof T], source[key as keyof T]);
+          (output as any)[key] = sourceValue;
         }
       } else {
-        Object.assign(output, { [key]: source[key as keyof T] });
+        (output as any)[key] = sourceValue;
       }
     });
   }
@@ -261,7 +280,7 @@ function deepMerge<T>(target: T, source: Partial<T>): T {
   return output;
 }
 
-function isObject(item: unknown): item is Record<string, unknown> {
+function isObject(item: unknown): item is Record<string, any> {
   return Boolean(item && typeof item === 'object' && !Array.isArray(item));
 }
 
@@ -316,52 +335,52 @@ export class ConfigBuilder {
   }
 
   withCache(config: Partial<NonNullable<WorkerConfig['cache']>>): ConfigBuilder {
-    this.config.cache = { ...this.config.cache, ...config };
+    this.config.cache = this.config.cache ? { ...this.config.cache, ...config } : config as NonNullable<WorkerConfig['cache']>;
     return this;
   }
 
   withRateLimit(config: Partial<NonNullable<WorkerConfig['rateLimit']>>): ConfigBuilder {
-    this.config.rateLimit = { ...this.config.rateLimit, ...config };
+    this.config.rateLimit = this.config.rateLimit ? { ...this.config.rateLimit, ...config } : config as NonNullable<WorkerConfig['rateLimit']>;
     return this;
   }
 
   withAI(config: Partial<NonNullable<WorkerConfig['ai']>>): ConfigBuilder {
-    this.config.ai = { ...this.config.ai, ...config };
+    this.config.ai = this.config.ai ? { ...this.config.ai, ...config } : config as NonNullable<WorkerConfig['ai']>;
     return this;
   }
 
   withWorkflows(config: Partial<NonNullable<WorkerConfig['workflows']>>): ConfigBuilder {
-    this.config.workflows = { ...this.config.workflows, ...config };
+    this.config.workflows = this.config.workflows ? { ...this.config.workflows, ...config } : config as NonNullable<WorkerConfig['workflows']>;
     return this;
   }
 
   withCORS(config: Partial<NonNullable<WorkerConfig['cors']>>): ConfigBuilder {
-    this.config.cors = { ...this.config.cors, ...config };
+    this.config.cors = this.config.cors ? { ...this.config.cors, ...config } : config as NonNullable<WorkerConfig['cors']>;
     return this;
   }
 
   withAnalytics(config: Partial<NonNullable<WorkerConfig['analytics']>>): ConfigBuilder {
-    this.config.analytics = { ...this.config.analytics, ...config };
+    this.config.analytics = this.config.analytics ? { ...this.config.analytics, ...config } : config as NonNullable<WorkerConfig['analytics']>;
     return this;
   }
 
   withCompression(config: Partial<NonNullable<WorkerConfig['compression']>>): ConfigBuilder {
-    this.config.compression = { ...this.config.compression, ...config };
+    this.config.compression = this.config.compression ? { ...this.config.compression, ...config } : config as NonNullable<WorkerConfig['compression']>;
     return this;
   }
 
   withImageOptimization(config: Partial<NonNullable<WorkerConfig['imageOptimization']>>): ConfigBuilder {
-    this.config.imageOptimization = { ...this.config.imageOptimization, ...config };
+    this.config.imageOptimization = this.config.imageOptimization ? { ...this.config.imageOptimization, ...config } : config as NonNullable<WorkerConfig['imageOptimization']>;
     return this;
   }
 
   withQueues(config: Partial<NonNullable<WorkerConfig['queues']>>): ConfigBuilder {
-    this.config.queues = { ...this.config.queues, ...config };
+    this.config.queues = this.config.queues ? { ...this.config.queues, ...config } : config as NonNullable<WorkerConfig['queues']>;
     return this;
   }
 
   withScheduledTasks(config: Partial<NonNullable<WorkerConfig['scheduledTasks']>>): ConfigBuilder {
-    this.config.scheduledTasks = { ...this.config.scheduledTasks, ...config };
+    this.config.scheduledTasks = this.config.scheduledTasks ? { ...this.config.scheduledTasks, ...config } : config as NonNullable<WorkerConfig['scheduledTasks']>;
     return this;
   }
 
@@ -449,9 +468,9 @@ export function getEnvironmentConfig(
   switch (environment) {
     case 'development':
       return mergeConfigs(minimalConfig, {
-        cache: { enabled: false },
-        rateLimit: { enabled: false },
-        cors: { allowedOrigins: ['*'] },
+        cache: { enabled: false, defaultTTL: 0 },
+        rateLimit: { enabled: false, maxRequests: 0, window: 0 },
+        cors: { enabled: true, allowedOrigins: ['*'], allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['*'] },
       });
 
     case 'staging':

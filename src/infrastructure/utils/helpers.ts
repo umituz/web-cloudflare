@@ -19,7 +19,17 @@ export async function parseBody<T = unknown>(request: Request): Promise<T> {
 
   if (contentType.includes('application/x-www-form-urlencoded')) {
     const formData = await request.formData();
-    return Object.fromEntries(formData) as T;
+    const result: Record<string, unknown> = {};
+    // FormData.keys() is not available in Workers runtime
+    // Use alternative approach with for...of
+    const keys: string[] = [];
+    formData.forEach((value, key) => {
+      if (!keys.includes(key)) {
+        keys.push(key);
+      }
+      result[key] = value;
+    });
+    return result as T;
   }
 
   if (contentType.includes('text/')) {
@@ -297,16 +307,15 @@ export function generateCacheKey(request: Request, prefix?: string): string {
   const parts = [prefix || 'cache', url.pathname];
 
   // Add query params (sorted for consistency)
-  const sortedParams = Array.from(url.searchParams.entries()).sort(
-    ([a], [b]) => a.localeCompare(b)
-  );
+  const params: string[] = [];
+  // URLSearchParams.keys() is not available in Workers runtime
+  url.searchParams.forEach((value, key) => {
+    params.push(`${key}=${value}`);
+  });
+  params.sort();
 
-  if (sortedParams.length > 0) {
-    parts.push(
-      sortedParams
-        .map(([key, value]) => `${key}=${value}`)
-        .join('&')
-    );
+  if (params.length > 0) {
+    parts.push(params.join('&'));
   }
 
   // Add auth header if present (for user-specific caching)
@@ -479,7 +488,12 @@ export function buildURL(base: string, params: Record<string, string | number | 
  */
 export function parseQueryParams(url: string): Record<string, string> {
   const params = new URL(url).searchParams;
-  return Object.fromEntries(params.entries());
+  const result: Record<string, string> = {};
+  // URLSearchParams.keys() is not available in Workers runtime
+  params.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
 }
 
 /**

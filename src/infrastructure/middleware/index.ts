@@ -3,6 +3,23 @@
  * @description Comprehensive middleware for Cloudflare Workers
  */
 
+// ============================================================
+// Environment Types
+// ============================================================
+
+export interface CloudflareMiddlewareEnv {
+  KV?: KVNamespace;
+  R2?: R2Bucket;
+  D1?: D1Database;
+  DO?: Record<string, DurableObjectNamespace>;
+  QUEUE?: Record<string, Queue>;
+  AI?: any;
+  vars?: Record<string, string>;
+}
+
+// Type alias for backwards compatibility
+export type Env = CloudflareMiddlewareEnv;
+
 // Re-export existing middleware
 export { cors, addCorsHeaders } from './cors';
 export { cache, setCache, invalidateCache } from './cache';
@@ -300,7 +317,7 @@ export interface HealthCheckConfig {
 }
 
 export async function healthCheck(
-  env: Env,
+  env: CloudflareMiddlewareEnv,
   config?: HealthCheckConfig
 ): Promise<Response> {
   const checks: Record<string, boolean | string> = {
@@ -357,9 +374,9 @@ export function handleMiddlewareError(
 }
 
 /**
- * Conditional Middleware
+ * Conditional Middleware (Chain)
  */
-export function conditionalMiddleware(
+export function conditionalChainMiddleware(
   condition: (request: Request) => boolean,
   middleware: (request: Request) => Response | null
 ): (request: Request) => Response | null {

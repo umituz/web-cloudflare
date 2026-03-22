@@ -1,48 +1,48 @@
 /**
  * Image Entity
- * @description Cloudflare Images configuration and types
+ * @description Basic Image entity placeholder
  */
 
+export interface ImageEntity {
+  id: string;
+  url: string;
+  variant?: string;
+}
+
 export interface ImageConfig {
-  readonly account: string;
-  readonly customDomain?: string;
+  formats?: Array<'webp' | 'avif' | 'jpeg' | 'png'>;
+  quality?: number;
 }
 
 export interface ImageVariant {
-  readonly variant: string;
-  readonly width?: number;
-  readonly height?: number;
-  readonly fit?: "scale-down" | "contain" | "cover" | "crop" | "pad";
-  readonly format?: "jpeg" | "png" | "gif" | "webp" | "avif";
-  readonly quality?: number;
+  width: number;
+  height: number;
+  format: string;
+  url: string;
 }
 
 export interface ImageUploadResult {
-  readonly id: string;
-  readonly filename: string;
-  readonly uploaded: Date;
-  readonly variants: readonly string[];
-  readonly requireSignedURLs: boolean;
+  id: string;
+  url: string;
+  variants: ImageVariant[];
 }
 
 export interface ImageUploadOptions {
-  readonly metadata?: Record<string, string>;
-  readonly requireSignedURLs?: boolean;
-  readonly variants?: readonly ImageVariant[];
+  format?: 'webp' | 'avif' | 'jpeg' | 'png';
+  quality?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface ImageTransformation {
-  readonly width?: number;
-  readonly height?: number;
-  readonly fit?: "scale-down" | "contain" | "cover" | "crop" | "pad";
-  readonly format?: "jpeg" | "png" | "gif" | "webp" | "avif";
-  readonly quality?: number;
-  readonly rotate?: number;
-  readonly flip?: boolean;
-  readonly flop?: boolean;
+  width?: number;
+  height?: number;
+  fit?: 'contain' | 'cover' | 'fill';
+  format?: 'webp' | 'avif' | 'jpeg' | 'png';
+  quality?: number;
 }
 
 export interface SignedURL {
-  readonly url: string;
-  readonly expiresAt: Date;
+  url: string;
+  expires: number;
 }
