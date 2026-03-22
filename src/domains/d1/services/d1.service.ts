@@ -3,7 +3,7 @@
  * @description Cloudflare D1 database operations
  */
 
-import type { D1QueryResult, D1BatchResult } from "../entities";
+import type { D1QueryResult, D1BatchResult } from "../../../domain/entities/d1.entity";
 import type { ID1Service } from "../../../domain/interfaces/services.interface";
 
 export interface D1ExecOptions {
@@ -33,14 +33,10 @@ class D1Service implements ID1Service {
     const result = params ? await stmt.bind(...params).all() : await stmt.all();
 
     return {
-      results: result.results as T[],
-      success: result.success,
+      rows: result.results as T[],
       meta: result.meta
         ? {
             duration: result.meta.duration,
-            rows_read: result.meta.rows_read,
-            rows_written: result.meta.rows_written,
-            last_row_id: result.meta.last_row_id,
             changes: result.meta.changes,
           }
         : undefined,
@@ -48,20 +44,20 @@ class D1Service implements ID1Service {
   }
 
   async batch(
-    statements: readonly { sql: string; params?: readonly unknown[]; binding?: string }[]
+    sqlStatements: readonly { sql: string; params?: readonly unknown[]; binding?: string }[]
   ): Promise<D1BatchResult> {
     // Group by binding
     const grouped = new Map<string, D1PreparedStatement[]>();
 
-    for (const stmt of statements) {
-      const binding = stmt.binding || "default";
-      const database = this.getDatabase(binding);
+    for (const stmt of sqlStatements) {
+      const bindingName = stmt.binding || "default";
+      const database = this.getDatabase(bindingName);
 
-      if (!grouped.has(binding)) {
-        grouped.set(binding, []);
+      if (!grouped.has(bindingName)) {
+        grouped.set(bindingName, []);
       }
 
-      grouped.get(binding)!.push(database.prepare(stmt.sql));
+      grouped.get(bindingName)!.push(database.prepare(stmt.sql));
     }
 
     // Note: D1 batch requires all statements to be from the same database
@@ -69,18 +65,17 @@ class D1Service implements ID1Service {
       throw new Error("Batch operations must be from the same database binding");
     }
 
-    const [binding, statements] = Array.from(grouped.entries())[0];
-    const database = this.getDatabase(binding);
+    const [bindingName, preparedStatements] = Array.from(grouped.entries())[0];
+    const database = this.getDatabase(bindingName);
 
-    const results = await database.batch(statements as D1PreparedStatement[]);
+    const results = await database.batch(preparedStatements as D1PreparedStatement[]);
 
     return {
       success: results.every((r) => r.success),
       results: results.map((r) => ({
-        results: r.results,
-        success: r.success,
-        meta: r.meta,
-      })),
+        rows: r.results,
+        meta: r.meta ? { duration: r.meta.duration, changes: r.meta.changes } : undefined,
+      })) as D1QueryResult[],
     };
   }
 
@@ -94,7 +89,7 @@ class D1Service implements ID1Service {
   async findOne<T>(sql: string, params?: readonly unknown[], binding?: string): Promise<T | null> {
     const result = await this.query<T>(sql, params, binding);
 
-    return (result.results[0] as T) ?? null;
+    return (result.rows[0] as T) ?? null;
   }
 
   async insert<T>(
@@ -165,7 +160,7 @@ class D1Service implements ID1Service {
 
     const result = await this.query<{ name: string }>(sql, [table], binding);
 
-    return result.results.length > 0;
+    return result.rows.length > 0;
   }
 
   /**
@@ -188,4 +183,6 @@ interface D1Transaction {
   query<T>(sql: string, params?: readonly unknown[]): Promise<D1QueryResult<T>>;
 }
 
+// Export class and singleton instance
+export { D1Service };
 export const d1Service = new D1Service();

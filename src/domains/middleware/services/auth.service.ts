@@ -3,14 +3,18 @@
  * @description Authentication middleware for Cloudflare Workers
  */
 
-import type { AuthConfig } from '../entities';
+import type { MiddlewareAuthConfig } from '../entities';
+
+// Type aliases for backwards compatibility
+export type { MiddlewareAuthConfig };
+export type AuthConfig = MiddlewareAuthConfig;
 
 /**
  * Require authentication
  */
 export async function requireAuth(
   request: Request,
-  config: AuthConfig
+  config: MiddlewareAuthConfig
 ): Promise<Response | null> {
   if (!config.enabled) {
     return null;

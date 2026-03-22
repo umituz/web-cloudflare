@@ -1,10 +1,12 @@
 /**
  * Wrangler Service Implementation
  * Wraps Wrangler CLI commands with TypeScript
+ *
+ * ⚠️ NODE.JS ONLY: This service requires Node.js runtime and is NOT compatible
+ * with Cloudflare Workers runtime. Use this service only in build/development
+ * scripts running in Node.js environment.
  */
 
-import { exec, spawn } from 'child_process';
-import { promisify } from 'util';
 import type {
   WranglerResult,
   WranglerCommandOptions,
@@ -17,8 +19,10 @@ import type {
 } from '../entities';
 import type { IWranglerService } from '../types/service.interface';
 
-const execAsync = promisify(exec);
-
+/**
+ * Stub implementation for type checking only
+ * Real implementation requires Node.js runtime
+ */
 export class WranglerService implements IWranglerService {
   private readonly wranglerCommand: string;
 
@@ -26,444 +30,147 @@ export class WranglerService implements IWranglerService {
     this.wranglerCommand = options?.wranglerPath || 'npx wrangler';
   }
 
-  /**
-   * Execute a wrangler command
-   */
-  private async execute(
-    args: string[],
-    options: WranglerCommandOptions = {}
-  ): Promise<WranglerResult<string>> {
-    const { cwd = process.cwd(), env = {}, timeout = 30000, silent = false } = options;
-
-    const command = `${this.wranglerCommand} ${args.join(' ')}`;
-
-    try {
-      if (!silent) {
-        console.log(`🔧 Executing: ${command}`);
-      }
-
-      const { stdout, stderr } = await execAsync(command, {
-        cwd,
-        env: { ...process.env, ...env },
-        timeout,
-      });
-
-      return {
-        success: true,
-        data: stdout.trim(),
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
-      };
-    } catch (error: unknown) {
-      const err = error as { stdout?: string; stderr?: string; code?: number };
-      return {
-        success: false,
-        error: err.stderr || err.stdout || String(error),
-        exitCode: err.code,
-      };
-    }
+  // Authentication
+  async login(_options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
+    return this.nodeNotAvailable<AuthInfo>();
   }
 
-  /**
-   * Execute a wrangler command with streaming (for dev, tail, etc.)
-   */
-  private executeStreaming(
-    args: string[],
-    options: WranglerCommandOptions = {}
-  ): Promise<WranglerResult<void>> {
-    return new Promise((resolve, reject) => {
-      const { cwd = process.cwd(), env = {} } = options;
-      const argsWithCommand = this.wranglerCommand.split(' ').concat(args);
-
-      const child = spawn(argsWithCommand[0], argsWithCommand.slice(1), {
-        cwd,
-        env: { ...process.env, ...env },
-        stdio: 'inherit',
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true });
-        } else {
-          resolve({
-            success: false,
-            error: `Command exited with code ${code}`,
-            exitCode: code,
-          });
-        }
-      });
-
-      child.on('error', (error) => {
-        resolve({
-          success: false,
-          error: error.message,
-        });
-      });
-    });
+  async logout(_options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  /**
-   * Parse JSON from stdout
-   */
-  private parseJSON<T>(stdout: string): T | null {
-    try {
-      // Find JSON in output (wrangler sometimes outputs text before JSON)
-      const jsonMatch = stdout.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]) as T;
-      }
-      return JSON.parse(stdout) as T;
-    } catch {
-      return null;
-    }
+  async whoami(_options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
+    return this.nodeNotAvailable<AuthInfo>();
   }
 
-  /**
-   * Convert string result to void result
-   */
-  private asVoidResult(result: WranglerResult<string>): WranglerResult<void> {
-    const { data, ...rest } = result;
-    return rest;
+  // Project management
+  async init(_projectName: string, _template?: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  // ==================== Authentication ====================
-
-  async login(options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
-    const result = await this.execute(['login'], options);
-    if (result.success) {
-      return {
-        ...result,
-        data: { email: 'authenticated' },
-      };
-    }
-    return result;
+  async dev(_options?: WranglerCommandOptions & { port?: number; local?: boolean }): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async logout(options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
-    return this.asVoidResult(await this.execute(['logout'], options));
+  async deploy(_options?: WranglerCommandOptions & { env?: string }): Promise<WranglerResult<{ url?: string }>> {
+    return this.nodeNotAvailable<{ url?: string }>();
   }
 
-  async whoami(options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
-    const result = await this.execute(['whoami', '--json'], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<AuthInfo>(result.data);
-      return {
-        ...result,
-        data: data || { email: 'authenticated' },
-      };
-    }
-    return result;
+  async deleteWorker(_workerName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  // ==================== Project Management ====================
-
-  async init(
-    projectName: string,
-    template?: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    const args = ['init', projectName];
-    if (template) {
-      args.push('--template', template);
-    }
-    return this.asVoidResult(await this.execute(args, options));
+  // KV operations
+  async kvNamespaceCreate(_title: string, _options?: WranglerCommandOptions): Promise<WranglerResult<KVNamespaceInfo>> {
+    return this.nodeNotAvailable<KVNamespaceInfo>();
   }
 
-  async dev(
-    options?: WranglerCommandOptions & { port?: number; local?: boolean }
-  ): Promise<WranglerResult<void>> {
-    const args = ['dev'];
-    if (options?.port) {
-      args.push('--port', options.port.toString());
-    }
-    if (options?.local) {
-      args.push('--local');
-    }
-    return this.executeStreaming(args, options);
+  async kvNamespaceList(_options?: WranglerCommandOptions): Promise<WranglerResult<KVNamespaceInfo[]>> {
+    return this.nodeNotAvailable<KVNamespaceInfo[]>();
   }
 
-  async deploy(
-    options?: WranglerCommandOptions & { env?: string }
-  ): Promise<WranglerResult<{ url?: string }>> {
-    const args = ['deploy'];
-    if (options?.env) {
-      args.push('--env', options.env);
-    }
-    const result = await this.execute(args, options);
-
-    if (result.success && result.data) {
-      // Extract URL from output
-      const urlMatch = result.data.match(/https?:\/\/[^\s]+/);
-      return {
-        ...result,
-        data: { url: urlMatch?.[0] },
-      };
-    }
-
-    return result;
+  async kvKeyPut(_namespaceId: string, _key: string, _value: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async deleteWorker(
-    workerName: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    return this.execute(['delete', workerName], options);
+  async kvKeyList(_namespaceId: string, _options?: WranglerCommandOptions): Promise<WranglerResult<string[]>> {
+    return this.nodeNotAvailable<string[]>();
   }
 
-  // ==================== KV Operations ====================
-
-  async kvNamespaceCreate(
-    title: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<KVNamespaceInfo>> {
-    const result = await this.execute(['kv:namespace', 'create', title], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<KVNamespaceInfo>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  async kvKeyGet(_namespaceId: string, _key: string, _options?: WranglerCommandOptions): Promise<WranglerResult<string>> {
+    return this.nodeNotAvailable<string>();
   }
 
-  async kvNamespaceList(
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<KVNamespaceInfo[]>> {
-    const result = await this.execute(['kv:namespace', 'list'], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<KVNamespaceInfo[]>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  async kvKeyDelete(_namespaceId: string, _key: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async kvKeyPut(
-    namespaceId: string,
-    key: string,
-    value: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    return this.asVoidResult(await this.execute(['kv:key', 'put', '--namespace-id', namespaceId, key, value], options));
+  // R2 operations
+  async r2BucketCreate(_bucketName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<R2BucketInfo>> {
+    return this.nodeNotAvailable<R2BucketInfo>();
   }
 
-  async kvKeyGet(
-    namespaceId: string,
-    key: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<string>> {
-    return this.execute(['kv:key', 'get', '--namespace-id', namespaceId, key], options);
+  async r2BucketList(_options?: WranglerCommandOptions): Promise<WranglerResult<R2BucketInfo[]>> {
+    return this.nodeNotAvailable<R2BucketInfo[]>();
   }
 
-  async kvKeyDelete(
-    namespaceId: string,
-    key: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    return this.asVoidResult(await this.execute(['kv:key', 'delete', '--namespace-id', namespaceId, key], options));
+  async r2BucketDelete(_bucketName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  // ==================== R2 Operations ====================
-
-  async r2BucketCreate(
-    bucketName: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<R2BucketInfo>> {
-    const result = await this.execute(['r2', 'bucket', 'create', bucketName], options);
-    if (result.success) {
-      return {
-        ...result,
-        data: { name: bucketName },
-      };
-    }
-    return result;
+  async r2ObjectPut(_bucketName: string, _key: string, _file: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async r2BucketList(
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<R2BucketInfo[]>> {
-    const result = await this.execute(['r2', 'bucket', 'list'], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<R2BucketInfo[]>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  async r2ObjectGet(_bucketName: string, _key: string, _file: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async r2BucketDelete(
-    bucketName: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    return this.asVoidResult(await this.execute(['r2', 'bucket', 'delete', bucketName], options));
+  async r2ObjectDelete(_bucketName: string, _key: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async r2ObjectPut(
-    bucketName: string,
-    key: string,
-    file: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    return this.asVoidResult(await this.execute(['r2', 'object', 'put', bucketName, key, '--file', file], options));
+  // D1 operations
+  async d1DatabaseCreate(_databaseName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo>> {
+    return this.nodeNotAvailable<D1DatabaseInfo>();
   }
 
-  // ==================== D1 Operations ====================
-
-  async d1Create(
-    databaseName: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<D1DatabaseInfo>> {
-    const result = await this.execute(['d1', 'create', databaseName], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<D1DatabaseInfo>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  async d1DatabaseList(_options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo[]>> {
+    return this.nodeNotAvailable<D1DatabaseInfo[]>();
   }
 
-  async d1List(options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo[]>> {
-    const result = await this.execute(['d1', 'list'], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<D1DatabaseInfo[]>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  async d1Create(_databaseName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo>> {
+    return this.nodeNotAvailable<D1DatabaseInfo>();
   }
 
-  async d1Execute(
-    databaseName: string,
-    command: string,
-    file?: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<unknown[]>> {
-    const args = ['d1', 'execute', databaseName];
-    if (file) {
-      args.push('--file', file);
-    } else {
-      args.push('--command', command);
-    }
-    const result = await this.execute(args, options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<unknown[]>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  async d1List(_options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo[]>> {
+    return this.nodeNotAvailable<D1DatabaseInfo[]>();
   }
 
-  // ==================== Secrets ====================
-
-  async secretPut(
-    secretName: string,
-    value: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    // For secrets, we need to use stdin
-    return new Promise((resolve) => {
-      const args = ['secret', 'put', secretName];
-      const argsWithCommand = this.wranglerCommand.split(' ').concat(args);
-
-      const child = spawn(argsWithCommand[0], argsWithCommand.slice(1), {
-        cwd: options?.cwd || process.cwd(),
-        env: { ...process.env, ...options?.env },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      child.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      child.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve({ success: true, stdout: stdout.trim() });
-        } else {
-          resolve({
-            success: false,
-            error: stderr || 'Failed to put secret',
-            exitCode: code,
-          });
-        }
-      });
-
-      // Write the secret value to stdin
-      child.stdin?.write(value);
-      child.stdin?.end();
-    });
+  async d1Execute(_databaseName: string, _command: string, _file?: string, _options?: WranglerCommandOptions): Promise<WranglerResult<unknown[]>> {
+    return this.nodeNotAvailable<unknown[]>();
   }
 
-  async secretList(options?: WranglerCommandOptions): Promise<WranglerResult<SecretInfo[]>> {
-    const result = await this.execute(['secret', 'list'], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<SecretInfo[]>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  // Secret management
+  async secretPut(_secretName: string, _value: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async secretDelete(
-    secretName: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    return this.asVoidResult(await this.execute(['secret', 'delete', secretName], options));
+  async secretList(_options?: WranglerCommandOptions): Promise<WranglerResult<SecretInfo[]>> {
+    return this.nodeNotAvailable<SecretInfo[]>();
   }
 
-  // ==================== Monitoring ====================
-
-  async tail(
-    options?: WranglerCommandOptions & { format?: 'pretty' | 'json' }
-  ): Promise<WranglerResult<void>> {
-    const args = ['tail'];
-    if (options?.format) {
-      args.push('--format', options.format);
-    }
-    return this.executeStreaming(args, options);
+  async secretDelete(_secretName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  // ==================== Versions ====================
-
-  async versionsList(
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<WorkerVersionInfo[]>> {
-    const result = await this.execute(['versions', 'list'], options);
-    if (result.success && result.data) {
-      const data = this.parseJSON<WorkerVersionInfo[]>(result.data);
-      if (data) {
-        return { ...result, data };
-      }
-    }
-    return result;
+  // Tail logs
+  async tail(_options?: WranglerCommandOptions & { format?: "json" | "pretty" }): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
-  async versionsRollback(
-    versionId: string,
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<void>> {
-    return this.asVoidResult(await this.execute(['versions', 'rollback', '--version-id', versionId], options));
+  // Versions
+  async versionsList(_options?: WranglerCommandOptions): Promise<WranglerResult<WorkerVersionInfo[]>> {
+    return this.nodeNotAvailable<WorkerVersionInfo[]>();
   }
 
-  // ==================== Generic Command Execution ====================
+  async versionsRollback(_versionId: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
+  }
 
-  async executeCommand(
-    command: string,
-    args: string[],
-    options?: WranglerCommandOptions
-  ): Promise<WranglerResult<string>> {
-    return this.execute([command, ...args], options);
+  // Generic command execution
+  async executeCommand(_command: string, _args: string[], _options?: WranglerCommandOptions): Promise<WranglerResult<string>> {
+    return this.nodeNotAvailable<string>();
+  }
+
+  private nodeNotAvailable<T>(): never {
+    throw new Error(
+      'WranglerService requires Node.js runtime. ' +
+      'This service only works in Node.js environment, not in Cloudflare Workers. ' +
+      'Use this service in build scripts or development tools only.'
+    );
   }
 }
+
+// Export singleton instance
+export const wranglerService = new WranglerService();

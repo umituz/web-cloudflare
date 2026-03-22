@@ -3,7 +3,11 @@
  * @description Caching middleware for Cloudflare Workers
  */
 
-import type { CacheConfig } from '../entities';
+import type { MiddlewareCacheConfig } from '../entities';
+
+// Type aliases for backwards compatibility
+export type { MiddlewareCacheConfig };
+export type CacheConfig = MiddlewareCacheConfig;
 
 interface CacheEntry {
   response: Response;
@@ -17,7 +21,7 @@ const cacheStore = new Map<string, CacheEntry>();
  */
 export async function cache(
   request: Request,
-  config: CacheConfig
+  config: MiddlewareCacheConfig
 ): Promise<Response | null> {
   if (!config.enabled) {
     return null;
@@ -46,7 +50,7 @@ export async function cache(
 export function setCache(
   request: Request,
   response: Response,
-  config: CacheConfig
+  config: MiddlewareCacheConfig
 ): void {
   if (!config.enabled) {
     return;

@@ -3,7 +3,7 @@
  * @description Cloudflare Workers HTTP handler and routing
  */
 
-import type { WorkerRequest, WorkerResponse, WorkerConfig } from "../entities";
+import type { WorkerRequest, WorkerResponse, CloudflareWorkerConfig } from "../entities";
 import type { Env } from "../types";
 
 export interface WorkerFetchOptions {
@@ -61,9 +61,9 @@ class WorkersService {
    * Fetch handler
    */
   async fetch(request: WorkerRequest, env?: Env, ctx?: ExecutionContext): Promise<WorkerResponse> {
-    // Initialize cache
-    if (!this.cache && env) {
-      this.cache = caches.default;
+    // Initialize cache if available in Workers runtime
+    if (!this.cache && env && typeof caches !== 'undefined') {
+      this.cache = (caches as any).default;
     }
 
     // Try middleware
@@ -161,4 +161,6 @@ class WorkersService {
   }
 }
 
+// Export class and singleton instance
+export { WorkersService };
 export const workersService = new WorkersService();

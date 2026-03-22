@@ -246,7 +246,7 @@ export const minimalConfig: Partial<WorkerConfig> = {
 export function mergeConfigs<T extends Record<string, any>>(
   base: T,
   ...overrides: Array<Partial<Record<string, any>>>
-): T {
+): Record<string, any> {
   return overrides.reduce((acc, override) => {
     return deepMerge(acc, override);
   }, base);
@@ -255,7 +255,7 @@ export function mergeConfigs<T extends Record<string, any>>(
 function deepMerge<T extends Record<string, any>>(
   target: T,
   source: Partial<Record<string, any>>
-): T {
+): Record<string, any> {
   const output = { ...target };
 
   if (isObject(target) && isObject(source)) {

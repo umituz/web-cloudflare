@@ -3,7 +3,10 @@
  * @description Cross-Origin Resource Sharing middleware for Cloudflare Workers
  */
 
-import type { CORSConfig } from '../entities';
+import type { MiddlewareCORSConfig } from '../entities';
+
+// Type alias for backwards compatibility
+export type CORSConfig = MiddlewareCORSConfig;
 
 /**
  * Add CORS headers to response
@@ -11,7 +14,7 @@ import type { CORSConfig } from '../entities';
 export function addCorsHeaders(
   request: Request,
   response: Response,
-  config: CORSConfig
+  config: MiddlewareCORSConfig
 ): Response {
   if (!config.enabled) {
     return response;
@@ -23,7 +26,7 @@ export function addCorsHeaders(
   // Check if origin is allowed
   const allowedOrigin = config.allowedOrigins.includes('*')
     ? '*'
-    : config.allowedOrigins.includes(origin || '')
+    : origin && config.allowedOrigins.includes(origin)
     ? origin
     : config.allowedOrigins[0];
 
@@ -55,7 +58,7 @@ export function addCorsHeaders(
  */
 export async function cors(
   request: Request,
-  config: CORSConfig
+  config: MiddlewareCORSConfig
 ): Promise<Response | null> {
   if (!config.enabled) {
     return null;
@@ -68,7 +71,7 @@ export async function cors(
 
     const allowedOrigin = config.allowedOrigins.includes('*')
       ? '*'
-      : config.allowedOrigins.includes(origin || '')
+      : origin && config.allowedOrigins.includes(origin)
       ? origin
       : config.allowedOrigins[0];
 

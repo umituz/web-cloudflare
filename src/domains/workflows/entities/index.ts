@@ -18,6 +18,7 @@ export interface WorkflowStep {
     maxDelay: number;
   };
   dependencies?: string[];
+  inputs?: Record<string, unknown>;
 }
 
 /**
@@ -27,7 +28,14 @@ export interface WorkflowDefinition {
   id: string;
   name: string;
   description?: string;
+  version?: string;
   steps: WorkflowStep[];
+  retryConfig?: {
+    maxAttempts: number;
+    backoffMultiplier: number;
+    initialDelay: number;
+    maxDelay: number;
+  };
 }
 
 /**
@@ -36,13 +44,18 @@ export interface WorkflowDefinition {
 export interface WorkflowExecution {
   id: string;
   workflowId: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'retrying';
   currentStep?: string;
   startedAt: number;
   completedAt?: number;
   input: unknown;
   output?: unknown;
+  outputs?: Record<string, unknown>;
   error?: string;
+  completedSteps: string[];
+  failedSteps: string[];
+  inputs: Record<string, unknown>;
+  retryCount: number;
 }
 
 /**

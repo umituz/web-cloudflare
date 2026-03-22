@@ -318,10 +318,27 @@ export async function healthCheck(
   env: CloudflareMiddlewareEnv,
   config?: HealthCheckConfig
 ): Promise<Response> {
+  // Get uptime if available (Node.js only)
+  let uptime = 0;
+  if (config?.uptime !== undefined) {
+    uptime = config.uptime;
+  } else {
+    // Try to get process uptime in Node.js environment
+    try {
+      // @ts-ignore - process is not available in Workers runtime
+      if (typeof process !== 'undefined' && process?.uptime) {
+        // @ts-ignore
+        uptime = process.uptime();
+      }
+    } catch {
+      uptime = 0;
+    }
+  }
+
   const checks: Record<string, boolean | string> = {
     healthy: true,
     timestamp: new Date().toISOString(),
-    uptime: config?.uptime || process.uptime?.() || 0,
+    uptime: uptime.toString(),
   };
 
   if (config?.checks) {

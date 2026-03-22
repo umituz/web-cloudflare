@@ -7,11 +7,41 @@ import type {
   WorkflowDefinition,
   WorkflowExecution,
   WorkflowStep,
-  WorkflowInstanceState,
-  MediaProcessingWorkflow,
-  AIGenerationWorkflow,
-  BatchOperationWorkflow,
 } from '../entities';
+
+// Additional workflow types
+export type WorkflowInstanceState = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface WorkflowStepState {
+  data: Record<string, unknown>;
+  status: WorkflowInstanceState;
+  completedAt?: number;
+}
+
+export interface MediaProcessingWorkflow {
+  type: 'media-processing';
+  input: {
+    url: string;
+    operations: Array<{ type: string; params: Record<string, unknown> }>;
+  };
+}
+
+export interface AIGenerationWorkflow {
+  type: 'ai-generation';
+  input: {
+    prompt: string;
+    model: string;
+    parameters?: Record<string, unknown>;
+  };
+}
+
+export interface BatchOperationWorkflow {
+  type: 'batch-operation';
+  input: {
+    items: Array<{ id: string; data: unknown }>;
+    operation: string;
+  };
+}
 
 export interface WorkflowServiceConfig {
   KV?: KVNamespace;
@@ -73,6 +103,7 @@ export class WorkflowService {
       completedSteps: [],
       failedSteps: [],
       inputs,
+      input: inputs,
       startedAt: Date.now(),
       retryCount: 0,
     };
@@ -122,7 +153,7 @@ export class WorkflowService {
         execution.completedSteps.push(step.id);
 
         // Save step state for idempotency
-        await this.saveStepState(execution.id, step.id, stepResult);
+        await this.saveStepState(execution.id, step.id, { result: stepResult } as Record<string, unknown>);
 
       } catch (error) {
         stepStatus[step.id] = 'failed';
@@ -257,11 +288,10 @@ export class WorkflowService {
     data: Record<string, unknown>
   ): Promise<void> {
     if (this.kv) {
-      const state: WorkflowInstanceState = {
-        executionId,
-        stepId,
+      const state: WorkflowStepState = {
         data,
-        timestamp: Date.now(),
+        status: 'completed',
+        completedAt: Date.now(),
       };
       await this.kv.put(
         `step:${executionId}:${stepId}`,
@@ -276,7 +306,7 @@ export class WorkflowService {
   private async getStepState(
     executionId: string,
     stepId: string
-  ): Promise<WorkflowInstanceState | null> {
+  ): Promise<WorkflowStepState | null> {
     if (this.kv) {
       const data = await this.kv.get(`step:${executionId}:${stepId}`);
       return data ? JSON.parse(data) : null;
@@ -435,3 +465,6 @@ export const WORKFLOW_TEMPLATES: Record<string, Partial<WorkflowDefinition>> = {
     ],
   },
 };
+
+// Export singleton instance
+export const workflowService = new WorkflowService();

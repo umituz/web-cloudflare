@@ -4,10 +4,10 @@
  */
 
 import type {
-  CORSConfig,
-  CacheConfig,
-  RateLimitConfig,
-  AuthConfig,
+  MiddlewareCORSConfig,
+  MiddlewareCacheConfig,
+  MiddlewareRateLimitConfig,
+  MiddlewareAuthConfig,
   SecurityHeadersConfig,
   IPFilterConfig,
   LogConfig,
@@ -15,29 +15,35 @@ import type {
   ErrorHandlerConfig,
 } from '../entities';
 
+// Type aliases for backwards compatibility
+export type CORSConfig = MiddlewareCORSConfig;
+export type CacheConfig = MiddlewareCacheConfig;
+export type RateLimitConfig = MiddlewareRateLimitConfig;
+export type AuthConfig = MiddlewareAuthConfig;
+
 export interface IMiddlewareService {
   /**
    * CORS middleware
    */
-  cors(request: Request, config: CORSConfig): Promise<Response | null>;
-  addCorsHeaders(request: Request, response: Response, config: CORSConfig): Response;
+  cors(request: Request, config: MiddlewareCORSConfig): Promise<Response | null>;
+  addCorsHeaders(request: Request, response: Response, config: MiddlewareCORSConfig): Response;
 
   /**
    * Cache middleware
    */
-  cache(request: Request, config: CacheConfig): Promise<Response | null>;
-  setCache(request: Request, response: Response, config: CacheConfig): void;
+  cache(request: Request, config: MiddlewareCacheConfig): Promise<Response | null>;
+  setCache(request: Request, response: Response, config: MiddlewareCacheConfig): void;
   invalidateCache(pattern?: string): void;
 
   /**
    * Rate limit middleware
    */
-  checkRateLimit(request: Request, config: RateLimitConfig): Promise<Response | null>;
+  checkRateLimit(request: Request, config: MiddlewareRateLimitConfig): Promise<Response | null>;
 
   /**
    * Authentication middleware
    */
-  requireAuth(request: Request, config: AuthConfig): Promise<Response | null>;
+  requireAuth(request: Request, config: MiddlewareAuthConfig): Promise<Response | null>;
   addUserContext(request: Request, user: {
     id: string;
     [key: string]: unknown;
@@ -88,7 +94,7 @@ export interface IMiddlewareService {
    * Health check
    */
   healthCheck(
-    env: import('../../router').CloudflareEnv,
+    env: Record<string, unknown>,
     config?: HealthCheckConfig
   ): Promise<Response>;
 

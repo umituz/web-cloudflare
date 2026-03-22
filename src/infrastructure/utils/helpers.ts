@@ -626,17 +626,25 @@ export function deepClone<T>(obj: T): T {
 /**
  * Deep merge objects
  */
-export function deepMerge<T extends Record<string, any>>(target: T, ...sources: Partial<T>[]): T {
+export function deepMerge<T extends Record<string, any>>(
+  target: T,
+  ...sources: Array<Partial<Record<string, any>>>
+): T {
   if (!sources.length) return target;
   const source = sources.shift();
 
   if (isObject(target) && isObject(source)) {
     for (const key in source) {
-      if (isObject(source[key])) {
-        if (!target[key]) Object.assign(target, { [key]: {} });
-        deepMerge(target[key], source[key]);
+      const sourceValue = source[key];
+      const targetValue = (target as any)[key];
+
+      if (isObject(sourceValue)) {
+        if (!targetValue) {
+          (target as any)[key] = {};
+        }
+        deepMerge((target as any)[key], sourceValue);
       } else {
-        Object.assign(target, { [key]: source[key] });
+        (target as any)[key] = sourceValue;
       }
     }
   }
@@ -651,14 +659,21 @@ function isObject(item: unknown): item is Record<string, unknown> {
 /**
  * Pick properties from object
  */
-export function pick<T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
+export function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
   const result = {} as Pick<T, K>;
   keys.forEach((key) => {
     if (key in obj) {
-      result[key] = obj[key];
+      (result as any)[key] = obj[key];
     }
   });
   return result;
+}
+
+/**
+ * Merge multiple objects
+ */
+export function merge<T extends object>(target: T, ...sources: Array<Partial<T>>): T {
+  return Object.assign(target, ...sources);
 }
 
 /**
@@ -670,6 +685,13 @@ export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
     delete result[key];
   });
   return result as Omit<T, K>;
+}
+
+/**
+ * Clone object
+ */
+export function clone<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
 }
 
 // ============================================================
