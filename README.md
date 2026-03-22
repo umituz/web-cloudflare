@@ -5,12 +5,14 @@ Comprehensive Cloudflare Workers integration with config-based patterns, middlew
 ## 🚀 Features
 
 - ✅ **Config-Based Patterns** - Pre-built configurations for different app types
+- ✅ **Domain-Driven Design** - DDD architecture for better modularity
 - ✅ **Wrangler CLI Integration** - TypeScript wrapper for Wrangler CLI commands
+- ✅ **Workers Service** - HTTP handler with routing and middleware
+- ✅ **AI Gateway** - Multi-provider AI routing with caching and fallback
+- ✅ **Workers AI Integration** - AI content generation with emotion control
 - ✅ **Express-like Router** - Simple, intuitive routing with middleware support
 - ✅ **Comprehensive Middleware** - CORS, caching, rate limiting, security, compression
-- ✅ **Workers AI Integration** - AI content generation with emotion control
 - ✅ **Workflows** - Idempotent, retryable long-running operations
-- ✅ **AI Gateway** - Multi-provider AI routing with caching and fallback
 - ✅ **Utility Functions** - 100+ helper functions for common tasks
 - ✅ **Type-Safe** - Full TypeScript support
 - ✅ **Tree-Shakeable** - Subpath exports for optimal bundle size
@@ -175,7 +177,7 @@ const versions = await wrangler.versionsList();
 await wrangler.versionsRollback(versions[0].id);
 ```
 
-**Note:** Wrangler CLI and Workers services now follow Domain-Driven Design (DDD) architecture with their own domain structures at `src/domains/wrangler/` and `src/domains/workers/`.
+**Note:** Wrangler CLI, Workers, and AI Gateway services now follow Domain-Driven Design (DDD) architecture with their own domain structures at `src/domains/wrangler/`, `src/domains/workers/`, and `src/domains/ai-gateway/`.
 
 ## 📚 Subpath Exports
 
@@ -210,10 +212,10 @@ import { WranglerService } from '@umituz/web-cloudflare/wrangler';
 // Workflows orchestration
 import { WorkflowService, WORKFLOW_TEMPLATES } from '@umituz/web-cloudflare/workflows';
 
-// AI Gateway
+// AI Gateway (now in domains/)
 import { AIGatewayService } from '@umituz/web-cloudflare/ai-gateway';
 
-// Workers AI
+// Workers AI (now in domains/)
 import { WorkersAIService } from '@umituz/web-cloudflare/workers-ai';
 ```
 
@@ -654,10 +656,14 @@ Contributions are welcome!
 │   │   │   ├── services/    # Domain services
 │   │   │   ├── types/       # Domain types
 │   │   │   └── index.ts     # Domain exports
-│   │   └── workers/         # Workers domain
+│   │   ├── workers/         # Workers domain
+│   │   │   ├── entities/    # Domain entities
+│   │   │   ├── services/    # Domain services
+│   │   │   ├── types/       # Domain types
+│   │   │   └── index.ts     # Domain exports
+│   │   └── ai-gateway/      # AI Gateway domain
 │   │       ├── entities/    # Domain entities
 │   │       ├── services/    # Domain services
-│   │       ├── types/       # Domain types
 │   │       └── index.ts     # Domain exports
 │   ├── infrastructure/
 │   │   ├── services/        # Services (kv, r2, d1, etc.)

@@ -9,7 +9,7 @@ import type {
   AIResponse,
   AIProvider,
   AIAnalytics,
-} from '../../domain/ai-gateway.entity';
+} from '../entities';
 
 export class AIGatewayService {
   private config: AIGatewayConfig;
@@ -211,7 +211,7 @@ import type {
   WorkersAIInputs,
   ScriptGenerationRequest,
   EmotionControl,
-} from '../../domain/ai-gateway.entity';
+} from '../entities';
 
 export class WorkersAIService {
   private env: {
