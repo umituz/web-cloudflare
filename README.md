@@ -175,6 +175,8 @@ const versions = await wrangler.versionsList();
 await wrangler.versionsRollback(versions[0].id);
 ```
 
+**Note:** Wrangler CLI service now follows Domain-Driven Design (DDD) architecture with its own domain structure at `src/domains/wrangler/`.
+
 ## 📚 Subpath Exports
 
 ### Services
@@ -646,7 +648,12 @@ Contributions are welcome!
 @umituz/web-cloudflare/
 ├── src/
 │   ├── config/              # Config patterns and types
-│   ├── domain/              # Domain entities
+│   ├── domains/             # Domain-driven design structure
+│   │   └── wrangler/        # Wrangler CLI domain
+│   │       ├── entities/    # Domain entities
+│   │       ├── services/    # Domain services
+│   │       ├── types/       # Domain types
+│   │       └── index.ts     # Domain exports
 │   ├── infrastructure/
 │   │   ├── services/        # Services (workers, kv, r2, d1, etc.)
 │   │   ├── router/          # Express-like router

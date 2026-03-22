@@ -14,8 +14,8 @@ import type {
   D1DatabaseInfo,
   SecretInfo,
   WorkerVersionInfo,
-} from '../../../domain/entities/wrangler.entity';
-import type { IWranglerService } from '../../../domain/interfaces/wrangler.interface';
+} from '../entities';
+import type { IWranglerService } from '../types/service.interface';
 
 const execAsync = promisify(exec);
 

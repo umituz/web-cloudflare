@@ -15,6 +15,7 @@
  * - ./workflows - Workflows orchestration service
  * - ./ai-gateway - AI Gateway service
  * - ./workers-ai - Workers AI service
+ * - ./wrangler - Wrangler CLI service
  * - ./router - Express-like router
  * - ./middleware - Middleware collection
  * - ./utils - Utility helpers
@@ -22,12 +23,10 @@
  * - ./config - Configuration patterns
  * - ./patterns - Configuration patterns (alias for ./config)
  * - ./types - TypeScript types
- * - ./domain - Domain entities
  */
 
-// Domain entities
-export * from "./domain/entities";
-export * from "./domain/interfaces";
+// Domains
+export * from "./domains/wrangler";
 
 // Infrastructure services
 export * from "./infrastructure/services/workers";
@@ -38,7 +37,6 @@ export * from "./infrastructure/services/images";
 export * from "./infrastructure/services/analytics";
 export * from "./infrastructure/services/workflows";
 export * from "./infrastructure/services/ai-gateway";
-export * from "./infrastructure/services/wrangler";
 
 // Infrastructure - Router, Middleware, Utils
 export * from "./infrastructure/router";
