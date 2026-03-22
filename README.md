@@ -1,6 +1,6 @@
 # @umituz/web-cloudflare
 
-Comprehensive Cloudflare Workers integration with config-based patterns, middleware, router, workflows, and AI.
+Comprehensive Cloudflare Workers & Pages integration with config-based patterns, middleware, router, workflows, and AI.
 
 ## 🚀 Features
 
@@ -177,6 +177,39 @@ const versions = await wrangler.versionsList();
 await wrangler.versionsRollback(versions[0].id);
 ```
 
+### Using Cloudflare Pages
+
+```typescript
+import { PagesService } from '@umituz/web-cloudflare/pages';
+
+const pages = new PagesService();
+
+// Create a new Pages project
+await pages.createProject('my-app', {
+  productionBranch: 'main',
+});
+
+// Deploy to Pages
+const deployment = await pages.deploy({
+  projectName: 'my-app',
+  directory: 'dist', // Build output directory
+  branch: 'main',
+  environment: 'production',
+  vars: {
+    API_URL: 'https://api.example.com',
+  },
+});
+
+// List all projects
+const projects = await pages.listProjects();
+
+// List deployments for a project
+const deployments = await pages.listDeployments('my-app');
+
+// Delete a deployment
+await pages.deleteDeployment('my-app', deployment.id);
+```
+
 **Note:** All services now follow Domain-Driven Design (DDD) architecture with their own domain structures:
 - Wrangler CLI: `src/domains/wrangler/`
 - Workers: `src/domains/workers/`
@@ -187,6 +220,7 @@ await wrangler.versionsRollback(versions[0].id);
 - Images: `src/domains/images/`
 - Analytics: `src/domains/analytics/`
 - Workflows: `src/domains/workflows/`
+- Pages: `src/domains/pages/`
 
 ## 📚 Subpath Exports
 
@@ -216,6 +250,9 @@ import { WorkflowService } from '@umituz/web-cloudflare/workflows';
 
 // Wrangler CLI
 import { WranglerService } from '@umituz/web-cloudflare/wrangler';
+
+// Pages deployment
+import { PagesService, pagesService } from '@umituz/web-cloudflare/pages';
 ```
 
 ### Workflows & AI
@@ -680,7 +717,8 @@ Contributions are welcome!
 │   │   ├── kv/              # KV storage domain
 │   │   ├── images/          # Images optimization domain
 │   │   ├── analytics/       # Analytics domain
-│   │   └── workflows/       # Workflows domain
+│   │   ├── workflows/       # Workflows domain
+│   │   ├── pages/           # Pages deployment domain
 │   ├── infrastructure/
 │   │   ├── router/          # Express-like router
 │   │   ├── middleware/      # Middleware collection

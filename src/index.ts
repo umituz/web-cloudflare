@@ -35,6 +35,15 @@ export { d1Service, D1Service } from "./domains/d1";
 export { kvService, KVService } from "./domains/kv";
 export { imagesService, ImagesService } from "./domains/images";
 export { analyticsService, AnalyticsService } from "./domains/analytics";
+// Pages - Node.js-only service
+export { pagesService, PagesService } from "./domains/pages";
+export type {
+  PagesProject,
+  PagesDeployment,
+  PagesDeployOptions,
+  PagesFunction,
+  PagesDeploymentResult,
+} from "./domains/pages";
 // Workflows - selective exports to avoid conflicts
 export type {
   WorkflowStep,

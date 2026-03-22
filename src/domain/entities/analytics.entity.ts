@@ -18,6 +18,7 @@ export interface AnalyticsEvent {
   url: string;
   eventType: string;
   data?: Record<string, unknown>;
+  eventData?: Record<string, unknown>;
 }
 
 export interface AnalyticsData {
@@ -27,4 +28,17 @@ export interface AnalyticsData {
     pageviews: number;
     uniqueVisitors: number;
   };
+}
+
+export interface AnalyticsPageviewEvent {
+  timestamp: number;
+  url: string;
+  title: string;
+  referrer?: string;
+  eventType: 'pageview';
+}
+
+export interface AnalyticsCustomEvent extends AnalyticsEvent {
+  eventName: string;
+  eventData?: Record<string, unknown>;
 }

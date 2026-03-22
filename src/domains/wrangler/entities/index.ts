@@ -53,6 +53,12 @@ export enum WranglerCommand {
   // Versions
   VERSIONS_LIST = 'versions list',
   VERSIONS_ROLLBACK = 'versions rollback',
+
+  // Pages operations
+  PAGES_PROJECT_CREATE = 'pages project create',
+  PAGES_PROJECT_LIST = 'pages project list',
+  PAGES_DEPLOY = 'pages deploy',
+  PAGES_FUNCTION = 'pages function',
 }
 
 /**
@@ -140,3 +146,54 @@ export interface WranglerAnalyticsData {
   statusCodes?: Record<string, number>;
   countries?: Record<string, number>;
 }
+
+/**
+ * Pages project info
+ */
+export interface PagesProjectInfo {
+  name: string;
+  production_branch?: string;
+  creation_date?: string;
+  deployment_configs?: {
+    preview?: {
+      branch?: string;
+      env_vars?: Record<string, string>;
+    };
+    production?: {
+      branch?: string;
+      env_vars?: Record<string, string>;
+    };
+  };
+}
+
+/**
+ * Pages deployment info
+ */
+export interface PagesDeploymentInfo {
+  id: string;
+  project: string;
+  url: string;
+  latest_stage?: string;
+  created_on?: string;
+  deployment_trigger?: {
+    metadata?: {
+      branch?: string;
+      commit_hash?: string;
+    };
+  };
+}
+
+/**
+ * Pages deploy options
+ */
+export interface PagesDeployOptions {
+  projectName: string;
+  directory?: string;
+  branch?: string;
+  preview?: boolean;
+  environment?: 'preview' | 'production';
+  compatibilityDate?: string;
+  compatibilityFlags?: string[];
+  vars?: Record<string, string>;
+}
+

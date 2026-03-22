@@ -16,6 +16,9 @@ import type {
   D1DatabaseInfo,
   SecretInfo,
   WorkerVersionInfo,
+  PagesProjectInfo,
+  PagesDeploymentInfo,
+  PagesDeployOptions,
 } from '../entities';
 import type { IWranglerService } from '../types/service.interface';
 
@@ -144,8 +147,8 @@ export class WranglerService implements IWranglerService {
     return this.nodeNotAvailable<void>();
   }
 
-  // Tail logs
-  async tail(_options?: WranglerCommandOptions & { format?: "json" | "pretty" }): Promise<WranglerResult<void>> {
+  // Monitoring
+  async tail(_options?: WranglerCommandOptions & { format?: 'pretty' | 'json' }): Promise<WranglerResult<void>> {
     return this.nodeNotAvailable<void>();
   }
 
@@ -161,6 +164,23 @@ export class WranglerService implements IWranglerService {
   // Generic command execution
   async executeCommand(_command: string, _args: string[], _options?: WranglerCommandOptions): Promise<WranglerResult<string>> {
     return this.nodeNotAvailable<string>();
+  }
+
+  // Pages operations
+  async pagesProjectCreate(_projectName: string, _options?: WranglerCommandOptions & { productionBranch?: string }): Promise<WranglerResult<PagesProjectInfo>> {
+    return this.nodeNotAvailable<PagesProjectInfo>();
+  }
+
+  async pagesProjectList(_options?: WranglerCommandOptions): Promise<WranglerResult<PagesProjectInfo[]>> {
+    return this.nodeNotAvailable<PagesProjectInfo[]>();
+  }
+
+  async pagesDeploy(_options: PagesDeployOptions & WranglerCommandOptions): Promise<WranglerResult<PagesDeploymentInfo>> {
+    return this.nodeNotAvailable<PagesDeploymentInfo>();
+  }
+
+  async pagesFunctionCreate(_projectName: string, _functionName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
+    return this.nodeNotAvailable<void>();
   }
 
   private nodeNotAvailable<T>(): never {
