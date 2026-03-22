@@ -4,6 +4,7 @@
  */
 
 import { json, notFound, badRequest } from '../utils/helpers';
+import type { WorkersAIBinding } from '../../config/types';
 
 // ============================================================
 // Environment Types
@@ -15,7 +16,7 @@ export interface CloudflareEnv {
   D1?: D1Database;
   DO?: Record<string, DurableObjectNamespace>;
   QUEUE?: Record<string, Queue>;
-  AI?: any;
+  AI?: WorkersAIBinding;
   vars?: Record<string, string>;
 }
 

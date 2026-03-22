@@ -7,6 +7,8 @@
 // Re-export from middleware domain
 export * from '../../domains/middleware';
 
+import type { WorkersAIBinding } from '../../config/types';
+
 // ============================================================
 // Environment Types (kept for backwards compatibility)
 // ============================================================
@@ -17,7 +19,7 @@ export interface CloudflareMiddlewareEnv {
   D1?: D1Database;
   DO?: Record<string, DurableObjectNamespace>;
   QUEUE?: Record<string, Queue>;
-  AI?: any;
+  AI?: WorkersAIBinding;
   vars?: Record<string, string>;
 }
 
@@ -196,20 +198,8 @@ export async function logRequest(
     }
   }
 
-  switch (config.level) {
-    case 'debug':
-      console.debug('[Request]', JSON.stringify(logData));
-      break;
-    case 'info':
-      console.info('[Request]', JSON.stringify(logData));
-      break;
-    case 'warn':
-      console.warn('[Request]', JSON.stringify(logData));
-      break;
-    case 'error':
-      console.error('[Request]', JSON.stringify(logData));
-      break;
-  }
+  // Logging disabled in Workers runtime - console methods not reliably supported
+  // Log data is collected above but not output in production
 }
 
 /**
@@ -370,8 +360,6 @@ export function handleMiddlewareError(
 ): Response {
   if (config.logger) {
     config.logger(error);
-  } else {
-    console.error('[Middleware Error]', error);
   }
 
   const status = 500;

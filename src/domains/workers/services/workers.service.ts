@@ -63,7 +63,10 @@ class WorkersService {
   async fetch(request: WorkerRequest, env?: Env, ctx?: ExecutionContext): Promise<WorkerResponse> {
     // Initialize cache if available in Workers runtime
     if (!this.cache && env && typeof caches !== 'undefined') {
-      this.cache = (caches as any).default;
+      // Handle caches.default which may not be in the type definition
+      type CachesWithDefault = typeof caches & { default?: Cache };
+      const cacheDefault = (caches as CachesWithDefault).default;
+      this.cache = cacheDefault ?? null;
     }
 
     // Try middleware
