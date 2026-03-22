@@ -13,6 +13,9 @@ import type {
   SecretInfo,
   WorkerVersionInfo,
   WranglerAnalyticsData,
+  PagesProjectInfo,
+  PagesDeploymentInfo,
+  PagesDeployOptions,
 } from '../entities';
 
 export interface IWranglerService {
@@ -52,6 +55,10 @@ export interface IWranglerService {
     value: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
+  kvKeyList(
+    namespaceId: string,
+    options?: WranglerCommandOptions
+  ): Promise<WranglerResult<string[]>>;
   kvKeyGet(
     namespaceId: string,
     key: string,
@@ -127,4 +134,21 @@ export interface IWranglerService {
     args: string[],
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<string>>;
+
+  // Pages operations
+  pagesProjectCreate(
+    projectName: string,
+    options?: WranglerCommandOptions & { productionBranch?: string }
+  ): Promise<WranglerResult<PagesProjectInfo>>;
+  pagesProjectList(
+    options?: WranglerCommandOptions
+  ): Promise<WranglerResult<PagesProjectInfo[]>>;
+  pagesDeploy(
+    options: PagesDeployOptions & WranglerCommandOptions
+  ): Promise<WranglerResult<PagesDeploymentInfo>>;
+  pagesFunctionCreate(
+    projectName: string,
+    functionName: string,
+    options?: WranglerCommandOptions
+  ): Promise<WranglerResult<void>>;
 }

@@ -167,10 +167,13 @@ export class WorkflowService {
           execution.status = 'retrying';
           await this.saveExecution(execution);
 
-          // Exponential backoff
+          // Exponential backoff with defaults
+          const initialDelay = retryPolicy.initialDelay ?? 1000;
+          const backoffMultiplier = retryPolicy.backoffMultiplier ?? 2;
+          const maxDelay = retryPolicy.maxDelay ?? 30000;
           const delay = Math.min(
-            retryPolicy.initialDelay * Math.pow(retryPolicy.backoffMultiplier, execution.retryCount),
-            retryPolicy.maxDelay
+            initialDelay * Math.pow(backoffMultiplier, execution.retryCount),
+            maxDelay
           );
           await this.sleep(delay);
 
@@ -202,7 +205,8 @@ export class WorkflowService {
   ): Promise<unknown> {
     // This would call the actual handler function
     // For now, simulate execution
-    const handler = this.getHandler(step.handler);
+    const handlerId = typeof step.handler === 'string' ? step.handler : 'anonymous';
+    const handler = this.getHandler(handlerId);
     if (!handler) {
       throw new Error(`Handler ${step.handler} not found`);
     }

@@ -1,0 +1,11 @@
+# Source maps
+**/*.map
+**/*.js.map
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Development files
+.eslintrc.json
+.prettierrc
+.gitignore

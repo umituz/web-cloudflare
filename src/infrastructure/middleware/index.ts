@@ -27,47 +27,24 @@ export interface CloudflareMiddlewareEnv {
 export type Env = CloudflareMiddlewareEnv;
 
 // ============================================================
-// New Middleware
+// Additional Middleware Functions
 // ============================================================
 
 /**
  * Compression Middleware
+ * Note: Cloudflare handles compression automatically at the edge
  */
 export async function compression(
   request: Request,
   response: Response
 ): Promise<Response> {
-  const acceptEncoding = request.headers.get('Accept-Encoding') || '';
-  const contentType = response.headers.get('Content-Type') || '';
-
-  // Check if client accepts compression
-  if (!acceptEncoding.includes('gzip') && !acceptEncoding.includes('br')) {
-    return response;
-  }
-
-  // Check if content type is compressible
-  const compressibleTypes = [
-    'text/',
-    'application/json',
-    'application/javascript',
-    'application/xml',
-    'application/xhtml+xml',
-  ];
-
-  const isCompressible = compressibleTypes.some((type) =>
-    contentType.includes(type)
-  );
-
-  if (!isCompressible) {
-    return response;
-  }
-
-  // Return original response (Cloudflare handles compression automatically)
+  // Cloudflare automatically handles compression
   return response;
 }
 
 /**
  * Security Headers Middleware
+ * @deprecated Use addSecurityHeaders from '@umituz/web-cloudflare/middleware' instead
  */
 export interface SecurityHeadersConfig {
   frameGuard?: boolean;
@@ -155,6 +132,7 @@ export async function detectBot(request: Request): Promise<{
 
 /**
  * Request Logging Middleware
+ * @deprecated Use LogConfig from '@umituz/web-cloudflare/middleware' instead
  */
 export interface LogConfig {
   level: 'debug' | 'info' | 'warn' | 'error';
@@ -212,14 +190,22 @@ export async function trackResponseTime(
   const response = await handler();
   const duration = Date.now() - start;
 
-  // Add timing header
-  response.headers.set('X-Response-Time', `${duration}ms`);
+  // Create new response with timing header since Response headers are immutable
+  const headers = new Headers(response.headers);
+  headers.set('X-Response-Time', `${duration}ms`);
 
-  return { response, duration };
+  const newResponse = new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+
+  return { response: newResponse, duration };
 }
 
 /**
  * IP Filter Middleware
+ * @deprecated Use IPFilterConfig from '@umituz/web-cloudflare/middleware' instead
  */
 export interface IPFilterConfig {
   mode: 'whitelist' | 'blacklist';
@@ -261,7 +247,6 @@ export function methodOverride(request: Request): Request {
   const overrideMethod = method || bodyMethod;
 
   if (overrideMethod && ['PUT', 'PATCH', 'DELETE'].includes(overrideMethod.toUpperCase())) {
-    // Return modified request
     return new Request(request.url, {
       method: overrideMethod.toUpperCase(),
       headers: request.headers,
@@ -282,48 +267,32 @@ export function addRequestID(request: Request): string {
     return existingID;
   }
 
-  const requestID = crypto.randomUUID();
-  return requestID;
+  return crypto.randomUUID();
 }
 
 /**
- * Response Time Middleware
+ * Current Time Endpoint
  */
-export function responseTime(): Response {
-  const response = new Response(JSON.stringify({ time: Date.now() }), {
+export function getCurrentTimeResponse(): Response {
+  return new Response(JSON.stringify({ time: Date.now() }), {
     headers: { 'Content-Type': 'application/json' },
   });
-  return response;
 }
 
 /**
  * Health Check Middleware
+ * @deprecated Use HealthCheckConfig from '@umituz/web-cloudflare/middleware' instead
  */
 export interface HealthCheckConfig {
-  uptime: number;
-  checks: Record<string, () => Promise<boolean>>;
+  uptime?: number;
+  checks?: Record<string, () => Promise<boolean>>;
 }
 
 export async function healthCheck(
   env: CloudflareMiddlewareEnv,
   config?: HealthCheckConfig
 ): Promise<Response> {
-  // Get uptime if available (Node.js only)
-  let uptime = 0;
-  if (config?.uptime !== undefined) {
-    uptime = config.uptime;
-  } else {
-    // Try to get process uptime in Node.js environment
-    try {
-      // @ts-ignore - process is not available in Workers runtime
-      if (typeof process !== 'undefined' && process?.uptime) {
-        // @ts-ignore
-        uptime = process.uptime();
-      }
-    } catch {
-      uptime = 0;
-    }
-  }
+  let uptime = config?.uptime ?? 0;
 
   const checks: Record<string, boolean | string> = {
     healthy: true,
@@ -348,15 +317,16 @@ export async function healthCheck(
 
 /**
  * Error Handling Middleware
+ * @deprecated Use ErrorHandlerConfig from '@umituz/web-cloudflare/middleware' instead
  */
 export interface ErrorHandlerConfig {
-  debug: boolean;
+  debug?: boolean;
   logger?: (error: Error) => void;
 }
 
 export function handleMiddlewareError(
   error: Error,
-  config: ErrorHandlerConfig = { debug: false }
+  config: ErrorHandlerConfig = {}
 ): Response {
   if (config.logger) {
     config.logger(error);
