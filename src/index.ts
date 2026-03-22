@@ -38,6 +38,7 @@ export * from "./infrastructure/services/images";
 export * from "./infrastructure/services/analytics";
 export * from "./infrastructure/services/workflows";
 export * from "./infrastructure/services/ai-gateway";
+export * from "./infrastructure/services/wrangler";
 
 // Infrastructure - Router, Middleware, Utils
 export * from "./infrastructure/router";

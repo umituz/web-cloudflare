@@ -5,6 +5,7 @@ Comprehensive Cloudflare Workers integration with config-based patterns, middlew
 ## 🚀 Features
 
 - ✅ **Config-Based Patterns** - Pre-built configurations for different app types
+- ✅ **Wrangler CLI Integration** - TypeScript wrapper for Wrangler CLI commands
 - ✅ **Express-like Router** - Simple, intuitive routing with middleware support
 - ✅ **Comprehensive Middleware** - CORS, caching, rate limiting, security, compression
 - ✅ **Workers AI Integration** - AI content generation with emotion control
@@ -130,6 +131,50 @@ const analysis = await aiService.analyzeSentiment(content);
 // { sentiment: 'positive', confidence: 0.89, emotions: ['excited'] }
 ```
 
+### Using Wrangler CLI
+
+```typescript
+import { WranglerService } from '@umituz/web-cloudflare/wrangler';
+
+const wrangler = new WranglerService();
+
+// Authentication
+await wrangler.login();
+const authInfo = await wrangler.whoami();
+
+// Project management
+await wrangler.init('my-worker', 'typescript');
+await wrangler.deploy({ env: 'production' });
+
+// Start development server
+await wrangler.dev({ port: 8787, local: true });
+
+// KV operations
+const namespace = await wrangler.kvNamespaceCreate('MY_KV');
+await wrangler.kvKeyPut(namespace.id, 'key', 'value');
+const value = await wrangler.kvKeyGet(namespace.id, 'key');
+
+// R2 operations
+await wrangler.r2BucketCreate('my-bucket');
+const buckets = await wrangler.r2BucketList();
+await wrangler.r2ObjectPut('my-bucket', 'file.txt', './local-file.txt');
+
+// D1 operations
+const db = await wrangler.d1Create('my-database');
+const result = await wrangler.d1Execute('my-database', 'SELECT * FROM users');
+
+// Secrets management
+await wrangler.secretPut('API_KEY', 'secret-value');
+const secrets = await wrangler.secretList();
+
+// Monitoring
+await wrangler.tail({ format: 'json' });
+
+// Version management
+const versions = await wrangler.versionsList();
+await wrangler.versionsRollback(versions[0].id);
+```
+
 ## 📚 Subpath Exports
 
 ### Services
@@ -152,6 +197,9 @@ import { ImagesService } from '@umituz/web-cloudflare/images';
 
 // Analytics
 import { AnalyticsService } from '@umituz/web-cloudflare/analytics';
+
+// Wrangler CLI
+import { WranglerService } from '@umituz/web-cloudflare/wrangler';
 ```
 
 ### Workflows & AI
