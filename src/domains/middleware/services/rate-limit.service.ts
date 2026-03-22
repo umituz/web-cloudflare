@@ -1,21 +1,9 @@
 /**
- * Rate Limit Middleware
+ * Rate Limit Service
  * @description Rate limiting middleware for Cloudflare Workers
  */
 
-export interface RateLimitConfig {
-  enabled: boolean;
-  maxRequests: number;
-  window: number;
-  by?: 'ip' | 'user' | 'both';
-  customKeys?: string[];
-  whitelist?: string[];
-  response?: {
-    status: number;
-    message: string;
-    retryAfter?: number;
-  };
-}
+import type { RateLimitConfig } from '../entities';
 
 interface RateLimitEntry {
   count: number;

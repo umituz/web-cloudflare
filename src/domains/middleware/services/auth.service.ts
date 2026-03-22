@@ -1,17 +1,9 @@
 /**
- * Auth Middleware
+ * Auth Service
  * @description Authentication middleware for Cloudflare Workers
  */
 
-export interface AuthConfig {
-  enabled: boolean;
-  type: 'bearer' | 'apikey' | 'basic';
-  token?: string;
-  apiKeyHeader?: string;
-  apiKeyValue?: string;
-  username?: string;
-  password?: string;
-}
+import type { AuthConfig } from '../entities';
 
 /**
  * Require authentication

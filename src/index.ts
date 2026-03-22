@@ -35,10 +35,10 @@ export * from "./domains/kv";
 export * from "./domains/images";
 export * from "./domains/analytics";
 export * from "./domains/workflows";
+export * from "./domains/middleware";
 
-// Infrastructure - Router, Middleware, Utils
+// Infrastructure - Router, Utils
 export * from "./infrastructure/router";
-export * from "./infrastructure/middleware";
 export * from "./infrastructure/utils/helpers";
 export * from "./infrastructure/constants";
 

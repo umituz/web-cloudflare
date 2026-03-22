@@ -1,18 +1,16 @@
 /**
- * Cache Middleware
+ * Cache Service
  * @description Caching middleware for Cloudflare Workers
  */
 
-export interface CacheConfig {
-  enabled: boolean;
-  defaultTTL: number;
-  paths?: Record<string, number>;
-  prefix?: string;
-  bypassPaths?: string[];
-  respectHeaders?: boolean;
+import type { CacheConfig } from '../entities';
+
+interface CacheEntry {
+  response: Response;
+  expires: number;
 }
 
-const cacheStore = new Map<string, { response: Response; expires: number }>();
+const cacheStore = new Map<string, CacheEntry>();
 
 /**
  * Cache middleware
