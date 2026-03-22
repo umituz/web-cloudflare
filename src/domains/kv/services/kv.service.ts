@@ -78,13 +78,17 @@ class KVService implements IKVService {
       prefix: options?.prefix,
     });
 
+    // Handle cursor property which may not be in the type definition
+    type ListResultWithCursor = typeof list & { cursor?: string };
+    const cursor = (list as ListResultWithCursor).cursor;
+
     return {
       keys: list.keys.map((k) => ({
         key: k.name,
         value: '',
         metadata: k.metadata as Record<string, unknown> | undefined,
       })),
-      cursor: (list as any).cursor as string | undefined,
+      cursor: cursor,
     };
   }
 

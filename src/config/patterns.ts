@@ -256,23 +256,26 @@ function deepMerge<T extends Record<string, any>>(
   target: T,
   source: Partial<Record<string, any>>
 ): Record<string, any> {
-  const output = { ...target };
+  const output: Record<string, unknown> = { ...target };
 
   if (isObject(target) && isObject(source)) {
     Object.keys(source).forEach((key) => {
       const sourceValue = source[key];
-      const targetValue = target[key as keyof T];
+      const targetValue = (target as Record<string, unknown>)[key];
 
       if (isObject(sourceValue)) {
         if (!(key in target)) {
-          (output as any)[key] = sourceValue;
+          output[key] = sourceValue;
         } else if (isObject(targetValue)) {
-          (output as any)[key] = deepMerge(targetValue, sourceValue);
+          output[key] = deepMerge(
+            targetValue as Record<string, any>,
+            sourceValue
+          );
         } else {
-          (output as any)[key] = sourceValue;
+          output[key] = sourceValue;
         }
       } else {
-        (output as any)[key] = sourceValue;
+        output[key] = sourceValue;
       }
     });
   }

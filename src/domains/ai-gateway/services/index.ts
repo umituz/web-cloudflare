@@ -10,6 +10,7 @@ import type {
   AIProvider,
   AIAnalytics,
 } from '../entities';
+import type { WorkersAIBinding } from '../../../config/types';
 
 export class AIGatewayService {
   private config: AIGatewayConfig;
@@ -225,14 +226,21 @@ import type {
 
 export class WorkersAIService {
   private env: {
-    AI?: any;
+    AI?: WorkersAIBinding;
     bindings?: {
-      AI?: any;
+      AI?: WorkersAIBinding;
     };
   };
 
-  constructor(env: { AI?: any; bindings?: any }) {
+  constructor(env: { AI?: WorkersAIBinding; bindings?: { AI?: WorkersAIBinding } }) {
     this.env = env;
+  }
+
+  /**
+   * Workers AI Binding type
+   */
+  private getAI(): WorkersAIBinding | null {
+    return this.env.bindings?.AI || this.env.AI || null;
   }
 
   /**
@@ -243,19 +251,24 @@ export class WorkersAIService {
     inputs: WorkersAIInputs['text_generation']
   ): Promise<WorkersAIResponse> {
     try {
-      // @ts-ignore - Workers AI runtime binding
-      const ai = this.env.bindings?.AI || this.env.AI;
+      const ai = this.getAI();
 
       if (!ai) {
         throw new Error('Workers AI binding not configured');
       }
 
-      const response = await ai.run(model, inputs);
+      if (!inputs) {
+        throw new Error('Inputs are required for text generation');
+      }
+
+      const response = await ai.run(model, inputs as Record<string, unknown>);
 
       return {
         success: true,
         data: {
-          output: response.response || response.output || response.text,
+          output: ((response as Record<string, unknown>).response as string | string[] | undefined) ||
+                  ((response as Record<string, unknown>).output as string | string[] | undefined) ||
+                  ((response as Record<string, unknown>).text as string | string[] | undefined),
         },
         model,
       };
@@ -329,19 +342,23 @@ Generate the script:`;
     inputs: WorkersAIInputs['image_generation']
   ): Promise<WorkersAIResponse> {
     try {
-      // @ts-ignore - Workers AI runtime binding
-      const ai = this.env.bindings?.AI || this.env.AI;
+      const ai = this.getAI();
 
       if (!ai) {
         throw new Error('Workers AI binding not configured');
       }
 
-      const response = await ai.run(model, inputs);
+      if (!inputs) {
+        throw new Error('Inputs are required for image generation');
+      }
+
+      const response = await ai.run(model, inputs as Record<string, unknown>);
 
       return {
         success: true,
         data: {
-          image: response.image || response.output,
+          image: (response as Record<string, unknown>).image as string | undefined ||
+                 (response as Record<string, unknown>).output as string | undefined,
         },
         model,
       };
@@ -359,20 +376,19 @@ Generate the script:`;
    */
   async generateEmbedding(text: string): Promise<WorkersAIResponse> {
     try {
-      // @ts-ignore - Workers AI runtime binding
-      const ai = this.env.bindings?.AI || this.env.AI;
+      const ai = this.getAI();
 
       if (!ai) {
         throw new Error('Workers AI binding not configured');
       }
 
       const model = '@cf/openai/clip-vit-base-patch32';
-      const response = await ai.run(model, { text });
+      const response = await ai.run(model, { text }) as Record<string, unknown>;
 
       return {
         success: true,
         data: {
-          embedding: response.embedding || response.output,
+          embedding: response.embedding as number[] | undefined || response.output as number[] | undefined,
         },
         model,
       };
@@ -394,8 +410,7 @@ Generate the script:`;
     targetLang: string
   ): Promise<WorkersAIResponse> {
     try {
-      // @ts-ignore - Workers AI runtime binding
-      const ai = this.env.bindings?.AI || this.env.AI;
+      const ai = this.getAI();
 
       if (!ai) {
         throw new Error('Workers AI binding not configured');
@@ -406,12 +421,14 @@ Generate the script:`;
         text,
         source_lang: sourceLang,
         target_lang: targetLang,
-      });
+      }) as Record<string, unknown>;
 
       return {
         success: true,
         data: {
-          output: response.translated_text || response.output || response.text,
+          output: response.translated_text as string | string[] | undefined ||
+                 response.output as string | string[] | undefined ||
+                 response.text as string | string[] | undefined,
         },
         model: '@cf/meta/m2m100-1.2b',
       };

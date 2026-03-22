@@ -629,12 +629,20 @@ export interface EnvConfig {
   /**
    * AI bindings
    */
-  AI?: any;
+  AI?: WorkersAIBinding;
 
   /**
    * Custom environment variables
    */
   vars?: Record<string, string>;
+}
+
+/**
+ * Workers AI Binding
+ * @description Cloudflare Workers AI runtime binding
+ */
+export interface WorkersAIBinding {
+  run: <T = unknown>(model: string, inputs: Record<string, unknown>) => Promise<T>;
 }
 
 // ============================================================

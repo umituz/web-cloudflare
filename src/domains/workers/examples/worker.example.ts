@@ -4,7 +4,8 @@
  */
 
 import { workersService, kvService } from "@umituz/web-cloudflare";
-import type { Env } from "../types";
+import type { Env } from "../types/env.types";
+import type { WorkerRequest } from "../entities";
 
 // Configure routes
 workersService.route("/", async () => {
@@ -39,5 +40,5 @@ workersService.route("/api/cache/:key", async (request, env?: Env) => {
 // Export for Cloudflare Workers
 export default {
   fetch: (request: Request, env?: Env, ctx?: ExecutionContext) =>
-    workersService.fetch(request as any, env, ctx),
+    workersService.fetch(request as unknown as WorkerRequest, env, ctx),
 };

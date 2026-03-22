@@ -636,15 +636,15 @@ export function deepMerge<T extends Record<string, any>>(
   if (isObject(target) && isObject(source)) {
     for (const key in source) {
       const sourceValue = source[key];
-      const targetValue = (target as any)[key];
+      const targetValue = (target as Record<string, unknown>)[key];
 
       if (isObject(sourceValue)) {
         if (!targetValue) {
-          (target as any)[key] = {};
+          (target as Record<string, unknown>)[key] = {};
         }
-        deepMerge((target as any)[key], sourceValue);
+        deepMerge((target as Record<string, unknown>)[key] as Record<string, any>, sourceValue);
       } else {
-        (target as any)[key] = sourceValue;
+        (target as Record<string, unknown>)[key] = sourceValue;
       }
     }
   }
@@ -663,7 +663,7 @@ export function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pi
   const result = {} as Pick<T, K>;
   keys.forEach((key) => {
     if (key in obj) {
-      (result as any)[key] = obj[key];
+      (result as Record<string, unknown>)[key as string] = obj[key as keyof T];
     }
   });
   return result;

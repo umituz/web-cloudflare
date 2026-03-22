@@ -90,13 +90,17 @@ class R2Service implements IR2Service {
       cursor: options?.cursor,
     });
 
+    // Handle cursor property which may not be in the type definition
+    type ListResultWithCursor = typeof listed & { cursor?: string };
+    const cursor = (listed as ListResultWithCursor).cursor;
+
     return {
       objects: listed.objects.map((obj) => ({
         key: obj.key,
         size: obj.size,
         uploaded: obj.uploaded,
       })),
-      cursor: (listed as any).cursor as string | undefined,
+      cursor: cursor,
     };
   }
 
