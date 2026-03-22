@@ -636,6 +636,15 @@ const result = await retry(
 await sleep(1000); // 1 second
 ```
 
+## 📋 Version Strategy
+
+**Important:** This package follows a **patch-only versioning strategy**. Only the patch version will increment (e.g., 1.4.0 → 1.4.1 → 1.4.2). Major version bumps (2.0.0) will never occur. This ensures stability and prevents breaking changes from version updates.
+
+## 📁 Example Files
+
+Example files are located within their respective domains:
+- **Worker Example**: `src/domains/workers/examples/worker.example.ts`
+
 ## 📝 License
 
 MIT
