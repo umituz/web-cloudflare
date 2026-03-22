@@ -175,15 +175,15 @@ const versions = await wrangler.versionsList();
 await wrangler.versionsRollback(versions[0].id);
 ```
 
-**Note:** Wrangler CLI service now follows Domain-Driven Design (DDD) architecture with its own domain structure at `src/domains/wrangler/`.
+**Note:** Wrangler CLI and Workers services now follow Domain-Driven Design (DDD) architecture with their own domain structures at `src/domains/wrangler/` and `src/domains/workers/`.
 
 ## 📚 Subpath Exports
 
 ### Services
 
 ```typescript
-// Workers service
-import { WorkerService } from '@umituz/web-cloudflare/workers';
+// Workers service (now in domains/)
+import { WorkersService, workersService } from '@umituz/web-cloudflare/workers';
 
 // KV cache
 import { KVService } from '@umituz/web-cloudflare/kv';
@@ -649,13 +649,18 @@ Contributions are welcome!
 ├── src/
 │   ├── config/              # Config patterns and types
 │   ├── domains/             # Domain-driven design structure
-│   │   └── wrangler/        # Wrangler CLI domain
+│   │   ├── wrangler/        # Wrangler CLI domain
+│   │   │   ├── entities/    # Domain entities
+│   │   │   ├── services/    # Domain services
+│   │   │   ├── types/       # Domain types
+│   │   │   └── index.ts     # Domain exports
+│   │   └── workers/         # Workers domain
 │   │       ├── entities/    # Domain entities
 │   │       ├── services/    # Domain services
 │   │       ├── types/       # Domain types
 │   │       └── index.ts     # Domain exports
 │   ├── infrastructure/
-│   │   ├── services/        # Services (workers, kv, r2, d1, etc.)
+│   │   ├── services/        # Services (kv, r2, d1, etc.)
 │   │   ├── router/          # Express-like router
 │   │   ├── middleware/      # Middleware collection
 │   │   └── utils/           # Helper functions

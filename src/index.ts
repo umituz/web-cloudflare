@@ -27,9 +27,7 @@
 
 // Domains
 export * from "./domains/wrangler";
-
-// Infrastructure services
-export * from "./infrastructure/services/workers";
+export * from "./domains/workers";
 export * from "./infrastructure/services/kv";
 export * from "./infrastructure/services/r2";
 export * from "./infrastructure/services/d1";

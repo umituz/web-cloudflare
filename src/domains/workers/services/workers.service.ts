@@ -3,8 +3,8 @@
  * @description Cloudflare Workers HTTP handler and routing
  */
 
-import type { WorkerRequest, WorkerResponse, WorkerConfig } from "../../../domain/entities/worker.entity";
-import type { Env } from "../../../domain/interfaces/services.interface";
+import type { WorkerRequest, WorkerResponse, WorkerConfig } from "../entities";
+import type { Env } from "../types";
 
 export interface WorkerFetchOptions {
   readonly cache?: CacheControls;

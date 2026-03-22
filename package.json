@@ -1,13 +1,13 @@
 {
   "name": "@umituz/web-cloudflare",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Comprehensive Cloudflare Workers integration with config-based patterns, middleware, router, workflows, and AI",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./workers": "./src/infrastructure/services/workers/index.ts",
+    "./workers": "./src/domains/workers/index.ts",
     "./kv": "./src/infrastructure/services/kv/index.ts",
     "./r2": "./src/infrastructure/services/r2/index.ts",
     "./d1": "./src/infrastructure/services/d1/index.ts",
