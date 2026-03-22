@@ -1,9 +1,10 @@
 /**
  * Analytics Service
- * @description Cloudflare Web Analytics operations
+ * @description Cloudflare Web Analytics operations for Workers runtime
  */
 
-import type { AnalyticsEvent, AnalyticsPageviewEvent, AnalyticsCustomEvent, AnalyticsData } from "../entities";
+import type { AnalyticsEvent, AnalyticsPageviewEvent, AnalyticsCustomEvent } from "../entities";
+import type { AnalyticsData } from "../../../domain/entities/analytics.entity";
 import type { IAnalyticsService } from "../../../domain/interfaces/services.interface";
 
 export interface AnalyticsClientOptions {
@@ -29,13 +30,9 @@ class AnalyticsService implements IAnalyticsService {
 
   async trackEvent(event: AnalyticsEvent): Promise<void> {
     this.ensureInitialized();
-
     this.eventQueue.push(event);
-
-    // In a browser environment, send to Cloudflare Analytics
-    if (typeof window !== "undefined" && (window as any)._cfAnalytics) {
-      (window as any)._cfAnalytics.track(event);
-    }
+    // In Workers runtime, events are queued for batch processing
+    // The actual sending would be done via Cloudflare Analytics API
   }
 
   async trackPageview(url: string, title: string, referrer?: string): Promise<void> {
@@ -50,12 +47,10 @@ class AnalyticsService implements IAnalyticsService {
     await this.trackEvent(event);
   }
 
-  async trackCustom(eventName: string, data?: Record<string, unknown>): Promise<void> {
-    if (typeof window === "undefined") return;
-
+  async trackCustom(eventName: string, data?: Record<string, unknown>, url?: string): Promise<void> {
     const event: AnalyticsCustomEvent = {
       timestamp: Date.now(),
-      url: window.location.href,
+      url: url || '/workers',
       eventType: "custom",
       eventName,
       eventData: data,
@@ -65,11 +60,9 @@ class AnalyticsService implements IAnalyticsService {
   }
 
   async trackOutboundLink(url: string, linkType?: string): Promise<void> {
-    if (typeof window === "undefined") return;
-
     const event: AnalyticsCustomEvent = {
       timestamp: Date.now(),
-      url: window.location.href,
+      url: '/workers',
       eventType: "custom",
       eventName: "outbound-link",
       eventData: {
@@ -82,11 +75,9 @@ class AnalyticsService implements IAnalyticsService {
   }
 
   async trackTiming(name: string, value: number, label?: string): Promise<void> {
-    if (typeof window === "undefined") return;
-
     const event: AnalyticsEvent = {
       timestamp: Date.now(),
-      url: window.location.href,
+      url: '/workers',
       eventType: "timing",
       eventData: {
         name,
@@ -101,89 +92,22 @@ class AnalyticsService implements IAnalyticsService {
   async getAnalytics(): Promise<AnalyticsData> {
     this.ensureInitialized();
 
-    // In a real implementation, this would fetch from Cloudflare Analytics API
-    // For now, return queued events
-
     return {
       siteId: this.siteId!,
-      events: this.eventQueue,
+      events: [...this.eventQueue],
       metrics: {
-        pageviews: this.eventQueue.filter((e) => e.eventType === "pageview").length,
-        uniqueVisitors: new Set(this.eventQueue.map((e) => e.url)).size,
+        pageviews: this.eventQueue.filter(e => e.eventType === "pageview").length,
+        uniqueVisitors: 0, // Would be calculated from stored data
       },
     };
   }
 
-  /**
-   * Get analytics script tag
-   */
-  getScriptTag(): string {
-    this.ensureInitialized();
-
-    const scriptUrl = this.scriptUrl || `https://static.cloudflareinsights.com/beacon.min.js`;
-
-    return `
-<script defer src='${scriptUrl}' data-cf-beacon='{"token": "${this.siteId}"}'></script>
-    `.trim();
-  }
-
-  /**
-   * Clear queued events
-   */
-  clearEvents(): void {
+  async flush(): Promise<void> {
+    // In Workers, this would send events to Cloudflare Analytics API
     this.eventQueue = [];
-  }
-
-  /**
-   * Get queued events
-   */
-  getQueuedEvents(): readonly AnalyticsEvent[] {
-    return this.eventQueue;
-  }
-
-  /**
-   * E-commerce helpers
-   */
-  async trackPurchase(transactionId: string, revenue: number, items: readonly { id: string; name: string; price: number; quantity: number }[]): Promise<void> {
-    await this.trackCustom("purchase", {
-      transactionId,
-      revenue,
-      items,
-    });
-  }
-
-  async trackAddToCart(itemId: string, price: number, quantity: number): Promise<void> {
-    await this.trackCustom("add-to-cart", {
-      itemId,
-      price,
-      quantity,
-    });
-  }
-
-  async trackRemoveFromCart(itemId: string, quantity: number): Promise<void> {
-    await this.trackCustom("remove-from-cart", {
-      itemId,
-      quantity,
-    });
-  }
-
-  /**
-   * Engagement helpers
-   */
-  async trackScrollDepth(depth: number): Promise<void> {
-    await this.trackCustom("scroll-depth", { depth });
-  }
-
-  async trackTimeOnPage(seconds: number): Promise<void> {
-    await this.trackCustom("time-on-page", { seconds });
-  }
-
-  async trackEngagement(action: string, target?: string): Promise<void> {
-    await this.trackCustom("engagement", {
-      action,
-      target,
-    });
   }
 }
 
+// Export class and singleton instance
+export { AnalyticsService };
 export const analyticsService = new AnalyticsService();

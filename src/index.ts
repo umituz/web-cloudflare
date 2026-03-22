@@ -25,17 +25,49 @@
  * - ./types - TypeScript types
  */
 
-// Domains
-export * from "./domains/wrangler";
-export * from "./domains/workers";
+// Domains - selective exports to avoid conflicts
+// NOTE: Wrangler service is Node.js-only and not exported for Workers runtime
+// import { wranglerService, WranglerService } from "./domains/wrangler";
+export { workersService, WorkersService } from "./domains/workers";
 export * from "./domains/ai-gateway";
-export * from "./domains/r2";
-export * from "./domains/d1";
-export * from "./domains/kv";
-export * from "./domains/images";
-export * from "./domains/analytics";
-export * from "./domains/workflows";
-export * from "./domains/middleware";
+export { r2Service, R2Service } from "./domains/r2";
+export { d1Service, D1Service } from "./domains/d1";
+export { kvService, KVService } from "./domains/kv";
+export { imagesService, ImagesService } from "./domains/images";
+export { analyticsService, AnalyticsService } from "./domains/analytics";
+// Workflows - selective exports to avoid conflicts
+export type {
+  WorkflowStep,
+  WorkflowDefinition,
+  WorkflowExecution,
+  CloudflareWorkflowConfig,
+} from "./domains/workflows";
+export {
+  workflowService,
+  WorkflowService,
+} from "./domains/workflows";
+// Middleware - selective exports to avoid conflicts
+export type {
+  MiddlewareCORSConfig,
+  MiddlewareCacheConfig,
+  MiddlewareRateLimitConfig,
+  MiddlewareAuthConfig,
+  SecurityHeadersConfig,
+  IPFilterConfig,
+  LogConfig,
+  HealthCheckConfig,
+  ErrorHandlerConfig,
+} from "./domains/middleware";
+export {
+  cors,
+  addCorsHeaders,
+  cache,
+  setCache,
+  invalidateCache,
+  checkRateLimit,
+  requireAuth,
+  addUserContext,
+} from "./domains/middleware";
 
 // Infrastructure - Router, Utils
 export * from "./infrastructure/router";
@@ -46,5 +78,5 @@ export * from "./infrastructure/constants";
 export * from "./config/patterns";
 export * from "./config/types";
 
-// Presentation hooks
-export * from "./presentation/hooks";
+// Note: Presentation hooks are React-specific and not included in Workers runtime
+// Use them in a separate React client package instead

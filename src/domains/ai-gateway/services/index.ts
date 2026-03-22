@@ -127,17 +127,27 @@ export class AIGatewayService {
       throw new Error(`Provider error: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      id?: string;
+      content?: string;
+      text?: string;
+      output?: string;
+      usage?: {
+        promptTokens?: number;
+        completionTokens?: number;
+        totalTokens?: number;
+      };
+    };
 
     return {
       id: data.id || this.generateId(),
       provider: provider.id,
       model: request.model,
-      content: data.content || data.text || data.output,
-      usage: data.usage || {
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
+      content: data.content || data.text || data.output || '',
+      usage: {
+        promptTokens: data.usage?.promptTokens || 0,
+        completionTokens: data.usage?.completionTokens || 0,
+        totalTokens: data.usage?.totalTokens || 0,
       },
       cached: false,
       timestamp: Date.now(),
@@ -215,9 +225,9 @@ import type {
 
 export class WorkersAIService {
   private env: {
-    AI?: AiTextGeneration;
+    AI?: any;
     bindings?: {
-      AI?: Ai;
+      AI?: any;
     };
   };
 

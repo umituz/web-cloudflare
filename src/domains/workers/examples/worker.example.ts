@@ -3,7 +3,8 @@
  * @description Example worker using @umituz/web-cloudflare package
  */
 
-import { workersService, kvService, r2Service } from "@umituz/web-cloudflare";
+import { workersService, kvService } from "@umituz/web-cloudflare";
+import type { Env } from "../types";
 
 // Configure routes
 workersService.route("/", async () => {
@@ -11,14 +12,15 @@ workersService.route("/", async () => {
 });
 
 workersService.route("/api/hello", async (request) => {
-  const { name } = await request.json();
+  const data = await request.json() as { name?: string };
+  const name = data?.name || "World";
 
   return workersService.json({ message: `Hello, ${name}!` });
 });
 
-workersService.route("/api/cache/:key", async (request, env) => {
+workersService.route("/api/cache/:key", async (request, env?: Env) => {
   const url = new URL(request.url);
-  const key = url.pathname.split("/").pop();
+  const key = url.pathname.split("/").pop() || "";
 
   if (request.method === "GET") {
     const value = await kvService.get(key, env?.KV ? "KV" : undefined);
@@ -26,8 +28,8 @@ workersService.route("/api/cache/:key", async (request, env) => {
   }
 
   if (request.method === "POST") {
-    const { value } = await request.json();
-    await kvService.put(key, value, { ttl: 3600 });
+    const data = await request.json() as { value?: unknown };
+    await kvService.put(key, data.value || "", { ttl: 3600 });
     return workersService.json({ success: true });
   }
 
@@ -36,6 +38,6 @@ workersService.route("/api/cache/:key", async (request, env) => {
 
 // Export for Cloudflare Workers
 export default {
-  fetch: (request: Request, env: Env, ctx: ExecutionContext) =>
-    workersService.fetch(request, env, ctx),
+  fetch: (request: Request, env?: Env, ctx?: ExecutionContext) =>
+    workersService.fetch(request as any, env, ctx),
 };

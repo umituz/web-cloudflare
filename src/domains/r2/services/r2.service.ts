@@ -3,7 +3,7 @@
  * @description Cloudflare R2 object storage operations
  */
 
-import type { R2Object, R2ListOptions, R2ListResult, R2PutOptions, R2PresignedURL } from "../entities";
+import type { R2Object, R2ListOptions, R2ListResult, R2PutOptions, R2PresignedURL } from "../../../domain/entities/r2.entity";
 import type { IR2Service } from "../../../domain/interfaces/services.interface";
 import { validationUtils } from "../../../infrastructure/utils";
 
@@ -51,8 +51,6 @@ class R2Service implements IR2Service {
       key: object.key,
       size: object.size,
       uploaded: object.uploaded,
-      httpMetadata: object.httpMetadata,
-      customMetadata: object.customMetadata,
     };
   }
 
@@ -70,7 +68,6 @@ class R2Service implements IR2Service {
     await bucket.put(key, data, {
       httpMetadata: options?.httpMetadata,
       customMetadata: options?.customMetadata,
-      checksum: options?.checksum,
     });
   }
 
@@ -94,9 +91,12 @@ class R2Service implements IR2Service {
     });
 
     return {
-      objects: listed.objects,
-      truncated: listed.truncated,
-      cursor: listed.cursor,
+      objects: listed.objects.map((obj) => ({
+        key: obj.key,
+        size: obj.size,
+        uploaded: obj.uploaded,
+      })),
+      cursor: (listed as any).cursor as string | undefined,
     };
   }
 
@@ -105,11 +105,11 @@ class R2Service implements IR2Service {
     // This would typically use the AWS SDK or custom signing logic
     // For now, return a placeholder
 
-    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+    const expires = Date.now() + expiresIn * 1000;
 
     return {
-      url: `https://presigned-url-placeholder/${key}?expires=${expiresAt.getTime()}`,
-      expiresAt,
+      url: `https://presigned-url-placeholder/${key}?expires=${expires}`,
+      expires,
     };
   }
 
@@ -120,11 +120,11 @@ class R2Service implements IR2Service {
     const objectKey = key || `uploads/${Date.now()}-${file.name}`;
 
     await this.put(objectKey, file.stream(), {
-      ...options,
       httpMetadata: {
         contentType: file.type,
         ...options?.httpMetadata,
       },
+      customMetadata: options?.customMetadata,
     });
   }
 
@@ -134,10 +134,16 @@ class R2Service implements IR2Service {
       throw new Error(`Failed to fetch URL: ${response.statusText}`);
     }
 
-    await this.put(key, response.body, {
+    const body = response.body;
+    if (!body) {
+      throw new Error(`Failed to read response body`);
+    }
+
+    await this.put(key, body, {
       httpMetadata: {
         contentType: response.headers.get("Content-Type") || undefined,
       },
+      binding,
     });
   }
 
@@ -155,10 +161,12 @@ class R2Service implements IR2Service {
 
     await this.deleteMultiple(list.objects.map((obj) => obj.key), binding);
 
-    if (list.truncated && list.cursor) {
+    if (list.cursor) {
       await this.deletePrefix(prefix, binding);
     }
   }
 }
 
+// Export class and singleton instance
+export { R2Service };
 export const r2Service = new R2Service();

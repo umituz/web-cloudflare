@@ -3,7 +3,7 @@
  * @description Cloudflare Images operations
  */
 
-import type { ImageUploadResult, ImageUploadOptions, ImageTransformation, SignedURL } from "../entities";
+import type { ImageUploadResult, ImageUploadOptions, ImageTransformation, SignedURL } from "../../../domain/entities/image.entity";
 import type { IImageService } from "../../../domain/interfaces/services.interface";
 import { validationUtils, transformUtils } from "../../../infrastructure/utils";
 import { MAX_IMAGE_SIZE, ALLOWED_IMAGE_TYPES } from "../../../infrastructure/constants";
@@ -59,14 +59,13 @@ class ImagesService implements IImageService {
     const formData = new FormData();
     formData.append("file", file);
 
-    if (options?.metadata) {
-      for (const [key, value] of Object.entries(options.metadata)) {
-        formData.append(`metadata[${key}]`, value);
-      }
-    }
-
-    if (options?.requireSignedURLs !== undefined) {
-      formData.append("requireSignedURLs", options.requireSignedURLs.toString());
+    // Apply transformations if specified in options
+    if (options?.width || options?.height || options?.format || options?.quality) {
+      const variants: Array<{ width?: number; height?: number; format?: string; quality?: number }> = [];
+      if (options.width) variants.push({ width: options.width });
+      if (options.height) variants.push({ height: options.height });
+      if (options.format) variants.push({ format: options.format });
+      if (options.quality) variants.push({ quality: options.quality });
     }
 
     // Upload
@@ -81,19 +80,31 @@ class ImagesService implements IImageService {
       throw new Error(`Upload failed: ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      result: {
+        id: string;
+        filename: string;
+        uploaded: string;
+        variants: string[];
+        requireSignedURLs: boolean;
+      };
+    };
 
+    // Map API response to old entity type
     return {
       id: data.result.id,
-      filename: data.result.filename,
-      uploaded: new Date(data.result.uploaded),
-      variants: data.result.variants,
-      requireSignedURLs: data.result.requireSignedURLs,
+      url: data.result.variants[0] || '',
+      variants: data.result.variants.map((v) => ({
+        width: 0,
+        height: 0,
+        format: (options?.format || 'jpeg') as 'jpeg' | 'png' | 'webp' | 'avif',
+        url: v,
+      })),
     };
   }
 
   async getSignedURL(imageId: string, expiresIn = 3600): Promise<SignedURL> {
-    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+    const expires = Date.now() + expiresIn * 1000;
 
     const response = await fetch(`${this.getAPIBaseURL()}/${imageId}`, {
       method: "POST",
@@ -102,7 +113,7 @@ class ImagesService implements IImageService {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        expiry: expiresAt.toISOString(),
+        expiry: new Date(expires).toISOString(),
       }),
     });
 
@@ -111,11 +122,16 @@ class ImagesService implements IImageService {
       throw new Error(`Failed to get signed URL: ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      result: {
+        signedURLs?: string[];
+        variants?: string[];
+      };
+    };
 
     return {
-      url: data.result.signedURLs?.[0] || data.result.variants?.[0],
-      expiresAt,
+      url: data.result.signedURLs?.[0] || data.result.variants?.[0] || '',
+      expires,
     };
   }
 
@@ -164,10 +180,29 @@ class ImagesService implements IImageService {
       throw new Error(`List failed: ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as {
+      result: {
+        images: Array<{
+          id: string;
+          filename: string;
+          uploaded: string;
+          variants: string[];
+        }>;
+        totalCount: number;
+      };
+    };
 
     return {
-      images: data.result.images,
+      images: data.result.images.map((img) => ({
+        id: img.id,
+        url: img.variants[0] || '',
+        variants: img.variants.map((v) => ({
+          width: 0,
+          height: 0,
+          format: 'jpeg' as const,
+          url: v,
+        })),
+      })),
       totalCount: data.result.totalCount,
     };
   }
@@ -224,4 +259,6 @@ class ImagesService implements IImageService {
   }
 }
 
+// Export class and singleton instance
+export { ImagesService };
 export const imagesService = new ImagesService();

@@ -6,7 +6,7 @@
 /**
  * CORS configuration
  */
-export interface CORSConfig {
+export interface MiddlewareCORSConfig {
   enabled: boolean;
   allowedOrigins: string[];
   allowedMethods: string[];
@@ -19,7 +19,7 @@ export interface CORSConfig {
 /**
  * Cache configuration
  */
-export interface CacheConfig {
+export interface MiddlewareCacheConfig {
   enabled: boolean;
   defaultTTL: number;
   paths?: Record<string, number>;
@@ -31,7 +31,7 @@ export interface CacheConfig {
 /**
  * Rate limit configuration
  */
-export interface RateLimitConfig {
+export interface MiddlewareRateLimitConfig {
   enabled: boolean;
   maxRequests: number;
   window: number;
@@ -48,7 +48,7 @@ export interface RateLimitConfig {
 /**
  * Authentication configuration
  */
-export interface AuthConfig {
+export interface MiddlewareAuthConfig {
   enabled: boolean;
   type: 'bearer' | 'apikey' | 'basic';
   token?: string;

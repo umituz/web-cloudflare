@@ -3,7 +3,7 @@
  * @description Cloudflare KV key-value storage operations
  */
 
-import type { KVEntry, KVListOptions, KVListResult } from "../entities";
+import type { KVEntry, KVListOptions, KVListResult } from "../../../domain/entities/kv.entity";
 import type { IKVService } from "../../../domain/interfaces/services.interface";
 import { validationUtils, cacheUtils } from "../../../infrastructure/utils";
 
@@ -79,9 +79,12 @@ class KVService implements IKVService {
     });
 
     return {
-      keys: list.keys,
-      list_complete: list.list_complete,
-      cursor: list.cursor,
+      keys: list.keys.map((k) => ({
+        key: k.name,
+        value: '',
+        metadata: k.metadata as Record<string, unknown> | undefined,
+      })),
+      cursor: (list as any).cursor as string | undefined,
     };
   }
 
@@ -107,10 +110,12 @@ class KVService implements IKVService {
 
     await Promise.all(
       list.keys.map(async (key) => {
-        await this.delete(key.name, binding);
+        await this.delete(key.key, binding);
       })
     );
   }
 }
 
+// Export class and singleton instance
+export { KVService };
 export const kvService = new KVService();

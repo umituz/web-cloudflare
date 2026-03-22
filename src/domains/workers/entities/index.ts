@@ -3,8 +3,24 @@
  * @description Cloudflare Worker configuration and types
  */
 
-export interface WorkerRequest extends Request {
+export interface WorkerRequest {
+  url: string;
+  method: string;
+  headers: Headers;
+  body?: ReadableStream | null;
   cf?: IncomingRequestCfProperties;
+  cache?: RequestCache;
+  credentials?: RequestCredentials;
+  integrity?: string;
+  mode?: RequestMode;
+  redirect?: RequestRedirect;
+  referrer?: string;
+  referrerPolicy?: ReferrerPolicy;
+  json(): Promise<unknown>;
+  text(): Promise<string>;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  blob(): Promise<Blob>;
+  formData(): Promise<FormData>;
 }
 
 export interface WorkerResponse extends Response {

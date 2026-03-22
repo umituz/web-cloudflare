@@ -3,7 +3,11 @@
  * @description Rate limiting middleware for Cloudflare Workers
  */
 
-import type { RateLimitConfig } from '../entities';
+import type { MiddlewareRateLimitConfig } from '../entities';
+
+// Type aliases for backwards compatibility
+export type { MiddlewareRateLimitConfig };
+export type RateLimitConfig = MiddlewareRateLimitConfig;
 
 interface RateLimitEntry {
   count: number;
@@ -15,7 +19,7 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 /**
  * Get rate limit key
  */
-function getRateLimitKey(request: Request, config: RateLimitConfig): string {
+function getRateLimitKey(request: Request, config: MiddlewareRateLimitConfig): string {
   const parts: string[] = [];
 
   if (config.by === 'ip' || config.by === 'both') {
@@ -43,7 +47,7 @@ function getRateLimitKey(request: Request, config: RateLimitConfig): string {
  */
 export async function checkRateLimit(
   request: Request,
-  config: RateLimitConfig
+  config: MiddlewareRateLimitConfig
 ): Promise<Response | null> {
   if (!config.enabled) {
     return null;
