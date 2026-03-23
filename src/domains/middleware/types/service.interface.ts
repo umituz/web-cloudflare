@@ -15,12 +15,6 @@ import type {
   ErrorHandlerConfig,
 } from '../entities';
 
-// Type aliases for backwards compatibility
-export type CORSConfig = MiddlewareCORSConfig;
-export type CacheConfig = MiddlewareCacheConfig;
-export type RateLimitConfig = MiddlewareRateLimitConfig;
-export type AuthConfig = MiddlewareAuthConfig;
-
 export interface IMiddlewareService {
   /**
    * CORS middleware

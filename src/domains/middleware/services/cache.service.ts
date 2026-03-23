@@ -5,9 +5,7 @@
 
 import type { MiddlewareCacheConfig } from '../entities';
 
-// Type aliases for backwards compatibility
 export type { MiddlewareCacheConfig };
-export type CacheConfig = MiddlewareCacheConfig;
 
 interface CacheEntry {
   response: Response;

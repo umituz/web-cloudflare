@@ -4,15 +4,12 @@
  */
 
 import type { WorkerRequest, WorkerResponse } from '../entities';
+import type { Env as BaseEnv } from '../../../domain/interfaces/services.interface';
 
-/**
- * Worker environment bindings
- */
-export interface Env {
-  readonly KV?: Record<string, KVNamespace>;
-  readonly R2?: Record<string, R2Bucket>;
-  readonly D1?: Record<string, D1Database>;
-}
+// Re-export Env for convenience and backward compatibility
+export type { Env as BaseEnv };
+// Alias for backward compatibility - using the consolidated Env type
+export type Env = BaseEnv;
 
 /**
  * Scheduled event for cron triggers
@@ -26,6 +23,6 @@ export interface ScheduledEvent {
  * Worker Service Interface
  */
 export interface IWorkerService {
-  fetch(request: WorkerRequest, env?: Env): Promise<WorkerResponse>;
-  scheduled(event: ScheduledEvent, env?: Env): Promise<void>;
+  fetch(request: WorkerRequest, env?: BaseEnv): Promise<WorkerResponse>;
+  scheduled(event: ScheduledEvent, env?: BaseEnv): Promise<void>;
 }

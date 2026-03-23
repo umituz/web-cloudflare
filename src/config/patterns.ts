@@ -6,6 +6,7 @@
 import type { AIGatewayConfig } from '../domains/ai-gateway/entities';
 import type { WorkflowDefinition } from '../domains/workflows/entities';
 import type { WorkerConfig } from './types';
+import { deepMerge } from '../infrastructure/utils/helpers';
 
 // ============================================================
 // Pre-built Configurations
@@ -250,41 +251,6 @@ export function mergeConfigs<T extends Record<string, any>>(
   return overrides.reduce((acc, override) => {
     return deepMerge(acc, override);
   }, base);
-}
-
-function deepMerge<T extends Record<string, any>>(
-  target: T,
-  source: Partial<Record<string, any>>
-): Record<string, any> {
-  const output: Record<string, unknown> = { ...target };
-
-  if (isObject(target) && isObject(source)) {
-    Object.keys(source).forEach((key) => {
-      const sourceValue = source[key];
-      const targetValue = (target as Record<string, unknown>)[key];
-
-      if (isObject(sourceValue)) {
-        if (!(key in target)) {
-          output[key] = sourceValue;
-        } else if (isObject(targetValue)) {
-          output[key] = deepMerge(
-            targetValue as Record<string, any>,
-            sourceValue
-          );
-        } else {
-          output[key] = sourceValue;
-        }
-      } else {
-        output[key] = sourceValue;
-      }
-    });
-  }
-
-  return output;
-}
-
-function isObject(item: unknown): item is Record<string, any> {
-  return Boolean(item && typeof item === 'object' && !Array.isArray(item));
 }
 
 // ============================================================

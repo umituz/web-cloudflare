@@ -143,13 +143,13 @@ class D1Service implements ID1Service {
 
     const sql = `CREATE TABLE IF NOT EXISTS ${table} (${columnDefs})`;
 
-    await this.execute(sql, [], binding);
+    await this.query(sql, [], binding);
   }
 
   async dropTable(table: string, binding?: string): Promise<void> {
     const sql = `DROP TABLE IF EXISTS ${table}`;
 
-    await this.execute(sql, [], binding);
+    await this.query(sql, [], binding);
   }
 
   async tableExists(table: string, binding?: string): Promise<boolean> {

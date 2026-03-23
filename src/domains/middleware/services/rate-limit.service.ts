@@ -5,9 +5,7 @@
 
 import type { MiddlewareRateLimitConfig } from '../entities';
 
-// Type aliases for backwards compatibility
 export type { MiddlewareRateLimitConfig };
-export type RateLimitConfig = MiddlewareRateLimitConfig;
 
 interface RateLimitEntry {
   count: number;
