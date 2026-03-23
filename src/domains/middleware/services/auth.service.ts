@@ -5,9 +5,7 @@
 
 import type { MiddlewareAuthConfig } from '../entities';
 
-// Type aliases for backwards compatibility
 export type { MiddlewareAuthConfig };
-export type AuthConfig = MiddlewareAuthConfig;
 
 /**
  * Require authentication

@@ -27,7 +27,6 @@
 
 // Domains - selective exports to avoid conflicts
 // NOTE: Wrangler service is Node.js-only and not exported for Workers runtime
-// import { wranglerService, WranglerService } from "./domains/wrangler";
 export { workersService, WorkersService } from "./domains/workers";
 export * from "./domains/ai-gateway";
 export { r2Service, R2Service } from "./domains/r2";

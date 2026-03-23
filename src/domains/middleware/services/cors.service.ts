@@ -5,9 +5,6 @@
 
 import type { MiddlewareCORSConfig } from '../entities';
 
-// Type alias for backwards compatibility
-export type CORSConfig = MiddlewareCORSConfig;
-
 /**
  * Add CORS headers to response
  */
