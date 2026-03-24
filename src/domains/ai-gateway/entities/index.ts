@@ -63,6 +63,7 @@ export interface AIAnalytics {
   averageResponseTime: number;
   providerUsage: Record<string, number>;
   errorRate: number;
+  windowedRequests: number;
 }
 
 // Workers AI specific models
