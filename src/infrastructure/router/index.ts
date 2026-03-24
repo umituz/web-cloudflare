@@ -52,6 +52,9 @@ export interface Route {
 export class Router {
   private routes: Route[] = [];
   private globalMiddlewares: Middleware[] = [];
+  private routeCache: Map<string, Route | null> = new Map();
+  private cacheEnabled: boolean = true;
+  private maxCacheSize: number = 1000;
 
   /**
    * Add global middleware
@@ -59,6 +62,41 @@ export class Router {
   use(middleware: Middleware): Router {
     this.globalMiddlewares.push(middleware);
     return this;
+  }
+
+  /**
+   * Enable or disable route cache
+   */
+  setCacheEnabled(enabled: boolean): Router {
+    this.cacheEnabled = enabled;
+    if (!enabled) {
+      this.routeCache.clear();
+    }
+    return this;
+  }
+
+  /**
+   * Clear route cache
+   */
+  clearCache(): Router {
+    this.routeCache.clear();
+    return this;
+  }
+
+  /**
+   * Cleanup route cache if it grows too large
+   */
+  private cleanupCache(): void {
+    if (this.routeCache.size > this.maxCacheSize) {
+      // Clear 50% of the cache
+      const entriesToDelete = Math.floor(this.maxCacheSize * 0.5);
+      let deleted = 0;
+      for (const key of this.routeCache.keys()) {
+        if (deleted >= entriesToDelete) break;
+        this.routeCache.delete(key);
+        deleted++;
+      }
+    }
   }
 
   /**
@@ -160,6 +198,7 @@ export class Router {
 
   /**
    * Handle request
+   * Optimized with caching and early termination
    */
   async handle(
     request: Request,
@@ -177,25 +216,47 @@ export class Router {
       }
     }
 
-    // Find matching route
-    for (const route of this.routes) {
-      // Check method (wildcard matches all)
-      if (route.method !== '*' && route.method !== method) {
-        continue;
-      }
+    // Check cache for route match
+    const cacheKey = `${method}:${url.pathname}`;
+    let matchedRoute: Route | undefined;
 
-      // Check path pattern
-      const match = route.pattern.exec(url);
-      if (!match) {
-        continue;
+    if (this.cacheEnabled) {
+      this.cleanupCache();
+      const cachedRoute = this.routeCache.get(cacheKey);
+      if (cachedRoute) {
+        matchedRoute = cachedRoute;
       }
+    }
 
+    // Find matching route if not in cache
+    if (!matchedRoute) {
+      for (const route of this.routes) {
+        // Check method (wildcard matches all)
+        if (route.method !== '*' && route.method !== method) {
+          continue;
+        }
+
+        // Check path pattern
+        const match = route.pattern.exec(url);
+        if (match) {
+          matchedRoute = route;
+          // Cache the match for future requests
+          if (this.cacheEnabled) {
+            this.routeCache.set(cacheKey, route);
+          }
+          break;
+        }
+      }
+    }
+
+    if (matchedRoute) {
       // Extract params
-      const params = this.extractParams(match);
+      const match = matchedRoute.pattern.exec(url);
+      const params = this.extractParams(match || null);
 
       // Run route middlewares
-      if (route.middlewares) {
-        for (const middleware of route.middlewares) {
+      if (matchedRoute.middlewares) {
+        for (const middleware of matchedRoute.middlewares) {
           const response = await middleware(request, env, ctx);
           if (response) {
             return response;
@@ -205,7 +266,7 @@ export class Router {
 
       // Run handler
       try {
-        return await route.handler(request, params, env, ctx);
+        return await matchedRoute.handler(request, params, env, ctx);
       } catch (error) {
         return json(
           {
@@ -214,6 +275,11 @@ export class Router {
           500
         );
       }
+    }
+
+    // No route matched - cache negative result
+    if (this.cacheEnabled) {
+      this.routeCache.set(cacheKey, null);
     }
 
     // No route matched

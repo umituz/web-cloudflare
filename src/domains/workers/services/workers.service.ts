@@ -39,6 +39,8 @@ class WorkersService {
   private routes: WorkerRouteConfig[] = [];
   private middleware: WorkersMiddleware[] = [];
   private cache: Cache | null = null;
+  private routeCache: Map<string, WorkerRouteConfig | null> = new Map();
+  private maxCacheSize: number = 1000;
 
   /**
    * Register a route
@@ -48,6 +50,8 @@ class WorkersService {
       pattern: new URLPattern({ pathname: pattern }),
       handler,
     });
+    // Clear cache when routes change
+    this.routeCache.clear();
   }
 
   /**
@@ -58,7 +62,23 @@ class WorkersService {
   }
 
   /**
+   * Cleanup route cache if it grows too large
+   */
+  private cleanupCache(): void {
+    if (this.routeCache.size > this.maxCacheSize) {
+      const entriesToDelete = Math.floor(this.maxCacheSize * 0.5);
+      let deleted = 0;
+      for (const key of this.routeCache.keys()) {
+        if (deleted >= entriesToDelete) break;
+        this.routeCache.delete(key);
+        deleted++;
+      }
+    }
+  }
+
+  /**
    * Fetch handler
+   * Optimized with route caching and early termination
    */
   async fetch(request: WorkerRequest, env?: Env, ctx?: ExecutionContext): Promise<WorkerResponse> {
     // Initialize cache if available in Workers runtime
@@ -75,12 +95,31 @@ class WorkersService {
       if (response) return response;
     }
 
-    // Match route
+    // Match route with caching
     const url = new URL(request.url);
-    for (const route of this.routes) {
-      if (route.pattern.test(url)) {
-        return route.handler(request, env);
+    const cacheKey = `${request.method}:${url.pathname}`;
+
+    this.cleanupCache();
+
+    let matchedRoute = this.routeCache.get(cacheKey);
+    if (matchedRoute === undefined) {
+      // Not in cache, find matching route
+      for (const route of this.routes) {
+        if (route.pattern.test(url)) {
+          matchedRoute = route;
+          this.routeCache.set(cacheKey, route);
+          break;
+        }
       }
+
+      // Cache negative result
+      if (matchedRoute === undefined) {
+        this.routeCache.set(cacheKey, null);
+      }
+    }
+
+    if (matchedRoute) {
+      return matchedRoute.handler(request, env);
     }
 
     // 404

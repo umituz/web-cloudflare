@@ -16,11 +16,74 @@ export class AIGatewayService {
   private config: AIGatewayConfig;
   private kv?: KVNamespace;
   private analytics: Map<string, number>;
+  private analyticsWindow: Map<string, { count: number; expires: number }>;
+  private maxAnalyticsEntries: number = 1000;
+  private analyticsResetInterval: number;
 
   constructor(config: AIGatewayConfig, KV?: KVNamespace) {
     this.config = config;
     this.kv = KV;
     this.analytics = new Map();
+    this.analyticsWindow = new Map();
+    this.analyticsResetInterval = 300000; // 5 minutes
+    this.startAnalyticsCleanup();
+  }
+
+  /**
+   * Periodic analytics cleanup to prevent memory leaks
+   */
+  private startAnalyticsCleanup(): void {
+    // In a Workers environment, we'd use a different approach
+    // For now, we'll clean on each analytics access
+  }
+
+  /**
+   * Cleanup expired analytics entries
+   */
+  private cleanupAnalytics(): void {
+    const now = Date.now();
+
+    // Clean up windowed analytics
+    for (const [key, data] of this.analyticsWindow.entries()) {
+      if (data.expires < now) {
+        this.analyticsWindow.delete(key);
+      }
+    }
+
+    // If analytics map grows too large, aggregate and clear
+    if (this.analytics.size > this.maxAnalyticsEntries) {
+      this.persistAnalytics();
+      this.analytics.clear();
+    }
+
+    // If windowed map grows too large, clear oldest entries
+    if (this.analyticsWindow.size > this.maxAnalyticsEntries) {
+      const entries = Array.from(this.analyticsWindow.entries())
+        .sort((a, b) => a[1].expires - b[1].expires);
+
+      const toRemove = Math.floor(this.maxAnalyticsEntries * 0.2);
+      for (let i = 0; i < toRemove; i++) {
+        this.analyticsWindow.delete(entries[i][0]);
+      }
+    }
+  }
+
+  /**
+   * Persist analytics to KV
+   */
+  private async persistAnalytics(): Promise<void> {
+    if (!this.kv) return;
+
+    try {
+      const data = Object.fromEntries(this.analytics);
+      const key = `analytics:${Math.floor(Date.now() / this.analyticsResetInterval)}`;
+      await this.kv.put(key, JSON.stringify(data), {
+        expirationTtl: 86400, // 24 hours
+      });
+    } catch (error) {
+      // Silently fail - analytics shouldn't break the app
+      console.error('Failed to persist analytics:', error);
+    }
   }
 
   /**
@@ -187,22 +250,40 @@ export class AIGatewayService {
     response: AIResponse,
     duration: number
   ): void {
+    // Cleanup first to prevent memory leaks
+    this.cleanupAnalytics();
+
     const key = `provider:${provider.id}`;
     const currentCount = this.analytics.get(key) || 0;
     this.analytics.set(key, currentCount + 1);
+
+    // Also track in windowed analytics
+    const windowKey = key;
+    const windowData = this.analyticsWindow.get(windowKey) || { count: 0, expires: 0 };
+    windowData.count++;
+    windowData.expires = Date.now() + this.analyticsResetInterval;
+    this.analyticsWindow.set(windowKey, windowData);
   }
 
   /**
    * Get analytics
    */
   async getAnalytics(): Promise<AIAnalytics> {
+    // Cleanup before returning analytics
+    this.cleanupAnalytics();
+
+    const totalRequests = Array.from(this.analytics.values()).reduce((a, b) => a + b, 0);
+    const windowedRequests = Array.from(this.analyticsWindow.values())
+      .reduce((sum, data) => sum + data.count, 0);
+
     return {
-      totalRequests: Array.from(this.analytics.values()).reduce((a, b) => a + b, 0),
+      totalRequests,
       totalTokens: 0,
       cacheHitRate: 0,
       averageResponseTime: 0,
       providerUsage: Object.fromEntries(this.analytics),
       errorRate: 0,
+      windowedRequests, // Requests in current time window
     };
   }
 
