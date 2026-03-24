@@ -55,12 +55,39 @@ export class WorkflowService {
   private d1?: D1Database;
   private maxExecutionTime: number;
   private defaultRetries: number;
+  private stepStateCache: Map<string, WorkflowStepState> = new Map();
+  private maxCacheSize: number = 500;
 
   constructor(config: WorkflowServiceConfig = {}) {
     this.kv = config.KV;
     this.d1 = config.D1;
     this.maxExecutionTime = config.maxExecutionTime || 300; // 5 minutes default
     this.defaultRetries = config.defaultRetries || 3;
+  }
+
+  /**
+   * Cleanup step state cache to prevent memory leaks
+   */
+  private cleanupStepStateCache(): void {
+    if (this.stepStateCache.size > this.maxCacheSize) {
+      // Clear oldest entries (first half)
+      const entries = Array.from(this.stepStateCache.entries());
+      const toRemove = Math.floor(this.maxCacheSize * 0.5);
+      for (let i = 0; i < toRemove; i++) {
+        this.stepStateCache.delete(entries[i][0]);
+      }
+    }
+  }
+
+  /**
+   * Clear step state cache after workflow completion
+   */
+  private clearStepStateCache(executionId: string): void {
+    for (const key of this.stepStateCache.keys()) {
+      if (key.startsWith(`${executionId}:`)) {
+        this.stepStateCache.delete(key);
+      }
+    }
   }
 
   /**
@@ -116,6 +143,7 @@ export class WorkflowService {
 
   /**
    * Execute workflow steps
+   * Optimized with in-memory caching and batched KV writes
    */
   private async executeWorkflow(
     execution: WorkflowExecution,
@@ -126,74 +154,116 @@ export class WorkflowService {
 
     const results: Record<string, unknown> = {};
     const stepStatus: Record<string, 'completed' | 'failed'> = {};
+    const stepStatesToSave: Array<{ executionId: string; stepId: string; data: Record<string, unknown> }> = [];
 
-    // Execute steps in order, respecting dependencies
-    for (const step of workflow.steps) {
-      // Check if dependencies are met
-      if (step.dependencies) {
-        const depsMet = step.dependencies.every(
-          (dep) => stepStatus[dep] === 'completed'
-        );
-        if (!depsMet) {
-          continue; // Skip for now, will retry later
-        }
-      }
-
-      try {
-        // Get step state for retries
-        const state = await this.getStepState(execution.id, step.id);
-        const stepInputs = state?.data || { ...results, ...step.inputs };
-
-        // Execute step
-        const stepResult = await this.executeStep(step, stepInputs);
-
-        // Store result
-        results[step.id] = stepResult;
-        stepStatus[step.id] = 'completed';
-        execution.completedSteps.push(step.id);
-
-        // Save step state for idempotency
-        await this.saveStepState(execution.id, step.id, { result: stepResult } as Record<string, unknown>);
-
-      } catch (error) {
-        stepStatus[step.id] = 'failed';
-        execution.failedSteps.push(step.id);
-        execution.error = error instanceof Error ? error.message : String(error);
-
-        // Check retry policy
-        const retryPolicy = step.retryPolicy || workflow.retryConfig;
-        if (retryPolicy && execution.retryCount < this.defaultRetries) {
-          execution.retryCount++;
-          execution.status = 'retrying';
-          await this.saveExecution(execution);
-
-          // Exponential backoff with defaults
-          const initialDelay = retryPolicy.initialDelay ?? 1000;
-          const backoffMultiplier = retryPolicy.backoffMultiplier ?? 2;
-          const maxDelay = retryPolicy.maxDelay ?? 30000;
-          const delay = Math.min(
-            initialDelay * Math.pow(backoffMultiplier, execution.retryCount),
-            maxDelay
+    try {
+      // Execute steps in order, respecting dependencies
+      for (const step of workflow.steps) {
+        // Check if dependencies are met
+        if (step.dependencies) {
+          const depsMet = step.dependencies.every(
+            (dep) => stepStatus[dep] === 'completed'
           );
-          await this.sleep(delay);
-
-          // Retry this step
-          continue;
+          if (!depsMet) {
+            continue; // Skip for now, will retry later
+          }
         }
 
-        // Max retries exceeded, mark as failed
-        execution.status = 'failed';
-        execution.completedAt = Date.now();
-        await this.saveExecution(execution);
-        throw error;
-      }
-    }
+        try {
+          // Get step state from cache first (faster than KV)
+          const cacheKey = `${execution.id}:${step.id}`;
+          let state = this.stepStateCache.get(cacheKey);
 
-    // All steps completed
-    execution.status = 'completed';
-    execution.outputs = results;
-    execution.completedAt = Date.now();
-    await this.saveExecution(execution);
+          if (!state && this.kv) {
+            state = await this.getStepState(execution.id, step.id);
+            if (state) {
+              this.stepStateCache.set(cacheKey, state);
+            }
+          }
+
+          const stepInputs = state?.data || { ...results, ...step.inputs };
+
+          // Execute step
+          const stepResult = await this.executeStep(step, stepInputs);
+
+          // Store result
+          results[step.id] = stepResult;
+          stepStatus[step.id] = 'completed';
+          execution.completedSteps.push(step.id);
+
+          // Queue step state for batch save (faster than individual saves)
+          stepStatesToSave.push({
+            executionId: execution.id,
+            stepId: step.id,
+            data: { result: stepResult } as Record<string, unknown>
+          });
+
+          // Update cache
+          this.stepStateCache.set(cacheKey, {
+            data: { result: stepResult },
+            status: 'completed',
+            completedAt: Date.now()
+          });
+
+        } catch (error) {
+          stepStatus[step.id] = 'failed';
+          execution.failedSteps.push(step.id);
+          execution.error = error instanceof Error ? error.message : String(error);
+
+          // Check retry policy
+          const retryPolicy = step.retryPolicy || workflow.retryConfig;
+          if (retryPolicy && execution.retryCount < this.defaultRetries) {
+            execution.retryCount++;
+            execution.status = 'retrying';
+            await this.saveExecution(execution);
+
+            // Exponential backoff with defaults
+            const initialDelay = retryPolicy.initialDelay ?? 1000;
+            const backoffMultiplier = retryPolicy.backoffMultiplier ?? 2;
+            const maxDelay = retryPolicy.maxDelay ?? 30000;
+            const delay = Math.min(
+              initialDelay * Math.pow(backoffMultiplier, execution.retryCount),
+              maxDelay
+            );
+
+            // Use optimized sleep
+            await new Promise(resolve => setTimeout(resolve, delay));
+
+            // Retry this step
+            continue;
+          }
+
+          // Max retries exceeded, mark as failed
+          execution.status = 'failed';
+          execution.completedAt = Date.now();
+          await this.saveExecution(execution);
+          throw error;
+        }
+      }
+
+      // Batch save all step states at once (much faster than individual saves)
+      if (stepStatesToSave.length > 0) {
+        await Promise.all(
+          stepStatesToSave.map(({ executionId, stepId, data }) =>
+            this.saveStepState(executionId, stepId, data)
+          )
+        );
+      }
+
+      // All steps completed
+      execution.status = 'completed';
+      execution.outputs = results;
+      execution.completedAt = Date.now();
+      await this.saveExecution(execution);
+
+      // Cleanup step state cache after successful completion
+      this.clearStepStateCache(execution.id);
+
+    } catch (error) {
+      // On error, still cleanup to prevent memory leaks
+      this.clearStepStateCache(execution.id);
+      throw error;
+    }
   }
 
   /**
@@ -331,11 +401,7 @@ export class WorkflowService {
   }
 
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 }
 

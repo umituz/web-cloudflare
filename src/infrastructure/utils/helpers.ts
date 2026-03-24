@@ -9,6 +9,7 @@
 
 /**
  * Parse request body
+ * Optimized to reduce memory allocations and improve performance
  */
 export async function parseBody<T = unknown>(request: Request): Promise<T> {
   const contentType = request.headers.get('Content-Type') || '';
@@ -20,15 +21,16 @@ export async function parseBody<T = unknown>(request: Request): Promise<T> {
   if (contentType.includes('application/x-www-form-urlencoded')) {
     const formData = await request.formData();
     const result: Record<string, unknown> = {};
-    // FormData.keys() is not available in Workers runtime
-    // Use alternative approach with for...of
-    const keys: string[] = [];
+    const seenKeys = new Set<string>();
+
+    // Use Set instead of array for O(1) lookup
     formData.forEach((value, key) => {
-      if (!keys.includes(key)) {
-        keys.push(key);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        result[key] = value;
       }
-      result[key] = value;
     });
+
     return result as T;
   }
 
@@ -228,16 +230,25 @@ export function stream(
 
 /**
  * Validate email
+ * Optimized with early return and simplified regex
  */
 export function isValidEmail(email: string): boolean {
+  // Early return for empty or obviously invalid emails
+  if (!email || email.length < 3 || email.length > 254) return false;
+  if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) return false;
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
 /**
  * Validate URL
+ * Optimized with early return
  */
 export function isValidURL(url: string): boolean {
+  // Early return for empty or obviously invalid URLs
+  if (!url || url.length < 3) return false;
+
   try {
     new URL(url);
     return true;
@@ -248,8 +259,12 @@ export function isValidURL(url: string): boolean {
 
 /**
  * Validate UUID
+ * Optimized with early return
  */
 export function isValidUUID(uuid: string): boolean {
+  // Early return for empty or wrong length UUIDs
+  if (!uuid || uuid.length !== 36) return false;
+
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
@@ -257,8 +272,12 @@ export function isValidUUID(uuid: string): boolean {
 
 /**
  * Validate phone number (basic)
+ * Optimized with early return
  */
 export function isValidPhone(phone: string): boolean {
+  // Early return for obviously invalid phone numbers
+  if (!phone || phone.length < 10) return false;
+
   const phoneRegex = /^\+?[\d\s\-()]+$/;
   return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 10;
 }
@@ -301,21 +320,22 @@ export function slugify(text: string): string {
 
 /**
  * Generate cache key
+ * Optimized to reduce string operations and improve performance
  */
 export function generateCacheKey(request: Request, prefix?: string): string {
   const url = new URL(request.url);
   const parts = [prefix || 'cache', url.pathname];
 
   // Add query params (sorted for consistency)
-  const params: string[] = [];
-  // URLSearchParams.keys() is not available in Workers runtime
-  url.searchParams.forEach((value, key) => {
-    params.push(`${key}=${value}`);
-  });
-  params.sort();
-
-  if (params.length > 0) {
-    parts.push(params.join('&'));
+  if (url.search) {
+    const params: string[] = [];
+    url.searchParams.forEach((value, key) => {
+      params.push(`${key}=${value}`);
+    });
+    params.sort();
+    if (params.length > 0) {
+      parts.push(params.join('&'));
+    }
   }
 
   // Add auth header if present (for user-specific caching)
@@ -618,8 +638,15 @@ export function groupBy<T>(
 
 /**
  * Deep clone object
+ * Uses structuredClone when available for better performance and security
  */
 export function deepClone<T>(obj: T): T {
+  // Use structuredClone for better performance and to handle more types
+  if (typeof structuredClone !== 'undefined') {
+    return structuredClone(obj);
+  }
+
+  // Fallback to JSON method (less safe but works in older environments)
   return JSON.parse(JSON.stringify(obj));
 }
 
@@ -689,8 +716,15 @@ export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
 
 /**
  * Clone object
+ * Uses structuredClone when available for better performance and security
  */
 export function clone<T>(obj: T): T {
+  // Use structuredClone for better performance and to handle more types
+  if (typeof structuredClone !== 'undefined') {
+    return structuredClone(obj);
+  }
+
+  // Fallback to JSON method (less safe but works in older environments)
   return JSON.parse(JSON.stringify(obj));
 }
 

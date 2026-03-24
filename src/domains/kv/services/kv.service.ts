@@ -109,14 +109,24 @@ class KVService implements IKVService {
     return value;
   }
 
+  /**
+   * Invalidate cache entries matching a pattern
+   * Optimized to process in batches for better performance
+   */
   async invalidatePattern(prefix: string, binding?: string): Promise<void> {
-    const list = await this.list({ prefix, binding });
+    const BATCH_SIZE = 100; // Process in batches to avoid overwhelming KV
+    let cursor: string | undefined;
 
-    await Promise.all(
-      list.keys.map(async (key) => {
-        await this.delete(key.key, binding);
-      })
-    );
+    do {
+      const list = await this.list({ prefix, binding, limit: BATCH_SIZE, cursor });
+
+      // Delete entries in batches (faster than sequential)
+      await Promise.all(
+        list.keys.map((key) => this.delete(key.key, binding))
+      );
+
+      cursor = list.cursor;
+    } while (cursor); // Continue until there are no more entries
   }
 }
 
