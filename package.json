@@ -1,6 +1,6 @@
 {
   "name": "@umituz/web-cloudflare",
-  "version": "1.4.19",
+  "version": "1.4.20",
   "description": "Comprehensive Cloudflare Workers & Pages integration with config-based patterns, middleware, router, workflows, and AI (Patch-only versioning: only z in x.y.z increments)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
