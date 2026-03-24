@@ -380,12 +380,12 @@ export class WorkflowService {
   private async getStepState(
     executionId: string,
     stepId: string
-  ): Promise<WorkflowStepState | null> {
+  ): Promise<WorkflowStepState | undefined> {
     if (this.kv) {
       const data = await this.kv.get(`step:${executionId}:${stepId}`);
-      return data ? JSON.parse(data) : null;
+      return data ? JSON.parse(data) : undefined;
     }
-    return null;
+    return undefined;
   }
 
   /**
