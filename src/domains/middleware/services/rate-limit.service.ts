@@ -10,9 +10,47 @@ export type { MiddlewareRateLimitConfig };
 interface RateLimitEntry {
   count: number;
   resetTime: number;
+  lastAccess: number;
 }
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
+const MAX_ENTRIES = 10000; // Prevent memory leak
+const CLEANUP_INTERVAL = 60000; // 1 minute
+
+// Periodic cleanup to prevent memory leak
+let lastCleanup = Date.now();
+
+/**
+ * Cleanup expired entries
+ */
+function cleanupExpiredEntries(): void {
+  const now = Date.now();
+
+  // Run cleanup periodically
+  if (now - lastCleanup < CLEANUP_INTERVAL && rateLimitStore.size < MAX_ENTRIES) {
+    return;
+  }
+
+  lastCleanup = now;
+  const cutoffTime = now - 3600000; // 1 hour ago
+
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (entry.resetTime < cutoffTime) {
+      rateLimitStore.delete(key);
+    }
+  }
+
+  // If still too many entries, remove oldest accessed
+  if (rateLimitStore.size >= MAX_ENTRIES) {
+    const entries = Array.from(rateLimitStore.entries())
+      .sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+
+    const toRemove = Math.floor(MAX_ENTRIES * 0.1); // Remove 10%
+    for (let i = 0; i < toRemove; i++) {
+      rateLimitStore.delete(entries[i][0]);
+    }
+  }
+}
 
 /**
  * Get rate limit key
@@ -51,6 +89,9 @@ export async function checkRateLimit(
     return null;
   }
 
+  // Run cleanup before checking
+  cleanupExpiredEntries();
+
   const key = getRateLimitKey(request, config);
 
   // Check whitelist
@@ -66,9 +107,13 @@ export async function checkRateLimit(
     rateLimitStore.set(key, {
       count: 1,
       resetTime: now + config.window * 1000,
+      lastAccess: now,
     });
     return null;
   }
+
+  // Update last access
+  entry.lastAccess = now;
 
   // Increment count
   entry.count++;
