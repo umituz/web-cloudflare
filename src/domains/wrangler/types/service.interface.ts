@@ -143,6 +143,10 @@ export interface IWranglerService {
   pagesProjectList(
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<PagesProjectInfo[]>>;
+  pagesProjectDelete(
+    projectName: string,
+    options?: WranglerCommandOptions
+  ): Promise<WranglerResult<void>>;
   pagesDeploy(
     options: PagesDeployOptions & WranglerCommandOptions
   ): Promise<WranglerResult<PagesDeploymentInfo>>;
@@ -151,4 +155,9 @@ export interface IWranglerService {
     functionName: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
+
+  // Workers operations
+  workersList(
+    options?: WranglerCommandOptions
+  ): Promise<WranglerResult<string[]>>;
 }
