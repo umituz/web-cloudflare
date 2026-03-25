@@ -36,6 +36,8 @@ export { imagesService, ImagesService } from "./domains/images";
 export { analyticsService, AnalyticsService } from "./domains/analytics";
 // Pages - Node.js-only service
 export { pagesService, PagesService } from "./domains/pages";
+// Wrangler - Node.js-only service
+export { wranglerService, WranglerService } from "./domains/wrangler";
 export type {
   PagesProject,
   PagesDeployment,
