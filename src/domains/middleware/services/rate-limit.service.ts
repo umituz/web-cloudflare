@@ -138,3 +138,176 @@ export async function checkRateLimit(
 
   return null;
 }
+
+// ============================================================
+// User-Based Quota Tracking
+// ============================================================
+
+interface UserQuotaEntry {
+  quota: number;
+  usage: number;
+  resetTime: number;
+}
+
+const userQuotaStore = new Map<string, UserQuotaEntry>();
+
+/**
+ * Check user quota (general purpose quota tracking)
+ */
+export async function checkUserQuota(
+  userId: string,
+  quota: number,
+  window: number,
+  kv?: KVNamespace
+): Promise<boolean> {
+  // Check KV first if available
+  if (kv) {
+    const periodKey = `user_quota:${userId}:${Math.floor(Date.now() / (window * 1000))}`;
+    const currentUsage = await kv.get(periodKey, 'json');
+
+    const usage = (currentUsage as { count: number })?.count || 0;
+
+    if (usage >= quota) {
+      return false;
+    }
+
+    // Increment usage
+    await kv.put(periodKey, JSON.stringify({ count: usage + 1 }), {
+      expirationTtl: window,
+    });
+
+    return true;
+  }
+
+  // Fallback to in-memory store
+  const now = Date.now();
+  const entry = userQuotaStore.get(userId);
+
+  // Reset if window expired
+  if (!entry || now > entry.resetTime) {
+    userQuotaStore.set(userId, {
+      quota,
+      usage: 1,
+      resetTime: now + window * 1000,
+    });
+    return true;
+  }
+
+  // Check if exceeded
+  if (entry.usage >= quota) {
+    return false;
+  }
+
+  // Increment usage
+  entry.usage++;
+  return true;
+}
+
+// ============================================================
+// AI-Specific Quota Tracking (Neuron-based)
+// ============================================================
+
+interface AIQuotaEntry {
+  quota: number; // Neurons per period
+  usage: number; // Neurons used
+  resetTime: number;
+  period: number; // Period in seconds
+}
+
+const aiQuotaStore = new Map<string, AIQuotaEntry>();
+
+/**
+ * Check AI quota (based on neuron usage)
+ */
+export async function checkAIQuota(
+  userId: string,
+  neurons: number,
+  config: {
+    quota: number;
+    period: number;
+    kv?: KVNamespace;
+  }
+): Promise<{ allowed: boolean; remaining: number; resetAt: number; currentUsage: number }> {
+  const periodKey = `ai_quota:${userId}:${Math.floor(Date.now() / (config.period * 1000))}`;
+
+  // Check KV first if available
+  if (config.kv) {
+    const currentUsage = await config.kv.get(periodKey, 'json');
+    const usage = (currentUsage as { neurons: number })?.neurons || 0;
+
+    const newUsage = usage + neurons;
+
+    if (newUsage > config.quota) {
+      return {
+        allowed: false,
+        remaining: Math.max(0, config.quota - usage),
+        resetAt: (Math.floor(Date.now() / (config.period * 1000)) + 1) * config.period * 1000,
+        currentUsage: usage,
+      };
+    }
+
+    // Update usage
+    await config.kv.put(periodKey, JSON.stringify({ neurons: newUsage }), {
+      expirationTtl: config.period,
+    });
+
+    return {
+      allowed: true,
+      remaining: config.quota - newUsage,
+      resetAt: (Math.floor(Date.now() / (config.period * 1000)) + 1) * config.period * 1000,
+      currentUsage: newUsage,
+    };
+  }
+
+  // Fallback to in-memory store
+  const now = Date.now();
+  const entry = aiQuotaStore.get(userId);
+
+  // Reset if window expired or doesn't exist
+  if (!entry || now > entry.resetTime || entry.period !== config.period) {
+    if (neurons > config.quota) {
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: now + config.period * 1000,
+        currentUsage: 0,
+      };
+    }
+
+    aiQuotaStore.set(userId, {
+      quota: config.quota,
+      usage: neurons,
+      resetTime: now + config.period * 1000,
+      period: config.period,
+    });
+
+    return {
+      allowed: true,
+      remaining: config.quota - neurons,
+      resetAt: now + config.period * 1000,
+      currentUsage: neurons,
+    };
+  }
+
+  // Check if would exceed quota
+  const newUsage = entry.usage + neurons;
+
+  if (newUsage > entry.quota) {
+    return {
+      allowed: false,
+      remaining: Math.max(0, entry.quota - entry.usage),
+      resetAt: entry.resetTime,
+      currentUsage: entry.usage,
+    };
+  }
+
+  // Update usage
+  entry.usage = newUsage;
+
+  return {
+    allowed: true,
+    remaining: entry.quota - newUsage,
+    resetAt: entry.resetTime,
+    currentUsage: newUsage,
+  };
+}
