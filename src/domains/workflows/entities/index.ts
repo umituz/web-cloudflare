@@ -1,6 +1,5 @@
 /**
  * Workflows Domain Entities
- * Re-exports from central domain entities for consistency
  */
 
 export type {
@@ -8,4 +7,4 @@ export type {
   WorkflowDefinition,
   WorkflowExecution,
   CloudflareWorkflowConfig,
-} from '../../../domain/entities/worker.entity';
+} from '../../workers/entities';

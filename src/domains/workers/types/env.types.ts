@@ -4,11 +4,19 @@
  */
 
 import type { WorkerRequest, WorkerResponse } from '../entities';
-import type { Env as BaseEnv } from '../../../domain/interfaces/services.interface';
 
-// Re-export Env for convenience and backward compatibility
-export type { Env as BaseEnv };
-// Alias for backward compatibility - using the consolidated Env type
+/**
+ * Base Environment types for Cloudflare Workers
+ */
+export interface BaseEnv {
+  readonly KV?: Record<string, KVNamespace>;
+  readonly R2?: Record<string, R2Bucket>;
+  readonly D1?: Record<string, D1Database>;
+}
+
+/**
+ * Alias for backward compatibility
+ */
 export type Env = BaseEnv;
 
 /**

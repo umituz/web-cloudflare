@@ -1,10 +1,12 @@
 /**
  * Analytics Domain Entities
- * Re-exports from central domain entities for consistency
  */
 
 export type {
+  AnalyticsEntity,
+  AnalyticsConfig,
   AnalyticsEvent,
+  AnalyticsData,
   AnalyticsPageviewEvent,
   AnalyticsCustomEvent,
-} from '../../../domain/entities/analytics.entity';
+} from './analytics.entity';

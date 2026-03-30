@@ -1,6 +1,5 @@
 /**
  * Middleware Domain Entities
- * Re-exports from central domain entities for consistency
  */
 
 export type {
@@ -13,4 +12,4 @@ export type {
   LogConfig,
   HealthCheckConfig,
   ErrorHandlerConfig,
-} from '../../../domain/entities/worker.entity';
+} from '../../workers/entities';

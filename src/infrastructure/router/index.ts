@@ -5,11 +5,16 @@
 
 import { json, notFound, badRequest } from '../utils/helpers';
 import type { WorkersAIBinding } from '../../config/types';
-import type { Env as BaseEnv } from '../../domain/interfaces/services.interface';
 
 // ============================================================
 // Environment Types
 // ============================================================
+
+export interface BaseEnv {
+  readonly KV?: Record<string, KVNamespace>;
+  readonly R2?: Record<string, R2Bucket>;
+  readonly D1?: Record<string, D1Database>;
+}
 
 export interface CloudflareEnv extends BaseEnv {
   DO?: Record<string, DurableObjectNamespace>;

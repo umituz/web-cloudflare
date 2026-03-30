@@ -3,8 +3,8 @@
  * @description Cloudflare Images operations
  */
 
-import type { ImageUploadResult, ImageUploadOptions, ImageTransformation, SignedURL } from "../../../domain/entities/image.entity";
-import type { IImageService } from "../../../domain/interfaces/services.interface";
+import type { ImageUploadResult, ImageUploadOptions, ImageTransformation, SignedURL } from "../entities";
+import type { IImageService } from "../types/service.interface";
 import { validationUtils, transformUtils } from "../../../infrastructure/utils";
 import { MAX_IMAGE_SIZE, ALLOWED_IMAGE_TYPES } from "../../../infrastructure/constants";
 

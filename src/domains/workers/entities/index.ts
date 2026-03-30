@@ -1,10 +1,25 @@
 /**
  * Workers Domain Entities
- * Re-exports from central domain entities for consistency
  */
 
 export type {
+  WorkerEntity,
+  WorkerConfig,
   WorkerRequest,
   WorkerResponse,
+  IncomingRequestCfProperties,
   CloudflareWorkerConfig,
-} from '../../../domain/entities/worker.entity';
+  WorkflowStep,
+  WorkflowDefinition,
+  WorkflowExecution,
+  CloudflareWorkflowConfig,
+  MiddlewareCORSConfig,
+  MiddlewareCacheConfig,
+  MiddlewareRateLimitConfig,
+  MiddlewareAuthConfig,
+  SecurityHeadersConfig,
+  IPFilterConfig,
+  LogConfig,
+  HealthCheckConfig,
+  ErrorHandlerConfig,
+} from './worker.entity';

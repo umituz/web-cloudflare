@@ -1,9 +1,12 @@
 /**
  * KV Domain Entities
- * Re-exports from central domain entities for consistency
  */
 
 export type {
+  KVEntity,
+  KVNamespaceConfig,
+  KVEntry,
   KVListOptions,
   KVListResult,
-} from '../../../domain/entities/kv.entity';
+  KVKey,
+} from './kv.entity';

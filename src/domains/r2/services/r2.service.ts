@@ -3,8 +3,8 @@
  * @description Cloudflare R2 object storage operations with presigned URLs, multipart upload, and D1 integration
  */
 
-import type { R2Object, R2ListOptions, R2ListResult, R2PutOptions, R2PresignedURL } from "../../../domain/entities/r2.entity";
-import type { IR2Service } from "../../../domain/interfaces/services.interface";
+import type { R2Object, R2ListOptions, R2ListResult, R2PutOptions, R2PresignedURL } from "../entities";
+import type { IR2Service } from "../types/service.interface";
 import type { D1Service } from "../../d1/services/d1.service";
 import { validationUtils } from "../../../infrastructure/utils";
 

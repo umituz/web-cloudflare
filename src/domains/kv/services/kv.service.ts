@@ -3,8 +3,8 @@
  * @description Cloudflare KV key-value storage operations with AI response caching and hierarchical L1/L2 caching
  */
 
-import type { KVEntry, KVListOptions, KVListResult } from "../../../domain/entities/kv.entity";
-import type { IKVService } from "../../../domain/interfaces/services.interface";
+import type { KVEntry, KVListOptions, KVListResult } from "../entities";
+import type { IKVService } from "../types/service.interface";
 import type { AIResponse } from "../../ai/entities";
 import { validationUtils, cacheUtils } from "../../../infrastructure/utils";
 
