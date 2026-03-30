@@ -14,8 +14,6 @@
  * - ./analytics - Analytics service
  * - ./workflows - Workflows orchestration service
  * - ./ai - AI building blocks (Workers AI, Embeddings, Vectorize, Gateway)
- * - ./ai-gateway - AI Gateway service (legacy, use ./ai instead)
- * - ./workers-ai - Workers AI service (legacy, use ./ai instead)
  * - ./wrangler - Wrangler CLI service
  * - ./pages - Pages service
  * - ./pages/react - React hooks and components for Pages (useAuth, useAI, useFileUpload, etc.)
@@ -32,7 +30,7 @@
 // Domains - selective exports to avoid conflicts
 // NOTE: Wrangler service is Node.js-only and not exported for Workers runtime
 export { workersService, WorkersService } from "./domains/workers";
-// AI Domain - New comprehensive AI building blocks (includes legacy ai-gateway)
+// AI Domain - Comprehensive AI building blocks (Workers AI, Embeddings, Vectorize, Gateway)
 export * from "./domains/ai";
 export { r2Service, R2Service } from "./domains/r2";
 export { d1Service, D1Service } from "./domains/d1";
