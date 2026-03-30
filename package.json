@@ -15,8 +15,6 @@
     "./analytics": "./src/domains/analytics/index.ts",
     "./workflows": "./src/domains/workflows/index.ts",
     "./ai": "./src/domains/ai/index.ts",
-    "./ai-gateway": "./src/domains/ai-gateway/index.ts",
-    "./workers-ai": "./src/domains/ai/index.ts",
     "./wrangler": "./src/domains/wrangler/index.ts",
     "./pages": "./src/domains/pages/index.ts",
     "./pages/react": "./src/domains/pages/react/index.ts",

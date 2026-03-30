@@ -3,7 +3,7 @@
  * @description Reusable configuration patterns for different use cases
  */
 
-import type { AIGatewayConfig } from '../domains/ai-gateway/entities';
+import type { AIGatewayConfig } from '../domains/ai/entities';
 import type { WorkflowDefinition } from '../domains/workflows/entities';
 import type { WorkerConfig } from './types';
 import { deepMerge } from '../infrastructure/utils/helpers';
