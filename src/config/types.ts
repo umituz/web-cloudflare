@@ -29,6 +29,11 @@ export interface WorkerConfig {
   ai?: AIConfig;
 
   /**
+   * Vectorize configuration
+   */
+  vectorize?: VectorizeConfig;
+
+  /**
    * Workflows configuration
    */
   workflows?: WorkflowConfig;
@@ -57,6 +62,17 @@ export interface WorkerConfig {
    * Scheduled tasks configuration
    */
   scheduledTasks?: ScheduledTaskConfig;
+
+  /**
+   * Multi-tenant configuration
+   */
+  multiTenant?: {
+    enabled: boolean;
+    d1Bindings?: string[];
+    r2Bindings?: string[];
+    kvNamespaces?: string[];
+    vectorizeIndexes?: string[];
+  };
 
   /**
    * Static file serving configuration
@@ -230,11 +246,20 @@ export interface AIConfig {
       models: string[];
       fallbackProvider?: string;
       weight?: number;
+      pricing?: Record<string, {
+        inputCostPer1KTokens: number;
+        outputCostPer1KTokens: number;
+        neuronsPer1KTokens?: number;
+      }>;
     }>;
     cacheEnabled?: boolean;
     cacheTTL?: number;
     rateLimiting?: boolean;
     analytics?: boolean;
+    budget?: {
+      monthlyLimit: number;
+      alertThreshold: number;
+    };
   };
 
   /**
@@ -250,6 +275,41 @@ export interface AIConfig {
     maxTokens?: number;
     topP?: number;
   };
+
+  /**
+   * Neuron quota configuration
+   */
+  neuronQuota?: {
+    enabled: boolean;
+    quota: number;
+    period: number;
+  };
+}
+
+// ============================================================
+// Vectorize Configuration
+// ============================================================
+
+export interface VectorizeConfig {
+  /**
+   * Enable Vectorize
+   */
+  enabled: boolean;
+
+  /**
+   * Vectorize index names
+   */
+  indexes: string[];
+
+  /**
+   * Default dimensions for embeddings
+   */
+  defaultDimensions: number;
+
+  /**
+   * Distance metric
+   */
+  metric: 'cosine' | 'euclidean' | 'dotproduct';
 }
 
 // ============================================================
@@ -329,6 +389,16 @@ export interface AnalyticsConfig {
    * Custom analytics endpoint
    */
   endpoint?: string;
+
+  /**
+   * Track AI usage
+   */
+  trackAIUsage?: boolean;
+
+  /**
+   * Track AI costs
+   */
+  trackCosts?: boolean;
 }
 
 // ============================================================

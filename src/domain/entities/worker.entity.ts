@@ -142,6 +142,7 @@ export interface MiddlewareAuthConfig {
   enabled?: boolean;
   type: 'bearer' | 'basic' | 'custom' | 'apikey';
   validate: (request: Request) => Promise<boolean>;
+  validateToken?: (token: string) => Promise<boolean>;
   challenge?: (request: Request) => Response;
   token?: string;
   apiKeyHeader?: string;

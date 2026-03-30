@@ -534,6 +534,238 @@ export const WORKFLOW_TEMPLATES: Record<string, Partial<WorkflowDefinition>> = {
       },
     ],
   },
+
+  // ============================================================
+  // AI Pipeline Templates (Generic, No Specific Use Cases)
+  // ============================================================
+
+  'rag-pipeline': {
+    name: 'RAG (Retrieval-Augmented Generation) Pipeline',
+    description: 'Generic RAG pipeline for context-aware AI responses using Vectorize',
+    version: '1.0.0',
+    steps: [
+      {
+        id: 'embed-query',
+        name: 'Generate Query Embedding',
+        handler: 'ai-embed-text',
+        timeout: 30,
+      },
+      {
+        id: 'search-vectors',
+        name: 'Search Vector Index for Similar Documents',
+        handler: 'vectorize-query',
+        dependencies: ['embed-query'],
+        timeout: 10,
+      },
+      {
+        id: 'build-context',
+        name: 'Build Context from Retrieved Documents',
+        handler: 'rag-build-context',
+        dependencies: ['search-vectors'],
+        timeout: 5,
+      },
+      {
+        id: 'generate-response',
+        name: 'Generate AI Response with Context',
+        handler: 'ai-generate-with-context',
+        dependencies: ['build-context'],
+        timeout: 60,
+        retryPolicy: {
+          maxAttempts: 2,
+          backoffMultiplier: 2,
+          initialDelay: 1000,
+          maxDelay: 5000,
+        },
+      },
+    ],
+  },
+
+  'batch-embeddings': {
+    name: 'Batch Embedding Generation',
+    description: 'Generate embeddings for multiple texts and upsert to Vectorize',
+    version: '1.0.0',
+    steps: [
+      {
+        id: 'fetch-batch',
+        name: 'Fetch Batch of Texts to Embed',
+        handler: 'batch-fetch-inputs',
+        timeout: 30,
+      },
+      {
+        id: 'generate-embeddings',
+        name: 'Generate Embeddings in Parallel',
+        handler: 'ai-batch-embeddings',
+        dependencies: ['fetch-batch'],
+        timeout: 120,
+        retryPolicy: {
+          maxAttempts: 3,
+          backoffMultiplier: 2,
+          initialDelay: 2000,
+          maxDelay: 10000,
+        },
+      },
+      {
+        id: 'upsert-vectors',
+        name: 'Upsert Vectors to Vectorize Index',
+        handler: 'vectorize-upsert',
+        dependencies: ['generate-embeddings'],
+        timeout: 60,
+        retryPolicy: {
+          maxAttempts: 3,
+          backoffMultiplier: 2,
+          initialDelay: 1000,
+          maxDelay: 5000,
+        },
+      },
+      {
+        id: 'save-metadata',
+        name: 'Save Embedding Metadata to D1',
+        handler: 'd1-insert-metadata',
+        dependencies: ['upsert-vectors'],
+        timeout: 10,
+      },
+    ],
+  },
+
+  'ai-content-pipeline': {
+    name: 'AI Content Generation Pipeline',
+    description: 'Multi-step AI content generation with validation and optimization',
+    version: '1.0.0',
+    steps: [
+      {
+        id: 'generate-draft',
+        name: 'Generate Initial Content Draft',
+        handler: 'ai-generate-draft',
+        timeout: 60,
+      },
+      {
+        id: 'validate-content',
+        name: 'Validate Generated Content',
+        handler: 'content-validate-quality',
+        dependencies: ['generate-draft'],
+        timeout: 10,
+      },
+      {
+        id: 'optimize-seo',
+        name: 'Optimize Content for SEO',
+        handler: 'ai-optimize-seo',
+        dependencies: ['validate-content'],
+        timeout: 30,
+      },
+      {
+        id: 'check-plagiarism',
+        name: 'Check for Plagiarism',
+        handler: 'content-check-plagiarism',
+        dependencies: ['optimize-seo'],
+        timeout: 20,
+      },
+      {
+        id: 'save-to-database',
+        name: 'Save Final Content to D1',
+        handler: 'd1-insert-content',
+        dependencies: ['check-plagiarism'],
+        timeout: 10,
+      },
+      {
+        id: 'cache-to-kv',
+        name: 'Cache Content to KV',
+        handler: 'kv-cache-content',
+        dependencies: ['save-to-database'],
+        timeout: 5,
+      },
+    ],
+  },
+
+  'ai-multi-step-reasoning': {
+    name: 'AI Multi-Step Reasoning Pipeline',
+    description: 'Chain-of-thought reasoning with multiple AI calls',
+    version: '1.0.0',
+    steps: [
+      {
+        id: 'analyze-problem',
+        name: 'Analyze Problem Statement',
+        handler: 'ai-analyze-problem',
+        timeout: 30,
+      },
+      {
+        id: 'decompose-steps',
+        name: 'Decompose Problem into Steps',
+        handler: 'ai-decompose-steps',
+        dependencies: ['analyze-problem'],
+        timeout: 30,
+      },
+      {
+        id: 'solve-each-step',
+        name: 'Solve Each Step Sequentially',
+        handler: 'ai-solve-steps',
+        dependencies: ['decompose-steps'],
+        timeout: 120,
+      },
+      {
+        id: 'synthesize-solution',
+        name: 'Synthesize Final Solution',
+        handler: 'ai-synthesize-solution',
+        dependencies: ['solve-each-step'],
+        timeout: 60,
+      },
+      {
+        id: 'verify-solution',
+        name: 'Verify Solution Correctness',
+        handler: 'ai-verify-solution',
+        dependencies: ['synthesize-solution'],
+        timeout: 30,
+      },
+    ],
+  },
+
+  'ai-data-enrichment': {
+    name: 'AI Data Enrichment Pipeline',
+    description: 'Enrich data with AI-generated insights',
+    version: '1.0.0',
+    steps: [
+      {
+        id: 'fetch-data',
+        name: 'Fetch Raw Data from Source',
+        handler: 'data-fetch-raw',
+        timeout: 30,
+      },
+      {
+        id: 'extract-entities',
+        name: 'Extract Entities and Relationships',
+        handler: 'ai-extract-entities',
+        dependencies: ['fetch-data'],
+        timeout: 60,
+      },
+      {
+        id: 'classify-content',
+        name: 'Classify Content by Category',
+        handler: 'ai-classify-content',
+        dependencies: ['extract-entities'],
+        timeout: 30,
+      },
+      {
+        id: 'generate-summary',
+        name: 'Generate Content Summary',
+        handler: 'ai-generate-summary',
+        dependencies: ['classify-content'],
+        timeout: 30,
+      },
+      {
+        id: 'enrich-metadata',
+        name: 'Enrich with Additional Metadata',
+        handler: 'ai-enrich-metadata',
+        dependencies: ['generate-summary'],
+        timeout: 30,
+      },
+      {
+        id: 'save-enriched',
+        name: 'Save Enriched Data',
+        handler: 'd1-upsert-enriched',
+        dependencies: ['enrich-metadata'],
+        timeout: 20,
+      },
+    ],
+  },
 };
 
 // Export singleton instance

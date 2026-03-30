@@ -1,6 +1,6 @@
 /**
  * @umituz/web-cloudflare
- * Comprehensive Cloudflare Workers integration with config-based patterns
+ * Comprehensive Cloudflare Workers integration with config-based patterns, AI building blocks, React hooks, and multi-tenant support
  *
  * ONEMLI: App'ler bu root barrel'i kullanMAMALI.
  * Subpath import kullanin: "@umituz/web-cloudflare/workers"
@@ -13,11 +13,15 @@
  * - ./images - Images optimization service
  * - ./analytics - Analytics service
  * - ./workflows - Workflows orchestration service
- * - ./ai-gateway - AI Gateway service
- * - ./workers-ai - Workers AI service
+ * - ./ai - AI building blocks (Workers AI, Embeddings, Vectorize, Gateway)
+ * - ./ai-gateway - AI Gateway service (legacy, use ./ai instead)
+ * - ./workers-ai - Workers AI service (legacy, use ./ai instead)
  * - ./wrangler - Wrangler CLI service
- * - ./router - Express-like router
+ * - ./pages - Pages service
+ * - ./pages/react - React hooks and components for Pages (useAuth, useAI, useFileUpload, etc.)
  * - ./middleware - Middleware collection
+ * - ./multi-tenant - Multi-tenant support for managing multiple D1, R2, KV, Vectorize bindings
+ * - ./router - Express-like router
  * - ./utils - Utility helpers
  * - ./helpers - Helper functions (alias for ./utils)
  * - ./config - Configuration patterns
@@ -28,7 +32,8 @@
 // Domains - selective exports to avoid conflicts
 // NOTE: Wrangler service is Node.js-only and not exported for Workers runtime
 export { workersService, WorkersService } from "./domains/workers";
-export * from "./domains/ai-gateway";
+// AI Domain - New comprehensive AI building blocks (includes legacy ai-gateway)
+export * from "./domains/ai";
 export { r2Service, R2Service } from "./domains/r2";
 export { d1Service, D1Service } from "./domains/d1";
 export { kvService, KVService } from "./domains/kv";
@@ -79,6 +84,16 @@ export {
   addUserContext,
 } from "./domains/middleware";
 
+// Multi-Tenant - Multi-tenant support
+export { multiTenantService, MultiTenantService } from "./domains/multi-tenant";
+export type {
+  Tenant,
+  TenantConfig,
+  TenantContext,
+  TenantRoute,
+  TenantResolutionResult,
+} from "./domains/multi-tenant";
+
 // Infrastructure - Router, Utils
 export * from "./infrastructure/router";
 export * from "./infrastructure/utils/helpers";
@@ -88,5 +103,6 @@ export * from "./infrastructure/constants";
 export * from "./config/patterns";
 export * from "./config/types";
 
-// Note: Presentation hooks are React-specific and not included in Workers runtime
-// Use them in a separate React client package instead
+// Note: React hooks are React-specific and should be imported via subpath:
+// import { useAuth, useAI } from '@umituz/web-cloudflare/pages/react';
+// They are not included in this root barrel to avoid importing React in Workers runtime

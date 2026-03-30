@@ -217,6 +217,114 @@ export const aiFirstConfig: Partial<WorkerConfig> = {
 };
 
 /**
+ * AI-Ready Configuration (Production-ready for AI applications)
+ * @description Optimized configuration for AI-heavy applications with Vectorize support
+ */
+export const aiReadyConfig: Partial<WorkerConfig> = {
+  cache: {
+    enabled: true,
+    defaultTTL: 3600, // 1 hour for AI responses
+    paths: {
+      '/api/ai/*': 7200,      // 2 hours for AI responses
+      '/api/embeddings/*': 86400, // 1 day for embeddings
+      '/api/vectors/*': 86400, // 1 day for vector data
+    },
+  },
+  rateLimit: {
+    enabled: true,
+    maxRequests: 100,
+    window: 60,
+    by: 'user', // User-based rate limiting
+  },
+  ai: {
+    enabled: true,
+    gateway: {
+      providers: [
+        {
+          id: 'workers-ai',
+          name: 'Workers AI',
+          type: 'workers-ai',
+          baseURL: '',
+          apiKey: '',
+          models: [
+            '@cf/meta/llama-3.1-8b-instruct',
+            '@cf/meta/llama-3.3-70b-instruct',
+            '@cf/mistral/mistral-7b-instruct',
+          ],
+          weight: 3, // Prefer Workers AI
+          pricing: {
+            '@cf/meta/llama-3.1-8b-instruct': {
+              inputCostPer1KTokens: 0.00015,
+              outputCostPer1KTokens: 0.00015,
+              neuronsPer1KTokens: 208,
+            },
+            '@cf/meta/llama-3.3-70b-instruct': {
+              inputCostPer1KTokens: 0.00045,
+              outputCostPer1KTokens: 0.00045,
+              neuronsPer1KTokens: 1110,
+            },
+          },
+        },
+        {
+          id: 'openai-fallback',
+          name: 'OpenAI',
+          type: 'openai',
+          baseURL: 'https://api.openai.com/v1',
+          apiKey: '',
+          models: ['gpt-4', 'gpt-3.5-turbo'],
+          fallbackProvider: 'workers-ai',
+          weight: 1,
+          pricing: {
+            'gpt-4': {
+              inputCostPer1KTokens: 0.03,
+              outputCostPer1KTokens: 0.06,
+            },
+            'gpt-3.5-turbo': {
+              inputCostPer1KTokens: 0.0005,
+              outputCostPer1KTokens: 0.0015,
+            },
+          },
+        },
+      ],
+      cacheEnabled: true,
+      cacheTTL: 7200, // 2 hours
+      rateLimiting: true,
+      analytics: true,
+      budget: {
+        monthlyLimit: 100, // $100/month default
+        alertThreshold: 80, // Alert at 80%
+      },
+    },
+    defaultModel: '@cf/meta/llama-3.1-8b-instruct',
+    defaultParams: {
+      temperature: 0.7,
+      maxTokens: 2048,
+    },
+    neuronQuota: {
+      enabled: true,
+      quota: 10000000, // 10M neurons per period
+      period: 86400, // Daily quota
+    },
+  },
+  vectorize: {
+    enabled: true,
+    indexes: ['documents', 'embeddings'],
+    defaultDimensions: 512,
+    metric: 'cosine',
+  },
+  workflows: {
+    enabled: true,
+    maxExecutionTime: 600,
+    defaultRetries: 3,
+  },
+  analytics: {
+    enabled: true,
+    trackAIUsage: true,
+    trackCosts: true,
+  },
+};
+
+/**
  * Minimal Configuration (development)
  */
 export const minimalConfig: Partial<WorkerConfig> = {
@@ -350,6 +458,123 @@ export class ConfigBuilder {
 
   withScheduledTasks(config: Partial<NonNullable<WorkerConfig['scheduledTasks']>>): ConfigBuilder {
     this.config.scheduledTasks = this.config.scheduledTasks ? { ...this.config.scheduledTasks, ...config } : config as NonNullable<WorkerConfig['scheduledTasks']>;
+    return this;
+  }
+
+  // ============================================================
+  // AI-Specific Configuration Methods
+  // ============================================================
+
+  /**
+   * Configure AI Gateway providers and settings
+   */
+  withAIGateway(config: Partial<NonNullable<WorkerConfig['ai']>['gateway']>): ConfigBuilder {
+    if (!this.config.ai) {
+      this.config.ai = { enabled: true };
+    }
+    this.config.ai.gateway = this.config.ai.gateway ? { ...this.config.ai.gateway, ...config } : config as NonNullable<WorkerConfig['ai']>['gateway'];
+    return this;
+  }
+
+  /**
+   * Set available AI models
+   */
+  withAIModels(models: string[]): ConfigBuilder {
+    if (!this.config.ai) {
+      this.config.ai = { enabled: true };
+    }
+    if (!this.config.ai.gateway) {
+      this.config.ai.gateway = { providers: [] };
+    }
+    // Add models to first provider or create default
+    if (this.config.ai.gateway.providers.length === 0) {
+      this.config.ai.gateway.providers.push({
+        id: 'default',
+        name: 'Default',
+        type: 'workers-ai',
+        baseURL: '',
+        apiKey: '',
+        models,
+        weight: 1,
+      });
+    } else {
+      this.config.ai.gateway.providers[0].models = models;
+    }
+    return this;
+  }
+
+  /**
+   * Configure AI caching settings
+   */
+  withAICaching(enabled: boolean, ttl?: number): ConfigBuilder {
+    if (!this.config.ai) {
+      this.config.ai = { enabled: true };
+    }
+    if (!this.config.ai.gateway) {
+      this.config.ai.gateway = { providers: [] };
+    }
+    this.config.ai.gateway.cacheEnabled = enabled;
+    if (ttl !== undefined) {
+      this.config.ai.gateway.cacheTTL = ttl;
+    }
+    return this;
+  }
+
+  /**
+   * Set AI neuron quota (rate limiting based on usage)
+   */
+  withAIQuota(quota: number, period: number): ConfigBuilder {
+    if (!this.config.ai) {
+      this.config.ai = { enabled: true };
+    }
+    this.config.ai.neuronQuota = {
+      enabled: true,
+      quota,
+      period,
+    };
+    return this;
+  }
+
+  /**
+   * Enable and configure Vectorize (vector database)
+   */
+  withVectorize(enabled: boolean, indexes?: string[]): ConfigBuilder {
+    this.config.vectorize = {
+      enabled,
+      indexes: indexes || [],
+      defaultDimensions: 512,
+      metric: 'cosine',
+    };
+    return this;
+  }
+
+  /**
+   * Configure AI cost tracking and budget
+   */
+  withCostTracking(monthlyLimit: number, alertThreshold?: number): ConfigBuilder {
+    if (!this.config.ai) {
+      this.config.ai = { enabled: true };
+    }
+    if (!this.config.ai.gateway) {
+      this.config.ai.gateway = { providers: [] };
+    }
+    this.config.ai.gateway.budget = {
+      monthlyLimit,
+      alertThreshold: alertThreshold || Math.floor(monthlyLimit * 0.8),
+    };
+    return this;
+  }
+
+  /**
+   * Configure multi-tenant / multi-app support
+   */
+  withMultiTenant(config: {
+    enabled: boolean;
+    d1Bindings?: string[];
+    r2Bindings?: string[];
+    kvNamespaces?: string[];
+  }): ConfigBuilder {
+    this.config.multiTenant = config;
     return this;
   }
 

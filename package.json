@@ -1,7 +1,7 @@
 {
   "name": "@umituz/web-cloudflare",
-  "version": "1.4.28",
-  "description": "Comprehensive Cloudflare Workers & Pages integration with config-based patterns, middleware, router, workflows, and AI (Patch-only versioning: only z in x.y.z increments)",
+  "version": "1.6.0",
+  "description": "Comprehensive Cloudflare Workers & Pages integration with config-based patterns, middleware, router, workflows, AI, React hooks, and multi-tenant support (Patch-only versioning: only z in x.y.z increments)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "sideEffects": false,
@@ -14,11 +14,14 @@
     "./images": "./src/domains/images/index.ts",
     "./analytics": "./src/domains/analytics/index.ts",
     "./workflows": "./src/domains/workflows/index.ts",
+    "./ai": "./src/domains/ai/index.ts",
     "./ai-gateway": "./src/domains/ai-gateway/index.ts",
-    "./workers-ai": "./src/domains/ai-gateway/index.ts",
+    "./workers-ai": "./src/domains/ai/index.ts",
     "./wrangler": "./src/domains/wrangler/index.ts",
     "./pages": "./src/domains/pages/index.ts",
+    "./pages/react": "./src/domains/pages/react/index.ts",
     "./middleware": "./src/domains/middleware/index.ts",
+    "./multi-tenant": "./src/domains/multi-tenant/index.ts",
     "./router": "./src/infrastructure/router/index.ts",
     "./utils": "./src/infrastructure/utils/helpers.ts",
     "./helpers": "./src/infrastructure/utils/helpers.ts",
@@ -46,8 +49,15 @@
     "cloudflare-images",
     "analytics",
     "workflows",
+    "ai",
     "ai-gateway",
     "workers-ai",
+    "llm",
+    "embeddings",
+    "vectorize",
+    "rag",
+    "vector-database",
+    "semantic-search",
     "pages",
     "cloudflare-pages",
     "static-site",
@@ -68,7 +78,16 @@
     "compression",
     "image-optimization",
     "typescript",
-    "config-based"
+    "config-based",
+    "react",
+    "react-hooks",
+    "hooks",
+    "multi-tenant",
+    "tenant",
+    "isolation",
+    "session-management",
+    "file-upload",
+    "ai-chat"
   ],
   "author": "umituz",
   "license": "MIT",
@@ -77,7 +96,13 @@
     "url": "https://github.com/umituz/web-cloudflare"
   },
   "peerDependencies": {
-    "typescript": ">=5.0.0"
+    "typescript": ">=5.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",

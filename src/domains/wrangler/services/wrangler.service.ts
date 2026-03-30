@@ -34,7 +34,7 @@ export class WranglerService implements IWranglerService {
   async login(_options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
     const result = this.executeWrangler(['login']);
     if (result.success) {
-      return { success: true, data: { authenticated: true } };
+      return { success: true, data: { authenticated: true } as AuthInfo };
     }
     return { success: false, error: result.stderr };
   }
@@ -50,7 +50,7 @@ export class WranglerService implements IWranglerService {
   async whoami(_options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
     const result = this.executeWrangler(['whoami']);
     if (result.success) {
-      return { success: true, data: { authenticated: true } };
+      return { success: true, data: { authenticated: true } as AuthInfo };
     }
     return { success: false, error: result.stderr };
   }
@@ -108,7 +108,7 @@ export class WranglerService implements IWranglerService {
   async kvNamespaceCreate(title: string, _options?: WranglerCommandOptions): Promise<WranglerResult<KVNamespaceInfo>> {
     const result = this.executeWrangler(['kv:namespace', 'create', title]);
     if (result.success) {
-      const id = this.extractId(result.stdout);
+      const id = this.extractId(result.stdout) || '';
       return { success: true, data: { id, title } };
     }
     return { success: false, error: result.stderr };
@@ -210,8 +210,8 @@ export class WranglerService implements IWranglerService {
   async d1DatabaseCreate(databaseName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo>> {
     const result = this.executeWrangler(['d1:create', databaseName]);
     if (result.success) {
-      const id = this.extractId(result.stdout);
-      return { success: true, data: { id, name: databaseName } };
+      const id = this.extractId(result.stdout) || '';
+      return { success: true, data: { id, name: databaseName } as unknown as D1DatabaseInfo };
     }
     return { success: false, error: result.stderr };
   }
@@ -342,8 +342,8 @@ export class WranglerService implements IWranglerService {
     }
     const result = this.executeWrangler(args);
     if (result.success) {
-      const url = this.extractUrl(result.stdout);
-      return { success: true, data: { id: Date.now().toString(), url } };
+      const url = this.extractUrl(result.stdout) || '';
+      return { success: true, data: { id: Date.now().toString(), url, project: '' } as PagesDeploymentInfo };
     }
     return { success: false, error: result.stderr };
   }
