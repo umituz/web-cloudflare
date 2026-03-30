@@ -1,6 +1,5 @@
 /**
  * R2 Domain Entities
- * Re-exports from central domain entities for consistency
  */
 
 export type {
@@ -9,4 +8,4 @@ export type {
   R2ListResult,
   R2PutOptions,
   R2PresignedURL,
-} from '../../../domain/entities/r2.entity';
+} from './r2.entity';

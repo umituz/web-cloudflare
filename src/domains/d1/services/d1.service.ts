@@ -3,8 +3,8 @@
  * @description Cloudflare D1 database operations with migrations, transactions, and query builder
  */
 
-import type { D1QueryResult, D1BatchResult } from "../../../domain/entities/d1.entity";
-import type { ID1Service } from "../../../domain/interfaces/services.interface";
+import type { D1QueryResult, D1BatchResult } from "../entities";
+import type { ID1Service } from "../types/service.interface";
 
 // ============================================================
 // Migration Types

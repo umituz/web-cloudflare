@@ -1,9 +1,10 @@
 /**
  * D1 Domain Entities
- * Re-exports from central domain entities for consistency
  */
 
 export type {
+  D1Entity,
+  D1DatabaseConfig,
   D1QueryResult,
   D1BatchResult,
-} from '../../../domain/entities/d1.entity';
+} from './d1.entity';

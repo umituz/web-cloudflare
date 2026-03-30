@@ -3,9 +3,8 @@
  * @description Cloudflare Web Analytics operations for Workers runtime
  */
 
-import type { AnalyticsEvent, AnalyticsPageviewEvent, AnalyticsCustomEvent } from "../entities";
-import type { AnalyticsData } from "../../../domain/entities/analytics.entity";
-import type { IAnalyticsService } from "../../../domain/interfaces/services.interface";
+import type { AnalyticsEvent, AnalyticsPageviewEvent, AnalyticsCustomEvent, AnalyticsData } from "../entities";
+import type { IAnalyticsService } from "../types/service.interface";
 
 export interface AnalyticsClientOptions {
   readonly siteId: string;
