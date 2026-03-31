@@ -210,10 +210,11 @@ export class AIGatewayService implements IAIGatewayService {
     payload: unknown,
     options?: Omit<ProviderCallOptions, 'gatewayId'>
   ): Promise<ProviderCallResult<T>> {
-    return this.callProvider<T>('huggingface', model, payload, {
+    const gatewayId = this.gatewayId || this.config.gatewayId;
+    return this.callProvider<T>('huggingface', model, payload, options ? {
       ...options,
-      gatewayId: options?.gatewayId || this.gatewayId || this.config.gatewayId,
-    });
+      gatewayId,
+    } : { gatewayId });
   }
 
   // ============================================================

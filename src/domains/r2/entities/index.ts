@@ -10,4 +10,4 @@ export type {
   R2PresignedURL,
 } from './r2.entity';
 
-export type { GeneratedAssetMetadata } from '../types/service.interface';
+export type { GeneratedAssetMetadata } from '../../ai/value-objects';

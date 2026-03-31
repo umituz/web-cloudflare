@@ -17,9 +17,9 @@ export interface GeneratedAssetMetadataProps {
 }
 
 export class GeneratedAssetMetadata extends ValueObject<GeneratedAssetMetadataProps> {
-  private readonly MAX_PROMPT_LENGTH = 2000;
-  private readonly MAX_TAG_COUNT = 20;
-  private readonly VALID_CONTENT_TYPES = [
+  private static readonly MAX_PROMPT_LENGTH = 2000;
+  private static readonly MAX_TAG_COUNT = 20;
+  private static readonly VALID_CONTENT_TYPES = [
     'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/flac', 'audio/webm',
     'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/avif',
     'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
@@ -48,19 +48,16 @@ export class GeneratedAssetMetadata extends ValueObject<GeneratedAssetMetadataPr
       throw new Error('Model name is required');
     }
 
-    // Validate content type
-    if (!props.contentType || !this.isValidContentType(props.contentType)) {
+    if (!props.contentType || !GeneratedAssetMetadata.isValidContentType(props.contentType)) {
       throw new Error(`Invalid content type: ${props.contentType}`);
     }
 
-    // Validate prompt length
-    if (props.prompt && props.prompt.length > this.MAX_PROMPT_LENGTH) {
-      throw new Error(`Prompt too long (max ${this.MAX_PROMPT_LENGTH} characters)`);
+    if (props.prompt && props.prompt.length > GeneratedAssetMetadata.MAX_PROMPT_LENGTH) {
+      throw new Error(`Prompt too long (max ${GeneratedAssetMetadata.MAX_PROMPT_LENGTH} characters)`);
     }
 
-    // Validate tags
-    if (props.tags && props.tags.length > this.MAX_TAG_COUNT) {
-      throw new Error(`Too many tags (max ${this.MAX_TAG_COUNT})`);
+    if (props.tags && props.tags.length > GeneratedAssetMetadata.MAX_TAG_COUNT) {
+      throw new Error(`Too many tags (max ${GeneratedAssetMetadata.MAX_TAG_COUNT})`);
     }
 
     // Validate tags format
@@ -74,7 +71,7 @@ export class GeneratedAssetMetadata extends ValueObject<GeneratedAssetMetadataPr
   }
 
   private static isValidContentType(contentType: string): boolean {
-    return this.VALID_CONTENT_TYPES.includes(contentType) ||
+    return GeneratedAssetMetadata.VALID_CONTENT_TYPES.includes(contentType) ||
            contentType.startsWith('audio/') ||
            contentType.startsWith('image/') ||
            contentType.startsWith('video/') ||
