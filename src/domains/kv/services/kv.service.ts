@@ -6,7 +6,9 @@
 import type { KVEntry, KVListOptions, KVListResult } from "../entities";
 import type { IKVService } from "../types/service.interface";
 import type { AIResponse } from "../../ai/entities";
-import { validationUtils, cacheUtils } from "../../../infrastructure/utils";
+import type { IKVValidator } from "../interfaces/kv-validator.interface";
+import { CacheKey, TTL } from "../../shared";
+import type { TTL as TTLType } from "../../shared";
 
 // ============================================================
 // LRU Cache for L1 Memory Cache
@@ -101,13 +103,36 @@ export interface AIResponseCacheOptions {
 
 export class KVService implements IKVService {
   private namespaces: Map<string, KVNamespace> = new Map();
-  private defaultTTL: number = 3600;
+  private defaultTTL: number | TTLType;
   private l1Cache: LRUCache<unknown>;
   private enableL1Cache: boolean;
+  private validator: IKVValidator;
 
-  constructor() {
+  constructor(validator?: IKVValidator) {
     this.l1Cache = new LRUCache(1000);
     this.enableL1Cache = true;
+    this.defaultTTL = 3600; // 1 hour default in seconds
+    this.validator = validator || this.createDefaultValidator();
+  }
+
+  private createDefaultValidator(): IKVValidator {
+    // Default implementation if no validator provided
+    // This maintains backward compatibility
+    return {
+      isValidKey: (key: string) => {
+        if (!key || key.trim().length === 0) return false;
+        if (key.length > 512) return false;
+        const validFormat = /^[a-zA-Z0-9:_\-./]+$/;
+        return validFormat.test(key);
+      },
+      validate: (input: string) => {
+        if (!input || input.trim().length === 0) return false;
+        if (input.length > 512) return false;
+        const validFormat = /^[a-zA-Z0-9:_\-./]+$/;
+        return validFormat.test(input);
+      },
+      errorMessage: 'Invalid KV key format'
+    };
   }
 
   initialize(options: KVCacheOptions): void {
@@ -135,7 +160,8 @@ export class KVService implements IKVService {
   }
 
   async get<T>(key: string, binding?: string): Promise<T | null> {
-    if (!validationUtils.isValidKVKey(key)) {
+    // Use validator from domain
+    if (!this.validator.isValidKey(key)) {
       throw new Error(`Invalid KV key: ${key}`);
     }
 
@@ -146,12 +172,13 @@ export class KVService implements IKVService {
   }
 
   async put<T>(key: string, value: T, options?: { ttl?: number; binding?: string }): Promise<void> {
-    if (!validationUtils.isValidKVKey(key)) {
+    // Use validator from domain
+    if (!this.validator.isValidKey(key)) {
       throw new Error(`Invalid KV key: ${key}`);
     }
 
     const namespace = this.getNamespace(options?.binding);
-    const ttl = options?.ttl ?? this.defaultTTL;
+    const ttl = options?.ttl ?? (this.defaultTTL instanceof TTL ? this.defaultTTL.seconds : this.defaultTTL);
 
     await namespace.put(key, JSON.stringify(value), {
       expirationTtl: ttl,
@@ -159,7 +186,8 @@ export class KVService implements IKVService {
   }
 
   async delete(key: string, binding?: string): Promise<boolean> {
-    if (!validationUtils.isValidKVKey(key)) {
+    // Use validator from domain
+    if (!this.validator.isValidKey(key)) {
       throw new Error(`Invalid KV key: ${key}`);
     }
 
@@ -215,7 +243,8 @@ export class KVService implements IKVService {
 
     // Store in L1 if found in L2
     if (value !== null && this.enableL1Cache) {
-      this.l1Cache.set(key, value, options?.ttl ?? this.defaultTTL);
+      const ttl = options?.ttl ?? (typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds);
+      this.l1Cache.set(key, value, ttl);
     }
 
     return value;
@@ -231,7 +260,8 @@ export class KVService implements IKVService {
   ): Promise<void> {
     // Store in L1 (memory)
     if (this.enableL1Cache) {
-      this.l1Cache.set(key, value, options?.ttl ?? this.defaultTTL);
+      const ttl = options?.ttl ?? (typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds);
+      this.l1Cache.set(key, value, ttl);
     }
 
     // Store in L2 (KV)
@@ -250,7 +280,7 @@ export class KVService implements IKVService {
     response: AIResponse,
     options?: AIResponseCacheOptions
   ): Promise<void> {
-    const ttl = options?.ttl ?? this.defaultTTL;
+    const ttl = options?.ttl ?? (typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds);
     const tags = options?.tags || [];
 
     // Store with metadata
@@ -319,8 +349,9 @@ export class KVService implements IKVService {
   ): Promise<void> {
     // Warm L1 cache
     if (this.enableL1Cache) {
+      const defaultTtl = typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds;
       for (const entry of entries) {
-        this.l1Cache.set(entry.key, entry.value, entry.ttl ?? this.defaultTTL);
+        this.l1Cache.set(entry.key, entry.value, entry.ttl ?? defaultTtl);
       }
     }
 
