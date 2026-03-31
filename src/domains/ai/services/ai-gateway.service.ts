@@ -7,6 +7,8 @@
 import type {
   IAIGatewayService,
   IEmbeddingService,
+  ProviderCallOptions,
+  ProviderCallResult,
 } from '../types';
 import type {
   AIGatewayConfig,
@@ -26,46 +28,6 @@ interface CircuitBreakerState {
   failureCount: number;
   lastFailureTime: number;
   nextAttemptTime: number;
-}
-
-// ============================================================
-// Provider Call Options
-// ============================================================
-
-interface ProviderCallOptions {
-  /** Return raw Response object instead of parsed JSON */
-  returnRawResponse?: boolean;
-  /** Custom gateway ID override */
-  gatewayId?: string;
-  /** Expected response type for binary data */
-  responseType?: 'json' | 'text' | 'arraybuffer' | 'blob';
-  /** Custom headers */
-  headers?: Record<string, string>;
-  /** Request timeout in milliseconds */
-  timeout?: number;
-}
-
-// ============================================================
-// Provider Call Result
-// ============================================================
-
-interface ProviderCallResult<T = unknown> {
-  /** Response data (parsed or raw) */
-  data: T | Response;
-  /** Model used */
-  model: string;
-  /** Provider used */
-  provider: string;
-  /** Estimated tokens processed */
-  tokens: number;
-  /** Estimated cost in USD */
-  cost: number;
-  /** Request latency in milliseconds */
-  latency: number;
-  /** Whether response was from cache */
-  cached: boolean;
-  /** Request metadata */
-  metadata?: Record<string, unknown>;
 }
 
 // ============================================================

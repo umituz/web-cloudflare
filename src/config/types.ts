@@ -732,10 +732,29 @@ export interface EnvConfig {
 /**
  * Workers AI Binding
  * @description Cloudflare Workers AI runtime binding
+ * @deprecated Use `Ai` from @cloudflare/workers-types for new code
+ * This type is maintained for backward compatibility
  */
 export interface WorkersAIBinding {
   run: <T = unknown>(model: string, inputs: Record<string, unknown>) => Promise<T>;
 }
+
+/**
+ * Standard Workers AI binding type from @cloudflare/workers-types
+ * @description Use this for new code - it's the official type
+ *
+ * Example:
+ * ```typescript
+ * import type { Ai } from '@cloudflare/workers-types';
+ *
+ * export interface Env {
+ *   AI: Ai;
+ * }
+ * ```
+ *
+ * @see https://developers.cloudflare.com/workers-ai/bindings/
+ */
+export type Ai = WorkersAIBinding;
 
 // ============================================================
 // Configuration Merging Types

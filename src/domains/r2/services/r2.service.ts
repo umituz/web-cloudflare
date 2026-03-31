@@ -3,8 +3,17 @@
  * @description Cloudflare R2 object storage operations with presigned URLs, multipart upload, and D1 integration
  */
 
-import type { R2Object, R2ListOptions, R2ListResult, R2PutOptions, R2PresignedURL } from "../entities";
-import type { IR2Service } from "../types/service.interface";
+import type {
+  R2Object,
+  R2ListOptions,
+  R2ListResult,
+  R2PutOptions,
+  R2PresignedURL,
+} from "../entities";
+import type {
+  IR2Service,
+  GeneratedAssetMetadata,
+} from "../types/service.interface";
 import type { D1Service } from "../../d1/services/d1.service";
 import { validationUtils } from "../../../infrastructure/utils";
 
@@ -39,6 +48,23 @@ export interface R2CustomMetadata {
   [key: string]: string;
 }
 
+/**
+ * HTTP metadata for R2 uploads
+ * @description Standard HTTP headers for R2 objects
+ */
+export interface R2HTTPMetadata {
+  /** Content-Type header */
+  contentType?: string;
+  /** Content-Encoding header */
+  contentEncoding?: string;
+  /** Content-Language header */
+  contentLanguage?: string;
+  /** Cache-Control header */
+  cacheControl?: string;
+  /** Content-Disposition header */
+  contentDisposition?: string;
+}
+
 // R2UploadOptions base interface (from Cloudflare Workers types)
 export interface R2UploadOptions {
   /** Only upload if the object does not already exist */
@@ -56,30 +82,8 @@ export interface R2UploadOptionsExtended extends R2UploadOptions {
   saveToD1?: R2MetadataWithD1['saveToD1'];
 }
 
-// ============================================================
-// Generated Asset Metadata
-// ============================================================
-
-/**
- * Metadata for AI-generated or programmatically generated assets
- * @description Generic interface for any generated content (audio, image, video, text, etc.)
- */
-export interface GeneratedAssetMetadata {
-  /** Model or algorithm used to generate the asset */
-  model: string;
-  /** Provider (e.g., 'huggingface', 'workers-ai', 'openai') */
-  provider?: string;
-  /** Input prompt or parameters used */
-  prompt?: string;
-  /** Content type (MIME type) */
-  contentType: string;
-  /** Additional metadata */
-  additionalData?: Record<string, unknown>;
-  /** User ID for tracking */
-  userId?: string;
-  /** Tags for categorization */
-  tags?: string[];
-}
+// Re-export GeneratedAssetMetadata for convenience
+export type { GeneratedAssetMetadata };
 
 // ============================================================
 // Multipart Upload Types
