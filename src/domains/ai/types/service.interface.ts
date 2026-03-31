@@ -312,6 +312,45 @@ export interface ILLMStreamingService {
  * AI Gateway Service interface
  * @description Multi-provider routing with caching and fallback
  */
+
+/**
+ * Provider call options
+ */
+export interface ProviderCallOptions {
+  /** Return raw Response object instead of parsed JSON */
+  returnRawResponse?: boolean;
+  /** Custom gateway ID override */
+  gatewayId?: string;
+  /** Expected response type for binary data */
+  responseType?: 'json' | 'text' | 'arraybuffer' | 'blob';
+  /** Custom headers */
+  headers?: Record<string, string>;
+  /** Request timeout in milliseconds */
+  timeout?: number;
+}
+
+/**
+ * Provider call result
+ */
+export interface ProviderCallResult<T = unknown> {
+  /** Response data (parsed or raw) */
+  data: T | Response;
+  /** Model used */
+  model: string;
+  /** Provider used */
+  provider: string;
+  /** Estimated tokens processed */
+  tokens: number;
+  /** Estimated cost in USD */
+  cost: number;
+  /** Request latency in milliseconds */
+  latency: number;
+  /** Whether response was from cache */
+  cached: boolean;
+  /** Request metadata */
+  metadata?: Record<string, unknown>;
+}
+
 export interface IAIGatewayService {
   /**
    * Route AI request to appropriate provider
@@ -319,6 +358,42 @@ export interface IAIGatewayService {
    * @returns AI response
    */
   route(request: AIRequest): Promise<AIResponse>;
+
+  /**
+   * Generic call to any AI provider ⭐ NEW v1.6.5
+   * @param provider Provider type
+   * @param model Model identifier
+   * @param payload Request payload
+   * @param options Call options
+   * @returns Provider call result
+   */
+  callProvider<T = unknown>(
+    provider: 'huggingface' | 'workers-ai' | 'openai' | 'anthropic' | 'cohere' | 'custom',
+    model: string,
+    payload: unknown,
+    options?: ProviderCallOptions
+  ): Promise<ProviderCallResult<T>>;
+
+  /**
+   * Call Hugging Face model via Cloudflare AI Gateway ⭐ NEW v1.6.5
+   * @param model Hugging Face model identifier
+   * @param payload Request payload
+   * @param options Call options
+   * @returns Provider call result
+   */
+  callHuggingFace<T = unknown>(
+    model: string,
+    payload: unknown,
+    options?: Omit<ProviderCallOptions, 'gatewayId'>
+  ): Promise<ProviderCallResult<T>>;
+
+  /**
+   * Build Cloudflare AI Gateway URL for Hugging Face ⭐ NEW v1.6.5
+   * @param model Hugging Face model identifier
+   * @param gatewayId Gateway ID (optional)
+   * @returns Complete gateway URL
+   */
+  buildHuggingFaceGatewayURL(model: string, gatewayId?: string): string;
 
   /**
    * Track AI call cost

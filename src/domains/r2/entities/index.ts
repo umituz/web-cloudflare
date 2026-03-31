@@ -9,3 +9,9 @@ export type {
   R2PutOptions,
   R2PresignedURL,
 } from './r2.entity';
+
+/**
+ * Generated Asset Metadata ⭐ NEW v1.6.5
+ * @description Re-exported from service interface for convenience
+ */
+export type { GeneratedAssetMetadata } from '../types/service.interface';
