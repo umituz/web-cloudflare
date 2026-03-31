@@ -6,13 +6,14 @@
     "lib": ["ES2022", "WebWorker"],
     "strict": true,
     "declaration": true,
-    "declarationMap": false,
+    "declarationMap": true,
+    "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "noEmit": true,
+    "noEmit": false,
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"]
