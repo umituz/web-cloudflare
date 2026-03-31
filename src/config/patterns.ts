@@ -268,7 +268,7 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
           },
         },
         {
-          id: 'huggingface', // ⭐ NEW v1.6.5
+          id: 'huggingface',
           name: 'Hugging Face',
           type: 'custom',
           baseURL: 'https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface',
@@ -321,7 +321,7 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
         alertThreshold: 80, // Alert at 80%
       },
     },
-    huggingface: { // ⭐ NEW v1.6.5
+    huggingface: {
       enabled: true,
       accountId: '{account_id}', // Replace with actual Cloudflare account ID
       defaultGatewayId: '{gateway_id}', // Replace with actual AI Gateway ID
@@ -602,9 +602,6 @@ export class ConfigBuilder {
     return this;
   }
 
-  /**
-   * Configure Hugging Face integration via Cloudflare AI Gateway ⭐ NEW v1.6.5
-   */
   withHuggingFace(config: {
     enabled: boolean;
     accountId?: string;

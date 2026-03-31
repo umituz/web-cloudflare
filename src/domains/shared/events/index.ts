@@ -19,5 +19,5 @@ export {
   AIResponseCachedEvent,
   AICacheInvalidatedEvent,
   AIModelCalledEvent,
-  AIGatewayCallEvent, // ⭐ NEW v1.6.5
+  AIGatewayCallEvent,
 } from './ai-events';

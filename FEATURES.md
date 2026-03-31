@@ -288,7 +288,7 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 
 ---
 
-### 5. AIGatewayService (`/ai`) ⭐ ENHANCED v1.6.5
+### 5. AIGatewayService (`/ai`)
 
 **Purpose**: Multi-provider routing, caching, fallback, cost tracking
 
@@ -302,7 +302,7 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 - Budget enforcement
 - Analytics
 
-### 6. Hugging Face Integration via AI Gateway ⭐ NEW v1.6.5
+### 6. Hugging Face Integration via AI Gateway
 
 **Purpose**: Generic access to any Hugging Face model through Cloudflare AI Gateway
 
@@ -943,18 +943,18 @@ const kvService = new KVService(validator);
 - Image optimization enabled
 
 #### 6. AI-First App
-- Multi-provider AI (Workers AI + OpenAI + Hugging Face) ⭐ ENHANCED v1.6.5
+- Multi-provider AI (Workers AI + OpenAI + Hugging Face)
 - 2-hour cache TTL
 - Low rate limit (30 req/min)
 
-### ConfigBuilder Enhancements ⭐ NEW v1.6.5
+### ConfigBuilder
 
 ```typescript
 import { ConfigBuilder } from '@umituz/web-cloudflare/config';
 
 const config = ConfigBuilder.create()
   .withAI({ enabled: true })
-  .withHuggingFace({                   // ⭐ NEW
+  .withHuggingFace({
     enabled: true,
     defaultGatewayId: 'my-hf-gateway',
   })
@@ -1120,7 +1120,7 @@ import { multiTenantService } from '@umituz/web-cloudflare/multi-tenant';
 
 ## 💡 Usage Examples
 
-### Using Hugging Face via AI Gateway ⭐ NEW v1.6.5
+### Using Hugging Face via AI Gateway
 
 ```typescript
 import { AIGatewayService, R2Service } from '@umituz/web-cloudflare/ai';
@@ -1215,7 +1215,7 @@ await kvService.put(key.value, { data: '...' }, { ttl: ttl.seconds });
 ```typescript
 import { AIResponseCachedEvent, AIGatewayCallEvent } from '@umituz/web-cloudflare/domains/shared';
 
-// Create AI Gateway call event (NEW)
+// Create AI Gateway call event
 const event = new AIGatewayCallEvent(
   'huggingface',
   'meta-llama/Llama-3.1-8B',
@@ -1290,7 +1290,7 @@ const response = await ai.callLLM('@cf/meta/llama-3.1-8b-instruct', {
 - **RAG Applications**: Document search, knowledge bases, Q&A systems
 - **Content Generation**: Blogs, social media, marketing copy
 - **Data Enrichment**: Entity extraction, classification, summarization
-- **Generative Media**: Audio, image, video via Hugging Face ⭐ NEW v1.6.5
+- **Generative Media**: Audio, image, video via Hugging Face
 
 ### E-Commerce
 - Product recommendations with AI

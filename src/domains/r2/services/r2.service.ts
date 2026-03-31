@@ -1,21 +1,14 @@
-/**
- * R2 Service
- * @description Cloudflare R2 object storage operations with presigned URLs, multipart upload, and D1 integration
- */
-
 import type {
   R2Object,
   R2ListOptions,
   R2ListResult,
   R2PutOptions,
   R2PresignedURL,
-} from "../entities";
-import type {
-  IR2Service,
-  GeneratedAssetMetadata,
-} from "../types/service.interface";
-import type { D1Service } from "../../d1/services/d1.service";
-import { validationUtils } from "../../../infrastructure/utils";
+} from '../entities';
+import type { IR2Service } from '../types/service.interface';
+import type { GeneratedAssetMetadata } from '../../ai/value-objects';
+import type { D1Service } from '../../d1/services/d1.service';
+import { validationUtils } from '../../../infrastructure/utils';
 
 // ============================================================
 // R2 Metadata Types
@@ -78,12 +71,8 @@ export interface R2UploadOptions {
 }
 
 export interface R2UploadOptionsExtended extends R2UploadOptions {
-  /** Auto-save metadata to D1 */
   saveToD1?: R2MetadataWithD1['saveToD1'];
 }
-
-// Re-export GeneratedAssetMetadata for convenience
-export type { GeneratedAssetMetadata };
 
 // ============================================================
 // Multipart Upload Types
@@ -244,18 +233,6 @@ export class R2Service implements IR2Service {
     }
   }
 
-  // ============================================================
-  // Generated Asset Upload ⭐ NEW v1.6.5
-  // ============================================================
-
-  /**
-   * Upload a generically generated asset (AI-generated or programmatic)
-   * @description Generic method for any AI-generated content (audio, image, video, etc.)
-   * @param buffer Asset data as ArrayBuffer
-   * @param metadata Asset metadata
-   * @param options Upload options
-   * @returns The R2 key of the uploaded asset
-   */
   async uploadGeneratedAsset(
     buffer: ArrayBuffer,
     metadata: GeneratedAssetMetadata,
@@ -266,14 +243,12 @@ export class R2Service implements IR2Service {
       tableName?: string;
     }
   ): Promise<string> {
-    // Generate unique key with prefix
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 11);
     const prefix = options?.keyPrefix || 'generated';
-    const extension = this.getExtensionFromContentType(metadata.contentType);
+    const extension = metadata.getFileExtension();
     const key = `${prefix}/${metadata.model}/${timestamp}-${random}.${extension}`;
 
-    // Prepare custom metadata
     const customMetadata: Record<string, string> = {
       model: metadata.model,
       contentType: metadata.contentType,
@@ -285,7 +260,7 @@ export class R2Service implements IR2Service {
     }
 
     if (metadata.prompt) {
-      customMetadata.prompt = metadata.prompt.substring(0, 500); // Truncate long prompts
+      customMetadata.prompt = metadata.prompt.substring(0, 500);
     }
 
     if (metadata.userId) {
@@ -296,7 +271,6 @@ export class R2Service implements IR2Service {
       customMetadata.tags = metadata.tags.join(',');
     }
 
-    // Prepare D1 save config if enabled
     const d1Config = options?.saveToD1 && this.d1Service ? {
       table: options?.tableName || 'generated_assets',
       additionalData: {
@@ -309,12 +283,11 @@ export class R2Service implements IR2Service {
       },
     } : undefined;
 
-    // Upload with metadata
     await this.putWithMetadata(key, buffer, {
       customMetadata,
       httpMetadata: {
         contentType: metadata.contentType,
-        cacheControl: 'public, max-age=31536000', // 1 year cache
+        cacheControl: 'public, max-age=31536000',
       },
       saveToD1: d1Config,
     }, {

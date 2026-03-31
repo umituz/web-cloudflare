@@ -285,9 +285,6 @@ export interface AIConfig {
     period: number;
   };
 
-  /**
-   * Hugging Face configuration via Cloudflare AI Gateway ⭐ NEW v1.6.5
-   */
   huggingface?: {
     /**
      * Enable Hugging Face integration

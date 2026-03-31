@@ -1,14 +1,6 @@
-/**
- * AI Gateway Service
- * @description Multi-provider routing with caching, fallback, and cost tracking
- * Enhanced with generic Hugging Face support via Cloudflare AI Gateway
- */
-
 import type {
   IAIGatewayService,
   IEmbeddingService,
-  ProviderCallOptions,
-  ProviderCallResult,
 } from '../types';
 import type {
   AIGatewayConfig,
@@ -16,12 +8,11 @@ import type {
   AIResponse,
   AICostSummary,
   AIProvider,
+  ProviderCallOptions,
+  ProviderCallResult,
 } from '../entities';
+import type { AIGatewayCallEvent } from '../../shared/events';
 import type { WorkersAIBinding } from '../../../config/types';
-
-// ============================================================
-// Circuit Breaker State
-// ============================================================
 
 interface CircuitBreakerState {
   isOpen: boolean;
