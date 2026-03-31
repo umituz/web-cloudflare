@@ -284,6 +284,28 @@ export interface AIConfig {
     quota: number;
     period: number;
   };
+
+  /**
+   * Hugging Face configuration via Cloudflare AI Gateway ⭐ NEW v1.6.5
+   */
+  huggingface?: {
+    /**
+     * Enable Hugging Face integration
+     */
+    enabled: boolean;
+    /**
+     * Cloudflare account ID
+     */
+    accountId?: string;
+    /**
+     * AI Gateway ID for Hugging Face
+     */
+    defaultGatewayId?: string;
+    /**
+     * Available Hugging Face models
+     */
+    models?: string[];
+  };
 }
 
 // ============================================================

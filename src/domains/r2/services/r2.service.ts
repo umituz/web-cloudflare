@@ -57,6 +57,31 @@ export interface R2UploadOptionsExtended extends R2UploadOptions {
 }
 
 // ============================================================
+// Generated Asset Metadata
+// ============================================================
+
+/**
+ * Metadata for AI-generated or programmatically generated assets
+ * @description Generic interface for any generated content (audio, image, video, text, etc.)
+ */
+export interface GeneratedAssetMetadata {
+  /** Model or algorithm used to generate the asset */
+  model: string;
+  /** Provider (e.g., 'huggingface', 'workers-ai', 'openai') */
+  provider?: string;
+  /** Input prompt or parameters used */
+  prompt?: string;
+  /** Content type (MIME type) */
+  contentType: string;
+  /** Additional metadata */
+  additionalData?: Record<string, unknown>;
+  /** User ID for tracking */
+  userId?: string;
+  /** Tags for categorization */
+  tags?: string[];
+}
+
+// ============================================================
 // Multipart Upload Types
 // ============================================================
 
@@ -214,6 +239,159 @@ export class R2Service implements IR2Service {
       await this.d1Service.insert(table, d1Data);
     }
   }
+
+  // ============================================================
+  // Generated Asset Upload ⭐ NEW v1.6.5
+  // ============================================================
+
+  /**
+   * Upload a generically generated asset (AI-generated or programmatic)
+   * @description Generic method for any AI-generated content (audio, image, video, etc.)
+   * @param buffer Asset data as ArrayBuffer
+   * @param metadata Asset metadata
+   * @param options Upload options
+   * @returns The R2 key of the uploaded asset
+   */
+  async uploadGeneratedAsset(
+    buffer: ArrayBuffer,
+    metadata: GeneratedAssetMetadata,
+    options?: {
+      binding?: string;
+      keyPrefix?: string;
+      saveToD1?: boolean;
+      tableName?: string;
+    }
+  ): Promise<string> {
+    // Generate unique key with prefix
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 11);
+    const prefix = options?.keyPrefix || 'generated';
+    const extension = this.getExtensionFromContentType(metadata.contentType);
+    const key = `${prefix}/${metadata.model}/${timestamp}-${random}.${extension}`;
+
+    // Prepare custom metadata
+    const customMetadata: Record<string, string> = {
+      model: metadata.model,
+      contentType: metadata.contentType,
+      generatedAt: timestamp.toString(),
+    };
+
+    if (metadata.provider) {
+      customMetadata.provider = metadata.provider;
+    }
+
+    if (metadata.prompt) {
+      customMetadata.prompt = metadata.prompt.substring(0, 500); // Truncate long prompts
+    }
+
+    if (metadata.userId) {
+      customMetadata.userId = metadata.userId;
+    }
+
+    if (metadata.tags && metadata.tags.length > 0) {
+      customMetadata.tags = metadata.tags.join(',');
+    }
+
+    // Prepare D1 save config if enabled
+    const d1Config = options?.saveToD1 && this.d1Service ? {
+      table: options?.tableName || 'generated_assets',
+      additionalData: {
+        model: metadata.model,
+        provider: metadata.provider,
+        prompt: metadata.prompt,
+        userId: metadata.userId,
+        tags: metadata.tags?.join(','),
+        contentType: metadata.contentType,
+      },
+    } : undefined;
+
+    // Upload with metadata
+    await this.putWithMetadata(key, buffer, {
+      customMetadata,
+      httpMetadata: {
+        contentType: metadata.contentType,
+        cacheControl: 'public, max-age=31536000', // 1 year cache
+      },
+      saveToD1: d1Config,
+    }, {
+      binding: options?.binding,
+    });
+
+    return key;
+  }
+
+  /**
+   * Batch upload multiple generated assets
+   * @description Upload multiple assets in parallel
+   * @param assets Array of assets to upload
+   * @param options Upload options
+   * @returns Array of uploaded keys
+   */
+  async uploadGeneratedAssets(
+    assets: Array<{
+      buffer: ArrayBuffer;
+      metadata: GeneratedAssetMetadata;
+    }>,
+    options?: {
+      binding?: string;
+      keyPrefix?: string;
+      saveToD1?: boolean;
+      tableName?: string;
+    }
+  ): Promise<string[]> {
+    const uploads = assets.map(asset =>
+      this.uploadGeneratedAsset(asset.buffer, asset.metadata, options)
+    );
+
+    return Promise.all(uploads);
+  }
+
+  /**
+   * Get file extension from content type
+   * @param contentType MIME type
+   * @returns File extension (without dot)
+   */
+  private getExtensionFromContentType(contentType: string): string {
+    const extensions: Record<string, string> = {
+      // Audio
+      'audio/mpeg': 'mp3',
+      'audio/wav': 'wav',
+      'audio/ogg': 'ogg',
+      'audio/aac': 'aac',
+      'audio/flac': 'flac',
+      'audio/webm': 'webm',
+
+      // Image
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+      'image/svg+xml': 'svg',
+      'image/avif': 'avif',
+
+      // Video
+      'video/mp4': 'mp4',
+      'video/webm': 'webm',
+      'video/ogg': 'ogv',
+      'video/quicktime': 'mov',
+
+      // Text/JSON
+      'application/json': 'json',
+      'text/plain': 'txt',
+      'text/csv': 'csv',
+      'text/html': 'html',
+      'text/markdown': 'md',
+
+      // Binary
+      'application/octet-stream': 'bin',
+    };
+
+    return extensions[contentType] || 'bin';
+  }
+
+  // ============================================================
+  // Original R2 Methods
+  // ============================================================
 
   async delete(key: string, binding?: string): Promise<boolean> {
     if (!validationUtils.isValidR2Key(key)) {

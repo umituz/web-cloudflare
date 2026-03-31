@@ -219,6 +219,7 @@ export const aiFirstConfig: Partial<WorkerConfig> = {
 /**
  * AI-Ready Configuration (Production-ready for AI applications)
  * @description Optimized configuration for AI-heavy applications with Vectorize support
+ * Enhanced v1.6.5 with Hugging Face integration
  */
 export const aiReadyConfig: Partial<WorkerConfig> = {
   cache: {
@@ -228,6 +229,7 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
       '/api/ai/*': 7200,      // 2 hours for AI responses
       '/api/embeddings/*': 86400, // 1 day for embeddings
       '/api/vectors/*': 86400, // 1 day for vector data
+      '/api/huggingface/*': 7200, // 2 hours for HF models
     },
   },
   rateLimit: {
@@ -266,6 +268,30 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
           },
         },
         {
+          id: 'huggingface', // ⭐ NEW v1.6.5
+          name: 'Hugging Face',
+          type: 'custom',
+          baseURL: 'https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface',
+          apiKey: '',
+          models: [
+            'meta-llama/Llama-3.1-8B',
+            'meta-llama/Llama-3.3-70B',
+            'facebook/musicgen-small',
+            'openai/whisper-large-v3',
+          ],
+          weight: 2,
+          pricing: {
+            'meta-llama/Llama-3.1-8B': {
+              inputCostPer1KTokens: 0.00007,
+              outputCostPer1KTokens: 0.00007,
+            },
+            'meta-llama/Llama-3.3-70B': {
+              inputCostPer1KTokens: 0.0007,
+              outputCostPer1KTokens: 0.0007,
+            },
+          },
+        },
+        {
           id: 'openai-fallback',
           name: 'OpenAI',
           type: 'openai',
@@ -294,6 +320,17 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
         monthlyLimit: 100, // $100/month default
         alertThreshold: 80, // Alert at 80%
       },
+    },
+    huggingface: { // ⭐ NEW v1.6.5
+      enabled: true,
+      accountId: '{account_id}', // Replace with actual Cloudflare account ID
+      defaultGatewayId: '{gateway_id}', // Replace with actual AI Gateway ID
+      models: [
+        'meta-llama/Llama-3.1-8B',
+        'meta-llama/Llama-3.3-70B',
+        'facebook/musicgen-small',
+        'openai/whisper-large-v3',
+      ],
     },
     defaultModel: '@cf/meta/llama-3.1-8b-instruct',
     defaultParams: {
@@ -562,6 +599,50 @@ export class ConfigBuilder {
       monthlyLimit,
       alertThreshold: alertThreshold || Math.floor(monthlyLimit * 0.8),
     };
+    return this;
+  }
+
+  /**
+   * Configure Hugging Face integration via Cloudflare AI Gateway ⭐ NEW v1.6.5
+   */
+  withHuggingFace(config: {
+    enabled: boolean;
+    accountId?: string;
+    defaultGatewayId?: string;
+    models?: string[];
+  }): ConfigBuilder {
+    if (!this.config.ai) {
+      this.config.ai = { enabled: true };
+    }
+    this.config.ai.huggingface = config;
+
+    // Automatically add Hugging Face provider to gateway if enabled
+    if (config.enabled && config.accountId && config.defaultGatewayId) {
+      if (!this.config.ai.gateway) {
+        this.config.ai.gateway = { providers: [] };
+      }
+
+      // Build Hugging Face gateway URL
+      const hfURL = `https://gateway.ai.cloudflare.com/v1/${config.accountId}/${config.defaultGatewayId}/huggingface`;
+
+      // Check if Hugging Face provider already exists
+      const existingHFProvider = this.config.ai.gateway.providers.find(
+        p => p.baseURL.includes('/huggingface')
+      );
+
+      if (!existingHFProvider) {
+        this.config.ai.gateway.providers.push({
+          id: 'huggingface',
+          name: 'Hugging Face',
+          type: 'custom',
+          baseURL: hfURL,
+          apiKey: '', // AI Gateway handles auth
+          models: config.models || [],
+          weight: 2,
+        });
+      }
+    }
+
     return this;
   }
 
