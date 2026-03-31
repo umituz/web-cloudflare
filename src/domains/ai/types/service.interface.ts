@@ -18,6 +18,8 @@ import type {
   AIRequest,
   AIResponse,
   AICostSummary,
+  ProviderCallOptions,
+  ProviderCallResult,
 } from '../entities';
 
 // ============================================================
@@ -308,65 +310,9 @@ export interface ILLMStreamingService {
 // AI Gateway Service Interface
 // ============================================================
 
-/**
- * AI Gateway Service interface
- * @description Multi-provider routing with caching and fallback
- */
-
-/**
- * Provider call options
- */
-export interface ProviderCallOptions {
-  /** Return raw Response object instead of parsed JSON */
-  returnRawResponse?: boolean;
-  /** Custom gateway ID override */
-  gatewayId?: string;
-  /** Expected response type for binary data */
-  responseType?: 'json' | 'text' | 'arraybuffer' | 'blob';
-  /** Custom headers */
-  headers?: Record<string, string>;
-  /** Request timeout in milliseconds */
-  timeout?: number;
-}
-
-/**
- * Provider call result
- */
-export interface ProviderCallResult<T = unknown> {
-  /** Response data (parsed or raw) */
-  data: T | Response;
-  /** Model used */
-  model: string;
-  /** Provider used */
-  provider: string;
-  /** Estimated tokens processed */
-  tokens: number;
-  /** Estimated cost in USD */
-  cost: number;
-  /** Request latency in milliseconds */
-  latency: number;
-  /** Whether response was from cache */
-  cached: boolean;
-  /** Request metadata */
-  metadata?: Record<string, unknown>;
-}
-
 export interface IAIGatewayService {
-  /**
-   * Route AI request to appropriate provider
-   * @param request AI request
-   * @returns AI response
-   */
   route(request: AIRequest): Promise<AIResponse>;
 
-  /**
-   * Generic call to any AI provider ⭐ NEW v1.6.5
-   * @param provider Provider type
-   * @param model Model identifier
-   * @param payload Request payload
-   * @param options Call options
-   * @returns Provider call result
-   */
   callProvider<T = unknown>(
     provider: 'huggingface' | 'workers-ai' | 'openai' | 'anthropic' | 'cohere' | 'custom',
     model: string,
@@ -374,31 +320,14 @@ export interface IAIGatewayService {
     options?: ProviderCallOptions
   ): Promise<ProviderCallResult<T>>;
 
-  /**
-   * Call Hugging Face model via Cloudflare AI Gateway ⭐ NEW v1.6.5
-   * @param model Hugging Face model identifier
-   * @param payload Request payload
-   * @param options Call options
-   * @returns Provider call result
-   */
   callHuggingFace<T = unknown>(
     model: string,
     payload: unknown,
     options?: Omit<ProviderCallOptions, 'gatewayId'>
   ): Promise<ProviderCallResult<T>>;
 
-  /**
-   * Build Cloudflare AI Gateway URL for Hugging Face ⭐ NEW v1.6.5
-   * @param model Hugging Face model identifier
-   * @param gatewayId Gateway ID (optional)
-   * @returns Complete gateway URL
-   */
   buildHuggingFaceGatewayURL(model: string, gatewayId?: string): string;
 
-  /**
-   * Track AI call cost
-   * @param data Cost data
-   */
   trackCost(data: {
     provider: string;
     model: string;
@@ -407,50 +336,19 @@ export interface IAIGatewayService {
     userId?: string;
   }): Promise<void>;
 
-  /**
-   * Get cost summary
-   * @param period Time period
-   * @returns Cost summary
-   */
   getCostSummary(period?: 'hour' | 'day' | 'week' | 'month'): Promise<AICostSummary>;
 
-  /**
-   * Enforce budget limit
-   * @param budget Budget amount
-   * @param provider Provider filter (optional)
-   * @returns Whether within budget
-   */
   enforceBudget(budget: number, provider?: string): boolean;
 
-  /**
-   * Get cached AI response (exact match)
-   * @param key Cache key
-   * @returns Cached response or null
-   */
   getCached(key: string): Promise<AIResponse | null>;
 
-  /**
-   * Get cached AI response (semantic match)
-   * @param embedding Query embedding
-   * @param threshold Similarity threshold
-   * @returns Cached response or null
-   */
   getCachedSemantic(
     embedding: number[],
     threshold: number
   ): Promise<AIResponse | null>;
 
-  /**
-   * Save response to cache
-   * @param key Cache key
-   * @param response AI response
-   */
   saveToCache(key: string, response: AIResponse): Promise<void>;
 
-  /**
-   * Get analytics
-   * @returns Analytics data
-   */
   getAnalytics(): Promise<{
     totalRequests: number;
     totalTokens: number;
@@ -460,17 +358,8 @@ export interface IAIGatewayService {
     providerUsage: Record<string, number>;
   }>;
 
-  /**
-   * Check circuit breaker for provider
-   * @param provider Provider ID
-   * @returns Whether provider is available
-   */
   isProviderAvailable(provider: string): boolean;
 
-  /**
-   * Reset circuit breaker for provider
-   * @param provider Provider ID
-   */
   resetCircuitBreaker(provider: string): void;
 }
 

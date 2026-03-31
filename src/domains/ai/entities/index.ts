@@ -3,6 +3,8 @@
  * @description Core entities for AI services
  */
 
+export * from './ai-gateway.entity';
+
 // ============================================================
 // LLM (Large Language Model) Entities
 // ============================================================

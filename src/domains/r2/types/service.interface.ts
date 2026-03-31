@@ -1,30 +1,9 @@
 /**
  * R2 Service Interface
- * @description Abstract interface for R2 storage operations
  */
 
 import type { R2Object, R2ListOptions, R2ListResult, R2PutOptions, R2PresignedURL } from '../entities';
-
-/**
- * Metadata for AI-generated or programmatically generated assets ⭐ NEW v1.6.5
- * @description Generic interface for any generated content (audio, image, video, text, etc.)
- */
-export interface GeneratedAssetMetadata {
-  /** Model or algorithm used to generate the asset */
-  model: string;
-  /** Provider (e.g., 'huggingface', 'workers-ai', 'openai') */
-  provider?: string;
-  /** Input prompt or parameters used */
-  prompt?: string;
-  /** Content type (MIME type) */
-  contentType: string;
-  /** Additional metadata */
-  additionalData?: Record<string, unknown>;
-  /** User ID for tracking */
-  userId?: string;
-  /** Tags for categorization */
-  tags?: string[];
-}
+import type { GeneratedAssetMetadata } from '../../ai/value-objects';
 
 export interface IR2Service {
   get(key: string, binding?: string): Promise<R2Object | null>;
@@ -33,14 +12,6 @@ export interface IR2Service {
   list(options?: R2ListOptions): Promise<R2ListResult>;
   getPresignedURL(key: string, expiresIn?: number): Promise<R2PresignedURL>;
 
-  /**
-   * Upload a generically generated asset (AI-generated or programmatic) ⭐ NEW v1.6.5
-   * @description Generic method for any AI-generated content (audio, image, video, etc.)
-   * @param buffer Asset data as ArrayBuffer
-   * @param metadata Asset metadata
-   * @param options Upload options
-   * @returns The R2 key of the uploaded asset
-   */
   uploadGeneratedAsset(
     buffer: ArrayBuffer,
     metadata: GeneratedAssetMetadata,
@@ -52,13 +23,6 @@ export interface IR2Service {
     }
   ): Promise<string>;
 
-  /**
-   * Batch upload multiple generated assets ⭐ NEW v1.6.5
-   * @description Upload multiple assets in parallel
-   * @param assets Array of assets to upload
-   * @param options Upload options
-   * @returns Array of uploaded keys
-   */
   uploadGeneratedAssets(
     assets: Array<{
       buffer: ArrayBuffer;
@@ -72,26 +36,17 @@ export interface IR2Service {
     }
   ): Promise<string[]>;
 
-  /**
-   * Get public URL for an object
-   */
   getPublicURL(
     key: string,
     options?: { binding?: string; customDomain?: string }
   ): string;
 
-  /**
-   * Get signed URL for private objects
-   */
   getSignedURL(
     key: string,
     expiresIn?: number,
     binding?: string
   ): Promise<string>;
 
-  /**
-   * Put with metadata and auto-save to D1
-   */
   putWithMetadata(
     key: string,
     data: ReadableStream | ArrayBuffer | string,
