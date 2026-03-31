@@ -2,7 +2,7 @@
 
 Comprehensive Cloudflare Workers & Pages integration with config-based patterns, Domain-Driven Design (DDD), and production-ready features.
 
-**Version**: 1.6.4
+**Version**: 1.6.5
 **DDD Score**: 8.5/10 (Solid DDD)
 **Last Updated**: March 31, 2026
 
@@ -13,7 +13,7 @@ Comprehensive Cloudflare Workers & Pages integration with config-based patterns,
 1. [Architecture](#architecture)
 2. [Domain Services](#domain-services)
 3. [AI Building Blocks](#ai-building-blocks)
-4. [DDD Features](#ddd-features) ⭐ NEW
+4. [DDD Features](#ddd-features) ⭐
 5. [Config Patterns](#config-patterns)
 6. [Router & Middleware](#router--middleware)
 7. [Workflows](#workflows)
@@ -31,12 +31,13 @@ Comprehensive Cloudflare Workers & Pages integration with config-based patterns,
 
 The package follows DDD principles with a **Solid DDD** architecture (improved from 6.5/10 Pragmatic DDD).
 
-**Latest DDD Improvements** (v1.6.4):
+**Latest DDD Improvements** (v1.6.5):
 - ✅ **Value Objects**: Immutable, validated domain values (CacheKey, TTL, Email, URL)
-- ✅ **Domain Events**: Event-driven architecture support (8+ events)
+- ✅ **Domain Events**: Event-driven architecture support (9+ events)
 - ✅ **Repository Pattern**: Data access abstraction (KVRepository)
 - ✅ **Dependency Inversion**: Domain → Infrastructure dependency fix
-- ✅ **19 New DDD Files**: Value objects, events, repositories, interfaces
+- ✅ **20+ DDD Files**: Value objects, events, repositories, interfaces
+- ✅ **AI Gateway Events**: New domain events for generic AI provider calls
 
 **Domain Organization**:
 - **Entities**: Data models with identity and behavior
@@ -53,7 +54,7 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 
 ```
 ├── Domain Layer (Business Logic)
-│   ├── shared/          # ⭐ NEW - Shared DDD elements
+│   ├── shared/          # Shared DDD elements
 │   │   ├── value-objects/  # CacheKey, TTL, Email, URL
 │   │   ├── events/         # Domain events
 │   │   └── interfaces/     # Domain interfaces
@@ -72,7 +73,7 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 │   └── multi-tenant/   # Multi-app support
 │
 ├── Infrastructure Layer (Technical Foundation)
-│   ├── validators/     # ⭐ NEW - Validator implementations
+│   ├── validators/     # Validator implementations
 │   ├── router/         # HTTP routing
 │   └── utils/          # Helper functions
 │
@@ -83,10 +84,10 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 
 ### Project Statistics
 
-- **120 TypeScript Files**
+- **125 TypeScript Files**
 - **13 Bounded Contexts**
-- **19 DDD Files** (Value Objects, Events, Repositories)
-- **8 Domain Events**
+- **20+ DDD Files** (Value Objects, Events, Repositories)
+- **9 Domain Events**
 - **5 Value Objects**
 - **Repository Pattern** implemented
 
@@ -142,6 +143,12 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 - Backup storage
 - User-generated content
 - AI-generated assets (automatic metadata)
+
+**New Features** (v1.6.5):
+- `uploadGeneratedAsset()`: Generic method for any AI-generated content
+- `putWithMetadata()`: Auto-save to D1 with metadata
+- Multipart upload support
+- Presigned URLs for private objects
 
 ---
 
@@ -239,6 +246,8 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 - Cost estimation per model
 - Embedding generation
 - Translation (100+ languages)
+- **Enhanced v1.6.5**: Better support for different model types (LLM, embedding, multimodal)
+- **Enhanced v1.6.5**: Improved binary response handling
 
 ---
 
@@ -279,7 +288,7 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 
 ---
 
-### 5. AIGatewayService (`/ai`)
+### 5. AIGatewayService (`/ai`) ⭐ ENHANCED v1.6.5
 
 **Purpose**: Multi-provider routing, caching, fallback, cost tracking
 
@@ -292,6 +301,401 @@ This structure ensures each domain is independent, testable, and tree-shake frie
 - Cost tracking per provider/model
 - Budget enforcement
 - Analytics
+
+### 6. Hugging Face Integration via AI Gateway ⭐ NEW v1.6.5
+
+**Purpose**: Generic access to any Hugging Face model through Cloudflare AI Gateway
+
+**Key Features**:
+- Uses official Cloudflare AI Gateway endpoint format: `https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface/{model}`
+- Full support for Hugging Face provider in `AIGatewayService`
+- Generic helper methods for any model type (text, embedding, audio, image, multimodal, etc.)
+- Automatic metadata extraction (model used, estimated cost, latency)
+- Support for different payload formats (JSON, binary) and response types
+- Seamless integration with caching, cost tracking, and fallback mechanisms
+- No Hugging Face API keys required - AI Gateway handles authentication
+
+**Architecture Overview**:
+
+```
+┌─────────────────┐
+│  Your Worker    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│   AIGatewayService              │
+│   - callHuggingFace()           │
+│   - callProvider()              │
+│   - buildHuggingFaceGatewayURL()│
+└────────┬────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│   Cloudflare AI Gateway         │
+│   /v1/{account}/{gateway}/hf    │
+└────────┬────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│   Hugging Face Inference API    │
+│   - Any model                   │
+│   - Text, Audio, Image, etc.    │
+└─────────────────────────────────┘
+```
+
+**Core Methods**:
+
+```typescript
+import { AIGatewayService } from '@umituz/web-cloudflare/ai';
+
+const gateway = new AIGatewayService(config, kvService, embeddingService);
+
+// Method 1: Direct Hugging Face call (recommended)
+const response = await gateway.callHuggingFace(
+  'meta-llama/Llama-3.1-8B-Instruct',
+  { inputs: 'Explain edge computing in simple terms' }
+);
+// Returns: { data, model, tokens, cost, latency, cached, metadata }
+
+// Method 2: Generic provider call
+const result = await gateway.callProvider(
+  'huggingface',
+  'facebook/musicgen-small',
+  { inputs: 'A calming ambient song' }
+);
+
+// Method 3: Raw response for binary outputs
+const rawResponse = await gateway.callHuggingFace(
+  'facebook/musicgen-small',
+  { inputs: 'A calming ambient song' },
+  { returnRawResponse: true }
+);
+const buffer = await rawResponse.data.arrayBuffer();
+
+// Method 4: With custom gateway ID
+const customResult = await gateway.callProvider(
+  'huggingface',
+  'custom-model-name',
+  payload,
+  {
+    gatewayId: 'my-custom-gateway',
+    responseType: 'json',
+    headers: { 'X-Custom-Header': 'value' }
+  }
+);
+```
+
+**Supported Model Categories**:
+
+| Category | Example Models | Input | Output |
+|----------|---------------|-------|--------|
+| **Text Generation** | `meta-llama/Llama-3.1-8B`, `mistralai/Mistral-7B` | Text | Text |
+| **Text-to-Speech** | `facebook/mms-tts-eng`, `microsoft/speecht5` | Text | Audio (WAV/MP3) |
+| **Audio Generation** | `facebook/musicgen-small`, `facebook/musicgen-medium` | Text | Audio (WAV) |
+| **Speech-to-Text** | `openai/whisper-large-v3` | Audio | Text |
+| **Image Generation** | `stabilityai/stable-diffusion-xl-base-1.0` | Text | Image (PNG/JPG) |
+| **Image Processing** | `nlpconnect/vit-gpt2-image-captioning` | Image | Text |
+| **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` | Text | Vector |
+| **Translation** | `facebook/nllb-200-3.3B` | Text | Text |
+| **Classification** | `distilbert-base-uncased-finetuned-sst-2-english` | Text | Label |
+| **Custom Models** | Any Hugging Face model | Varies | Varies |
+
+**Complete Configuration Example**:
+
+```typescript
+import { ConfigBuilder } from '@umituz/web-cloudflare/config';
+
+// Using ConfigBuilder for easy setup
+const config = ConfigBuilder.create()
+  .withAI({ enabled: true })
+  .withHuggingFace({
+    enabled: true,
+    accountId: 'your-cloudflare-account-id',
+    defaultGatewayId: 'your-hf-gateway-id',
+    models: [
+      'meta-llama/Llama-3.1-8B-Instruct',
+      'facebook/musicgen-small',
+      'openai/whisper-large-v3',
+      'stabilityai/stable-diffusion-xl-base-1.0',
+    ],
+  })
+  .withAIGateway({
+    cacheEnabled: true,
+    cacheTTL: 7200, // 2 hours
+    analytics: true,
+    budget: {
+      monthlyLimit: 50,
+      alertThreshold: 40,
+    },
+  })
+  .build();
+
+// Initialize service
+const gateway = new AIGatewayService(
+  config.ai!.gateway!,
+  env.CACHE_KV,
+  env.EMBEDDING_SERVICE // Optional, for semantic caching
+);
+```
+
+**Generic Usage Patterns by Task Type**:
+
+```typescript
+// ═══════════════════════════════════════════════════════════
+// PATTERN 1: Text Generation (LLM, Translation, Summarization)
+// ═══════════════════════════════════════════════════════════
+
+const textResult = await gateway.callHuggingFace(
+  'meta-llama/Llama-3.1-8B-Instruct',
+  {
+    inputs: 'Translate to Turkish: Merhaba, nasılsınız?',
+    parameters: {
+      max_new_tokens: 256,
+      temperature: 0.7,
+    }
+  }
+);
+console.log(textResult.data); // Generated text
+
+// ═══════════════════════════════════════════════════════════
+// PATTERN 2: Audio Generation (TTS, Music, Sound Effects)
+// ═══════════════════════════════════════════════════════════
+
+const audioResponse = await gateway.callHuggingFace(
+  'facebook/musicgen-small',
+  { inputs: 'Epic orchestral soundtrack, cinematic, dramatic' },
+  { returnRawResponse: true }
+);
+
+const audioBuffer = await (audioResponse.data as Response).arrayBuffer();
+
+// Upload to R2
+const r2 = new R2Service();
+r2.bindBucket('assets', env.ASSETS_BUCKET);
+const audioKey = await r2.uploadGeneratedAsset(audioBuffer, {
+  model: 'facebook/musicgen-small',
+  prompt: 'Epic orchestral soundtrack',
+  contentType: 'audio/wav',
+  tags: ['audio', 'music', 'generated'],
+});
+
+const audioUrl = r2.getPublicURL(audioKey);
+
+// ═══════════════════════════════════════════════════════════
+// PATTERN 3: Image Generation
+// ═══════════════════════════════════════════════════════════
+
+const imageResponse = await gateway.callHuggingFace(
+  'stabilityai/stable-diffusion-xl-base-1.0',
+  {
+    inputs: 'Futuristic city at sunset, cyberpunk style, highly detailed',
+    parameters: {
+      negative_prompt: 'blurry, low quality',
+      num_inference_steps: 30,
+    }
+  },
+  { returnRawResponse: true }
+);
+
+const imageBuffer = await (imageResponse.data as Response).arrayBuffer();
+const imageKey = await r2.uploadGeneratedAsset(imageBuffer, {
+  model: 'stabilityai/stable-diffusion-xl-base-1.0',
+  prompt: 'Futuristic city at sunset',
+  contentType: 'image/png',
+  tags: ['image', 'generated', 'stable-diffusion'],
+});
+
+// ═══════════════════════════════════════════════════════════
+// PATTERN 4: Embeddings (for search, RAG, similarity)
+// ═══════════════════════════════════════════════════════════
+
+const embeddingResult = await gateway.callHuggingFace(
+  'sentence-transformers/all-MiniLM-L6-v2',
+  {
+    inputs: 'Semantic search requires good embeddings',
+    options: {
+      wait_for_model: true,
+    }
+  }
+);
+const vector = embeddingResult.data; // number[]
+console.log('Vector dimensions:', vector.length);
+
+// ═══════════════════════════════════════════════════════════
+// PATTERN 5: Speech-to-Text (Transcription)
+// ═══════════════════════════════════════════════════════════
+
+// Audio file from request
+const audioFile = await request.formData();
+const audioBlob = audioFile.get('audio') as Blob;
+
+const transcriptionResult = await gateway.callHuggingFace(
+  'openai/whisper-large-v3',
+  { inputs: audioBlob },
+  { returnRawResponse: true }
+);
+
+const transcription = await (transcriptionResult.data as Response).json();
+console.log('Transcribed text:', transcription.text);
+```
+
+**Building Domain-Specific Features on Generic Blocks**:
+
+```typescript
+/**
+ * Example: Building a Podcast Production Service
+ * Shows how to create higher-level functionality from generic AI calls
+ */
+class PodcastProductionService {
+  constructor(
+    private gateway: AIGatewayService,
+    private r2: R2Service
+  ) {}
+
+  /**
+   * Generate episode script
+   */
+  async generateScript(topic: string, duration: number): Promise<string> {
+    const response = await this.gateway.callHuggingFace(
+      'meta-llama/Llama-3.1-8B-Instruct',
+      {
+        inputs: `Write a ${duration}-minute podcast script about: ${topic}\n\nInclude:\n- Introduction\n- 3 main points\n- Conclusion\n- Speaker labels (HOST, GUEST)`,
+        parameters: {
+          max_new_tokens: 1024,
+          temperature: 0.8,
+        }
+      }
+    );
+    return response.data as string;
+  }
+
+  /**
+   * Generate background music
+   */
+  async generateMusic(mood: string, duration: number): Promise<string> {
+    const response = await this.gateway.callHuggingFace(
+      'facebook/musicgen-small',
+      {
+        inputs: `${mood} background music, podcast, clean production, ${duration} seconds`,
+        parameters: {
+          max_new_tokens: duration * 50,
+        }
+      },
+      { returnRawResponse: true }
+    );
+
+    const buffer = await (response.data as Response).arrayBuffer();
+    const key = await this.r2.uploadGeneratedAsset(buffer, {
+      model: 'facebook/musicgen-small',
+      prompt: mood,
+      contentType: 'audio/wav',
+      tags: ['podcast', 'background-music'],
+    });
+
+    return this.r2.getPublicURL(key);
+  }
+
+  /**
+   * Transcribe audio recording
+   */
+  async transcribeRecording(audioBuffer: ArrayBuffer): Promise<string> {
+    const response = await this.gateway.callHuggingFace(
+      'openai/whisper-large-v3',
+      { inputs: audioBuffer },
+      { returnRawResponse: true }
+    );
+
+    const result = await (response.data as Response).json();
+    return result.text;
+  }
+}
+
+// Usage in Worker
+const podcastService = new PodcastProductionService(gateway, r2);
+
+const script = await podcastService.generateScript('AI in 2026', 1800);
+const musicUrl = await podcastService.generateMusic('upbeat, energetic', 30);
+```
+
+**Advanced Features**:
+
+```typescript
+// ═══════════════════════════════════════════════════════════
+// FEATURE 1: Cost Tracking & Budget Enforcement
+// ═══════════════════════════════════════════════════════════
+
+// Check budget before expensive operation
+const canProceed = gateway.enforceBudget(10, 'huggingface'); // $10 limit
+if (!canProceed) {
+  return Response.json({ error: 'Budget exceeded' }, { status: 429 });
+}
+
+// Track cost after operation
+const costSummary = await gateway.getCostSummary('month');
+console.log('Total spent:', costSummary.totalCost);
+console.log('By model:', costSummary.byModel);
+
+// ═══════════════════════════════════════════════════════════
+// FEATURE 2: Semantic Caching
+// ═══════════════════════════════════════════════════════════
+
+// Requires embedding service for semantic matching
+const cachedResponse = await gateway.getCachedSemantic(
+  queryEmbedding,
+  0.95 // Similarity threshold
+);
+
+if (cachedResponse) {
+  console.log('Cache hit! Saved:', cachedResponse.usage.cost);
+}
+
+// ═══════════════════════════════════════════════════════════
+// FEATURE 3: Circuit Breaker & Fallback
+// ═══════════════════════════════════════════════════════════
+
+// Check provider health
+if (!gateway.isProviderAvailable('huggingface')) {
+  console.log('HF down, using fallback');
+  // Automatically uses configured fallback provider
+}
+
+// Reset circuit breaker after maintenance
+gateway.resetCircuitBreaker('huggingface');
+
+// ═══════════════════════════════════════════════════════════
+// FEATURE 4: Analytics
+// ═══════════════════════════════════════════════════════════
+
+const analytics = await gateway.getAnalytics();
+console.log('Cache hit rate:', analytics.cacheHitRate);
+console.log('Provider usage:', analytics.providerUsage);
+console.log('Total requests:', analytics.totalRequests);
+```
+
+**Key Benefits**:
+
+| Benefit | Description |
+|---------|-------------|
+| 🎯 **Generic & Reusable** | No model-specific code - works with ANY Hugging Face model |
+| 🚀 **Unified Interface** | Same pattern for text, audio, image, embeddings, etc. |
+| 💰 **Cost Optimization** | Automatic caching, cost tracking, and budget enforcement |
+| 🔄 **Resilient** | Circuit breaker, automatic fallback, retry logic |
+| 📊 **Observable** | Built-in analytics and monitoring |
+| 🔒 **Secure** | No HF API keys needed - AI Gateway handles auth |
+| 📦 **Production-Ready** | DDD-compliant, tree-shakeable, fully typed |
+| 🎨 **Extensible** | Easy to build domain-specific features on top |
+
+**Common Use Cases**:
+
+- **Content Creation**: Blog posts, social media, marketing copy, scripts
+- **Media Production**: Podcast music, voiceovers, sound effects, thumbnails
+- **Accessibility**: Audio descriptions, captions, translations
+- **Data Processing**: Transcription, translation, summarization
+- **Search & RAG**: Embeddings for semantic search
+- **Customer Service**: Chatbots, automated responses
+- **Education**: Tutorials, explanations, quizzes
+- **Entertainment**: Games, interactive stories, generative art
 
 ---
 
@@ -409,7 +813,8 @@ console.log(event.getAggregateId()); // 'kv:default:user:123'
 import {
   AIResponseCachedEvent,
   AICacheInvalidatedEvent,
-  AIModelCalledEvent
+  AIModelCalledEvent,
+  AIGatewayCallEvent, // ⭐ NEW v1.6.5
 } from '@umituz/web-cloudflare/domains/shared';
 
 // AI response cached
@@ -418,6 +823,16 @@ const event = new AIResponseCachedEvent(
   'gpt-4',
   1500,
   ['chat', 'user-123']
+);
+
+// AI Gateway call (NEW v1.6.5)
+const gatewayEvent = new AIGatewayCallEvent(
+  'huggingface',
+  'meta-llama/Llama-3.1-8B',
+  1200,
+  0.000084,
+  1500,
+  ['generation', 'user-456']
 );
 
 // Log event
@@ -528,9 +943,35 @@ const kvService = new KVService(validator);
 - Image optimization enabled
 
 #### 6. AI-First App
-- Multi-provider AI (Workers AI + OpenAI)
+- Multi-provider AI (Workers AI + OpenAI + Hugging Face) ⭐ ENHANCED v1.6.5
 - 2-hour cache TTL
 - Low rate limit (30 req/min)
+
+### ConfigBuilder Enhancements ⭐ NEW v1.6.5
+
+```typescript
+import { ConfigBuilder } from '@umituz/web-cloudflare/config';
+
+const config = ConfigBuilder.create()
+  .withAI({ enabled: true })
+  .withHuggingFace({                   // ⭐ NEW
+    enabled: true,
+    defaultGatewayId: 'my-hf-gateway',
+  })
+  .withAIGateway({
+    providers: [
+      {
+        id: 'huggingface',
+        name: 'Hugging Face',
+        type: 'custom',
+        baseURL: 'https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface',
+        apiKey: '',
+        models: ['meta-llama/Llama-3.1-8B'],
+      },
+    ],
+  })
+  .build();
+```
 
 ---
 
@@ -624,13 +1065,13 @@ Manage multiple D1, R2, KV, and Vectorize bindings for multi-tenant applications
 
 ### TypeScript Configuration
 
-**Latest tsconfig.json** (v1.6.4):
+**Latest tsconfig.json** (v1.6.5):
 ```json
 {
   "compilerOptions": {
-    "sourceMap": true,         // ⭐ NEW
-    "declarationMap": true,    // ⭐ NEW
-    "noEmit": false,           // ⭐ Changed from true
+    "sourceMap": true,
+    "declarationMap": true,
+    "noEmit": false,
     // ... other options
   }
 }
@@ -648,13 +1089,13 @@ Manage multiple D1, R2, KV, and Vectorize bindings for multi-tenant applications
 Each feature can be imported independently:
 
 ```typescript
-// DDD Features (NEW!)
+// DDD Features
 import { CacheKey, TTL, Email } from '@umituz/web-cloudflare/domains/shared';
-import { AIResponseCachedEvent } from '@umituz/web-cloudflare/domains/shared';
+import { AIResponseCachedEvent, AIGatewayCallEvent } from '@umituz/web-cloudflare/domains/shared';
 import { KVRepository } from '@umituz/web-cloudflare/kv';
 
 // AI building blocks
-import { WorkersAIService, EmbeddingService } from '@umituz/web-cloudflare/ai';
+import { WorkersAIService, EmbeddingService, AIGatewayService } from '@umituz/web-cloudflare/ai';
 
 // Enhanced services
 import { D1Service } from '@umituz/web-cloudflare/d1';
@@ -679,6 +1120,79 @@ import { multiTenantService } from '@umituz/web-cloudflare/multi-tenant';
 
 ## 💡 Usage Examples
 
+### Using Hugging Face via AI Gateway ⭐ NEW v1.6.5
+
+```typescript
+import { AIGatewayService, R2Service } from '@umituz/web-cloudflare/ai';
+import { ConfigBuilder } from '@umituz/web-cloudflare/config';
+
+// 1. Configure AI Gateway with Hugging Face
+const config = ConfigBuilder.create()
+  .withAIGateway({
+    providers: [{
+      id: 'huggingface',
+      name: 'Hugging Face',
+      type: 'custom',
+      baseURL: 'https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface',
+      apiKey: '',
+      models: [
+        'meta-llama/Llama-3.1-8B',
+        'facebook/musicgen-small',
+        'openai/whisper-large-v3',
+      ],
+    }],
+    cacheEnabled: true,
+    cacheTTL: 7200,
+  })
+  .build();
+
+// 2. Initialize services
+const gateway = new AIGatewayService(
+  config.ai!.gateway!,
+  env.CACHE_KV,
+  embeddingService
+);
+const r2 = new R2Service();
+r2.bindBucket('assets', env.ASSETS_BUCKET);
+
+// 3. Use any Hugging Face model generically
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    // Text generation
+    if (path === '/api/generate') {
+      const result = await gateway.callHuggingFace(
+        'meta-llama/Llama-3.1-8B',
+        { inputs: 'Explain edge computing' }
+      );
+      return Response.json(result);
+    }
+
+    // Audio generation with R2 upload
+    if (path === '/api/audio') {
+      const response = await gateway.callHuggingFace(
+        'facebook/musicgen-small',
+        { inputs: 'A calm ambient melody' },
+        { returnRawResponse: true }
+      );
+
+      const buffer = await response.arrayBuffer();
+      const key = await r2.uploadGeneratedAsset(buffer, {
+        model: 'facebook/musicgen-small',
+        prompt: 'A calm ambient melody',
+        contentType: 'audio/wav',
+      });
+
+      return Response.json({ url: r2.getPublicURL(key) });
+    }
+
+    return new Response('Not found', { status: 404 });
+  },
+};
+```
+
 ### Using DDD Value Objects
 
 ```typescript
@@ -699,19 +1213,21 @@ await kvService.put(key.value, { data: '...' }, { ttl: ttl.seconds });
 ### Using Domain Events
 
 ```typescript
-import { AIResponseCachedEvent, KVEntryCreatedEvent } from '@umituz/web-cloudflare/domains/shared';
+import { AIResponseCachedEvent, AIGatewayCallEvent } from '@umituz/web-cloudflare/domains/shared';
 
-// Create events
-const aiEvent = new AIResponseCachedEvent(
-  'prompt-123',
-  'gpt-4',
+// Create AI Gateway call event (NEW)
+const event = new AIGatewayCallEvent(
+  'huggingface',
+  'meta-llama/Llama-3.1-8B',
+  1200,
+  0.000084,
   1500,
-  ['chat', 'user-123']
+  ['generation', 'user-456']
 );
 
-console.log(`Event: ${aiEvent.getEventName()}`);
-console.log(`Aggregate: ${aiEvent.getAggregateId()}`);
-console.log(`Timestamp: ${aiEvent.occurredAt.toISOString()}`);
+console.log(`Event: ${event.getEventName()}`);
+console.log(`Aggregate: ${event.getAggregateId()}`);
+console.log(`Timestamp: ${event.occurredAt.toISOString()}`);
 ```
 
 ### Using Repository Pattern
@@ -774,6 +1290,7 @@ const response = await ai.callLLM('@cf/meta/llama-3.1-8b-instruct', {
 - **RAG Applications**: Document search, knowledge bases, Q&A systems
 - **Content Generation**: Blogs, social media, marketing copy
 - **Data Enrichment**: Entity extraction, classification, summarization
+- **Generative Media**: Audio, image, video via Hugging Face ⭐ NEW v1.6.5
 
 ### E-Commerce
 - Product recommendations with AI
@@ -853,7 +1370,7 @@ export default {
 - No major version changes (2.0.0 never)
 - Ensures stability and prevents breaking changes
 
-**Current Version**: 1.6.4
+**Current Version**: 1.6.5
 **DDD Score**: 8.5/10 (Solid DDD)
 
 ---
@@ -863,6 +1380,8 @@ export default {
 - **GitHub**: https://github.com/umituz/web-cloudflare
 - **NPM**: https://www.npmjs.com/package/@umituz/web-cloudflare
 - **Cloudflare Docs**: https://developers.cloudflare.com/
+- **Cloudflare AI Gateway**: https://developers.cloudflare.com/ai-gateway/
+- **Hugging Face**: https://huggingface.co/
 - **DDD Improvements**: See `src/domains/DDD-IMPROVEMENTS.md`
 
 ---
@@ -870,6 +1389,6 @@ export default {
 **Made with ❤️ by umituz**
 
 *Last Updated: March 31, 2026*
-*Total Files: 120 TypeScript files*
+*Total Files: 125 TypeScript files*
 *Domains: 13 bounded contexts*
-*DDD Files: 19 (value objects, events, repositories)*
+*DDD Files: 20+ (value objects, events, repositories)*

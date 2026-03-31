@@ -1,6 +1,7 @@
 /**
  * AI Gateway Service
  * @description Multi-provider routing with caching, fallback, and cost tracking
+ * Enhanced with generic Hugging Face support via Cloudflare AI Gateway
  */
 
 import type {
@@ -25,6 +26,46 @@ interface CircuitBreakerState {
   failureCount: number;
   lastFailureTime: number;
   nextAttemptTime: number;
+}
+
+// ============================================================
+// Provider Call Options
+// ============================================================
+
+interface ProviderCallOptions {
+  /** Return raw Response object instead of parsed JSON */
+  returnRawResponse?: boolean;
+  /** Custom gateway ID override */
+  gatewayId?: string;
+  /** Expected response type for binary data */
+  responseType?: 'json' | 'text' | 'arraybuffer' | 'blob';
+  /** Custom headers */
+  headers?: Record<string, string>;
+  /** Request timeout in milliseconds */
+  timeout?: number;
+}
+
+// ============================================================
+// Provider Call Result
+// ============================================================
+
+interface ProviderCallResult<T = unknown> {
+  /** Response data (parsed or raw) */
+  data: T | Response;
+  /** Model used */
+  model: string;
+  /** Provider used */
+  provider: string;
+  /** Estimated tokens processed */
+  tokens: number;
+  /** Estimated cost in USD */
+  cost: number;
+  /** Request latency in milliseconds */
+  latency: number;
+  /** Whether response was from cache */
+  cached: boolean;
+  /** Request metadata */
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================
@@ -58,10 +99,24 @@ export class AIGatewayService implements IAIGatewayService {
   private readonly CIRCUIT_BREAKER_TIMEOUT = 60000; // 1 minute
   private readonly MAX_COST_HISTORY = 1000;
 
-  constructor(config: AIGatewayConfig, KV?: KVNamespace, embeddingService?: IEmbeddingService) {
+  // Cloudflare account ID and gateway ID for Hugging Face
+  private accountId?: string;
+  private gatewayId?: string;
+
+  constructor(
+    config: AIGatewayConfig,
+    KV?: KVNamespace,
+    embeddingService?: IEmbeddingService
+  ) {
     this.config = config;
     this.kv = KV;
     this.embeddingService = embeddingService;
+
+    // Extract account and gateway ID from first provider if Hugging Face
+    const hfProvider = config.providers.find(p => this.isHuggingFaceProvider(p));
+    if (hfProvider) {
+      this.parseHuggingFaceGatewayURL(hfProvider.baseURL);
+    }
 
     // Initialize circuit breakers for all providers
     for (const provider of config.providers) {
@@ -73,6 +128,202 @@ export class AIGatewayService implements IAIGatewayService {
       });
     }
   }
+
+  // ============================================================
+  // Generic Provider Methods
+  // ============================================================
+
+  /**
+   * Generic call to any AI provider
+   * @param provider Provider type ('huggingface', 'workers-ai', 'openai', etc.)
+   * @param model Model identifier
+   * @param payload Request payload
+   * @param options Call options
+   * @returns Provider call result
+   */
+  async callProvider<T = unknown>(
+    provider: 'huggingface' | 'workers-ai' | 'openai' | 'anthropic' | 'cohere' | 'custom',
+    model: string,
+    payload: unknown,
+    options?: ProviderCallOptions
+  ): Promise<ProviderCallResult<T>> {
+    const startTime = Date.now();
+
+    // Find provider configuration
+    const providerConfig = this.findProviderConfig(provider);
+    if (!providerConfig) {
+      throw new Error(`Provider '${provider}' not configured`);
+    }
+
+    // Build gateway URL for Hugging Face
+    let url = providerConfig.baseURL;
+    if (provider === 'huggingface') {
+      url = this.buildHuggingFaceGatewayURL(
+        model,
+        options?.gatewayId || this.gatewayId || this.config.gatewayId
+      );
+    } else {
+      url = `${providerConfig.baseURL}/${model}`;
+    }
+
+    // Prepare request
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    };
+
+    // Add authorization if not Hugging Face (HF uses AI Gateway auth)
+    if (provider !== 'huggingface' && providerConfig.apiKey) {
+      headers['Authorization'] = `Bearer ${providerConfig.apiKey}`;
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Provider error: ${response.status} ${response.statusText}`);
+      }
+
+      // Handle response based on options
+      let data: T | Response;
+      let tokens = 0;
+      let cost = 0;
+
+      if (options?.returnRawResponse) {
+        data = response as T;
+      } else {
+        const responseType = options?.responseType || 'json';
+
+        switch (responseType) {
+          case 'json':
+            data = await response.json() as T;
+            break;
+          case 'text':
+            data = await response.text() as T;
+            break;
+          case 'arraybuffer':
+            data = await response.arrayBuffer() as T;
+            break;
+          case 'blob':
+            data = await response.blob() as T;
+            break;
+          default:
+            data = await response.json() as T;
+        }
+
+        // Estimate tokens and cost for JSON responses
+        if (responseType === 'json' && typeof data === 'object') {
+          tokens = this.estimateTokensFromData(data);
+          cost = this.calculateCost(providerConfig, model, tokens);
+        }
+      }
+
+      const latency = Date.now() - startTime;
+
+      return {
+        data,
+        model,
+        provider: providerConfig.id,
+        tokens,
+        cost,
+        latency,
+        cached: false,
+        metadata: {
+          accountId: this.accountId,
+          gatewayId: options?.gatewayId || this.gatewayId,
+        },
+      };
+
+    } catch (error) {
+      throw new Error(
+        `Provider ${provider} error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Call Hugging Face model via Cloudflare AI Gateway
+   * @param model Hugging Face model identifier
+   * @param payload Request payload
+   * @param options Call options
+   * @returns Provider call result
+   */
+  async callHuggingFace<T = unknown>(
+    model: string,
+    payload: unknown,
+    options?: Omit<ProviderCallOptions, 'gatewayId'>
+  ): Promise<ProviderCallResult<T>> {
+    return this.callProvider<T>('huggingface', model, payload, {
+      ...options,
+      gatewayId: options?.gatewayId || this.gatewayId || this.config.gatewayId,
+    });
+  }
+
+  // ============================================================
+  // Hugging Face Gateway URL Builder
+  // ============================================================
+
+  /**
+   * Build Cloudflare AI Gateway URL for Hugging Face
+   * @param model Hugging Face model identifier
+   * @param gatewayId Gateway ID (optional, uses default if not provided)
+   * @returns Complete gateway URL
+   */
+  buildHuggingFaceGatewayURL(model: string, gatewayId?: string): string {
+    const accountId = this.accountId || '{account_id}';
+    const gwId = gatewayId || this.gatewayId || this.config.gatewayId || '{gateway_id}';
+
+    // Cloudflare AI Gateway format for Hugging Face:
+    // https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface/{model}
+    return `https://gateway.ai.cloudflare.com/v1/${accountId}/${gwId}/huggingface/${model}`;
+  }
+
+  /**
+   * Parse Hugging Face gateway URL to extract account and gateway IDs
+   * @param url Gateway URL
+   */
+  private parseHuggingFaceGatewayURL(url: string): void {
+    // Match pattern: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface
+    const match = url.match(/\/v1\/([^\/]+)\/([^\/]+)\/huggingface/);
+    if (match) {
+      this.accountId = match[1];
+      this.gatewayId = match[2];
+    }
+  }
+
+  /**
+   * Check if provider is Hugging Face
+   * @param provider Provider configuration
+   * @returns True if Hugging Face provider
+   */
+  private isHuggingFaceProvider(provider: AIProvider): boolean {
+    return provider.baseURL.includes('/huggingface') ||
+           provider.type === 'custom' && provider.name.toLowerCase().includes('huggingface');
+  }
+
+  /**
+   * Find provider configuration by type
+   * @param providerType Provider type
+   * @returns Provider configuration or null
+   */
+  private findProviderConfig(
+    providerType: 'huggingface' | 'workers-ai' | 'openai' | 'anthropic' | 'cohere' | 'custom'
+  ): AIProvider | null {
+    return this.config.providers.find(p => {
+      if (providerType === 'huggingface') {
+        return this.isHuggingFaceProvider(p);
+      }
+      return p.type === providerType;
+    }) || null;
+  }
+
+  // ============================================================
+  // Original AI Gateway Methods
+  // ============================================================
 
   /**
    * Route AI request to appropriate provider
@@ -541,6 +792,22 @@ export class AIGatewayService implements IAIGatewayService {
     // Rough estimate: ~4 characters per token, ~208 neurons per 1K tokens for Llama
     const tokens = Math.ceil(text.length / 4);
     return Math.ceil((tokens / 1000) * 208);
+  }
+
+  /**
+   * Estimate tokens from data object
+   * @param data Data object
+   * @returns Estimated token count
+   */
+  private estimateTokensFromData(data: unknown): number {
+    if (typeof data === 'string') {
+      return Math.ceil(data.length / 4);
+    }
+    if (typeof data === 'object' && data !== null) {
+      const str = JSON.stringify(data);
+      return Math.ceil(str.length / 4);
+    }
+    return 0;
   }
 
   /**
