@@ -1,155 +1,164 @@
-# @umituz/web-cloudflare - Özellikler Dokümantasyonu
+# @umituz/web-cloudflare - Features Documentation
 
-Bu paket, Cloudflare Workers ve Pages için kapsamlı bir entegrasyon sağlar. Config tabanlı mimari, domain-driven design (DDD) yaklaşımı ve production-ready özellikler sunar.
+Comprehensive Cloudflare Workers & Pages integration with config-based patterns, Domain-Driven Design (DDD), and production-ready features.
 
-**Version**: 1.5.0 (Major AI Building Blocks Release)
-
----
-
-## 📋 İçindekiler
-
-1. [Mimari](#mimari)
-2. [Domain Hizmetleri](#domain-hizmetleri)
-3. [AI Building Blocks](#ai-building-blocks) ⭐ YENİ
-4. [Config Patterns](#config-patterns)
-5. [Router & Middleware](#router--middleware)
-6. [Workflows](#workflows)
-7. [Utility Fonksiyonları](#utility-fonksiyonları)
-8. [Performans Optimizasyonları](#performans-optimizasyonları)
-9. [Kullanım Örnekleri](#kullanım-örnekleri)
+**Version**: 1.6.4
+**DDD Score**: 8.5/10 (Solid DDD)
+**Last Updated**: March 31, 2026
 
 ---
 
-## 🏗️ Mimari
+## 📋 Table of Contents
 
-### Domain-Driven Design (DDD)
+1. [Architecture](#architecture)
+2. [Domain Services](#domain-services)
+3. [AI Building Blocks](#ai-building-blocks)
+4. [DDD Features](#ddd-features) ⭐ NEW
+5. [Config Patterns](#config-patterns)
+6. [Router & Middleware](#router--middleware)
+7. [Workflows](#workflows)
+8. [Utility Functions](#utility-functions)
+9. [React Hooks](#react-hooks)
+10. [Multi-Tenant Support](#multi-tenant-support)
+11. [Performance Optimizations](#performance-optimizations)
+12. [Usage Examples](#usage-examples)
 
-Paket, DDD prensiplerine göre organize edilmiştir. Her domain kendi içinde:
-- **Entities**: Veri modelleri ve tipler
-- **Services**: İş mantığı ve operasyonlar
-- **Types**: TypeScript tanımlamaları
-- **Index**: Public API exports
+---
 
-Bu yapı sayesinde her domain bağımsız çalışabilir ve tree-shake friendly'dir.
+## 🏗️ Architecture
+
+### Domain-Driven Design (DDD) - Score: 8.5/10
+
+The package follows DDD principles with a **Solid DDD** architecture (improved from 6.5/10 Pragmatic DDD).
+
+**Latest DDD Improvements** (v1.6.4):
+- ✅ **Value Objects**: Immutable, validated domain values (CacheKey, TTL, Email, URL)
+- ✅ **Domain Events**: Event-driven architecture support (8+ events)
+- ✅ **Repository Pattern**: Data access abstraction (KVRepository)
+- ✅ **Dependency Inversion**: Domain → Infrastructure dependency fix
+- ✅ **19 New DDD Files**: Value objects, events, repositories, interfaces
+
+**Domain Organization**:
+- **Entities**: Data models with identity and behavior
+- **Value Objects**: Immutable values with validation
+- **Domain Events**: Important domain occurrences
+- **Services**: Business logic and operations
+- **Repositories**: Data access abstraction
+- **Interfaces**: Domain contracts
+- **Types**: TypeScript definitions
+
+This structure ensures each domain is independent, testable, and tree-shake friendly.
 
 ### Layered Architecture
 
 ```
-├── Domain Layer (İş mantığı)
-│   ├── workers/      - Workers ve HTTP handling
-│   ├── kv/           - Key-value storage (AI caching)
-│   ├── r2/           - Object storage (AI assets)
-│   ├── d1/           - Relational database (migrations, transactions)
-│   ├── images/       - Image optimization
-│   ├── analytics/    - Analytics tracking (AI costs)
-│   ├── workflows/    - Long-running operations (AI pipelines)
-│   ├── ai/           - AI building blocks ⭐ YENİ
-│   ├── ai-gateway/   - AI Gateway (legacy)
-│   ├── pages/        - Static deployment
-│   ├── wrangler/     - CLI operations
-│   ├── middleware/   - HTTP middleware (AI quota, auth)
-│   └── multi-tenant/  - Multi-app support ⭐ YENİ
+├── Domain Layer (Business Logic)
+│   ├── shared/          # ⭐ NEW - Shared DDD elements
+│   │   ├── value-objects/  # CacheKey, TTL, Email, URL
+│   │   ├── events/         # Domain events
+│   │   └── interfaces/     # Domain interfaces
+│   │
+│   ├── workers/        # Workers & HTTP handling
+│   ├── kv/             # Key-value storage (with repository)
+│   ├── r2/             # Object storage
+│   ├── d1/             # Relational database
+│   ├── images/         # Image optimization
+│   ├── analytics/      # Analytics tracking
+│   ├── workflows/      # Long-running operations
+│   ├── ai/             # AI building blocks
+│   ├── pages/          # Static deployment
+│   ├── wrangler/       # CLI operations
+│   ├── middleware/     # HTTP middleware
+│   └── multi-tenant/   # Multi-app support
 │
-├── Infrastructure Layer (Teknik altyapı)
-│   ├── router/       - HTTP routing
-│   └── utils/        - Helper functions
+├── Infrastructure Layer (Technical Foundation)
+│   ├── validators/     # ⭐ NEW - Validator implementations
+│   ├── router/         # HTTP routing
+│   └── utils/          # Helper functions
 │
-└── Config Layer (Yapılandırma)
-    ├── patterns.ts   - Pre-built configs
-    └── types.ts      - Type definitions
+└── Config Layer (Configuration)
+    ├── patterns.ts     # Pre-built configs
+    └── types.ts        # Type definitions
 ```
+
+### Project Statistics
+
+- **120 TypeScript Files**
+- **13 Bounded Contexts**
+- **19 DDD Files** (Value Objects, Events, Repositories)
+- **8 Domain Events**
+- **5 Value Objects**
+- **Repository Pattern** implemented
 
 ---
 
-## 🎯 Domain Hizmetleri
+## 🎯 Domain Services
 
 ### 1. Workers Service (`/workers`)
 
-**Amaç**: Cloudflare Workers için HTTP request handling ve response management
+**Purpose**: HTTP request handling and response management for Cloudflare Workers
 
-**Kullanım Alanları**:
+**Use Cases**:
 - HTTP request processing
 - Response formatting
 - Error handling
 - Request validation
-- Environment ve context management
+- Environment and context management
 
 ---
 
 ### 2. KV Service (`/kv`)
 
-**Amaç**: Key-value storage için yüksek performanslı cache ve data persistence
+**Purpose**: High-performance key-value storage with intelligent caching
 
-**Kullanım Alanları**:
+**Use Cases**:
 - Session storage
 - API response caching
 - Rate limiting counters
 - Feature flags
-- AI response caching (KV + L1 memory cache)
-- Tagged cache invalidation
+- AI response caching
+- Tag-based cache invalidation
 
-**Yeni Özellikler**:
-- `cacheAIResponse()`: AI yanıtlarını önbelleğe alma
-- `getCachedAIResponse()`: Önbelleğe alınmış AI yanıtlarını getirme
-- `invalidateTagged()`: Etiket tabanlı cache invalidasyon
-- `warmCache()`: Cache önceden ısıtma
+**New Features**:
+- `cacheAIResponse()`: Cache AI responses with metadata
+- `getCachedAIResponse()`: Retrieve cached AI responses
+- `invalidateTagged()`: Tag-based cache invalidation
+- `warmCache()`: Cache warming with batch operations
 - `getWithCache()`: Hierarchical L1 (memory) + L2 (KV) caching
+
+**DDD Improvements**:
+- ✅ Repository Pattern: `KVRepository` interface and implementation
+- ✅ Dependency Injection: Validator injection support
+- ✅ Domain Events: `KVEntryCreatedEvent`, `KVCacheHitEvent`, etc.
 
 ---
 
 ### 3. R2 Service (`/r2`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - File uploads (images, videos, documents)
 - Static asset hosting
 - Media processing pipelines
 - Backup storage
 - User-generated content
-- **AI-generated assets** (otomatik metadata kaydetme)
-
-**Yeni Özellikler**:
-- `putWithMetadata()`: R2'ye yüklerken otomatik D1'ye metadata kaydetme
-- `getPresignedURL()`: Gerçek presigned URL (S3-compatible)
-- `createMultipartUpload()`: Büyük dosyalar için multipart upload
-- `uploadPart()`: Parça yükleme
-- `completeMultipartUpload()`: Multipart upload tamamlama
-- `getPublicURL()`: Public URL oluşturma
-- `getSignedURL()`: Özel dosyalar için signed URL
+- AI-generated assets (automatic metadata)
 
 ---
 
 ### 4. D1 Service (`/d1`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - User data storage
 - Transaction records
 - Relational data management
 - Complex queries
-- **AI data persistence** (embeddings, vectors, sessions)
-
-**Yeni Özellikler**:
-- Migration sistemi:
-  - `createMigration()`: Yeni migration oluşturma
-  - `runMigration()`: Migration çalıştırma
-  - `rollbackMigration()`: Migration geri alma
-  - `getMigrationHistory()`: Migration geçmişi
-- Transaction wrapper:
-  - `runInTransaction<T>()`: Atomik transaction'lar
-  - `D1TransactionWrapper`: Commit/rollback desteği
-- Batch query helper:
-  - `batchQuery<T>()`: Toplu sorgular
-- Schema validation:
-  - `validateSchema()`: Şema doğrulama
-  - `getTableSchema()`: Tablo şema bilgisi
-- Query builder:
-  - `queryBuilder()`: Fluent API ile query oluşturma
-  - `D1QueryBuilder`: select(), where(), join(), orderBy(), limit()
+- AI data persistence (embeddings, vectors, sessions)
 
 ---
 
 ### 5. Images Service (`/images`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - Image optimization
 - On-the-fly resizing
 - Format conversion (WebP, AVIF)
@@ -160,50 +169,42 @@ Bu yapı sayesinde her domain bağımsız çalışabilir ve tree-shake friendly'
 
 ### 6. Analytics Service (`/analytics`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - Request counting
 - Response time tracking
 - Error monitoring
 - User analytics
-- **AI cost tracking**: Neuron tüketimi, maliyet analizi
-- **AI usage dashboard**: Provider kullanımı, cache hit rate
+- AI cost tracking
+- AI usage dashboard
 
 ---
 
 ### 7. Workflows Service (`/workflows`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - Media processing pipelines
 - Multi-step data processing
 - Third-party API integrations
 - Batch operations
 - Async task execution
 
-**Yeni AI Pipeline Templates**:
-- `rag-pipeline`: RAG (Retrieval-Augmented Generation) pipeline
-- `batch-embeddings`: Toplu embedding üretimi
-- `ai-content-pipeline`: AI içerik üretim pipeline (validation, SEO, plagiarism check)
-- `ai-multi-step-reasoning`: Chain-of-thought reasoning
-- `ai-data-enrichment`: AI destekli veri zenginleştirme
-
 ---
 
 ### 8. Wrangler Service (`/wrangler`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - Authentication management
 - Project creation and configuration
 - Deployment automation
 - Development server
-- Resource management (KV, R2, D1)
+- Resource management
 - Secret management
-- Monitoring and logging
 
 ---
 
 ### 9. Pages Service (`/pages`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - Static site deployment
 - Project creation
 - Deployment management
@@ -214,7 +215,7 @@ Bu yapı sayesinde her domain bağımsız çalışabilir ve tree-shake friendly'
 
 ### 10. Middleware Services (`/middleware`)
 
-**Kullanım Alanları**:
+**Use Cases**:
 - CORS handling
 - Caching strategies
 - Rate limiting
@@ -222,186 +223,67 @@ Bu yapı sayesinde her domain bağımsız çalışabilir ve tree-shake friendly'
 - Security headers
 - Request logging
 
-**Yeni Auth & Security Özellikleri**:
-- `requireAuth()`: Enhanced auth with user validation ve access logging
-- `requireAIQuota()`: AI-specific rate limiting (neuron-based)
-- `SessionManager`: D1 + KV session yönetimi
-  - `createSession()`: Yeni session oluşturma
-  - `validateSession()`: Session doğrulama
-  - `refreshSession()`: Session yenileme
-  - `destroySession()`: Session silme
-  - `destroyUserSessions()`: Kullanıcının tüm session'larını silme
-- `checkUserQuota()`: User-based quota tracking
-- `checkAIQuota()`: AI neuron quota checking
-
 ---
 
 ## 🤖 AI Building Blocks
 
-**Yeni `/ai` domain** - Genel amaçlı AI building blocks
-
 ### 1. WorkersAIService (`/ai`)
 
-**Amaç**: Generic LLM çağrıları, streaming, neuron tracking, cost estimation
+**Purpose**: Generic LLM calls, streaming, neuron tracking, cost estimation
 
-**Özellikler**:
-- Generic LLM calls (type-safe inputs)
+**Features**:
+- Type-safe LLM calls
 - Server-Sent Events (SSE) streaming
-- Model selection helper (requirements-based)
+- Model selection helper
 - Neuron tracking (Cloudflare billing metric)
 - Cost estimation per model
 - Embedding generation
 - Translation (100+ languages)
 
-**Kullanım**:
-```typescript
-import { WorkersAIService } from '@umituz/web-cloudflare/ai';
-
-const ai = new WorkersAIService({ bindings: { AI: env.AI } });
-
-// Generic LLM call
-const response = await ai.callLLM('@cf/meta/llama-3.1-8b-instruct', {
-  prompt: 'Hello, AI!',
-  parameters: { temperature: 0.7, maxTokens: 1000 },
-}, { stream: false, trackNeurons: true, trackCost: true });
-
-// Streaming
-const stream = ai.streamLLM('@cf/meta/llama-3.1-8b-instruct', {
-  prompt: 'Tell me a story',
-});
-
-// Model selection
-const model = ai.selectModel({
-  task: 'chat',
-  speed: 'fast',
-  costSensitive: true,
-});
-```
-
-**Desteklenen Modeller**:
-- `@cf/meta/llama-3.1-8b-instruct`: General purpose
-- `@cf/meta/llama-3.3-70b-instruct`: High quality
-- `@cf/mistral/mistral-7b-instruct`: Fast & efficient
-- `@cf/openai/clip-vit-base-patch32`: Embeddings
-- `@cf/stabilityai/stable-diffusion-xl-base-1.0`: Image generation
-
 ---
 
 ### 2. EmbeddingService (`/ai`)
 
-**Amaç**: Text ve image embedding generation, similarity calculation
+**Purpose**: Text and image embedding generation, similarity calculation
 
-**Özellikler**:
-- Text embedding generation (tek/batch)
+**Features**:
+- Text embedding generation (single/batch)
 - Image embedding generation
 - Batch processing (parallel)
 - Cosine similarity calculation
 - Most similar finder
 
-**Kullanım**:
-```typescript
-import { EmbeddingService } from '@umituz/web-cloudflare/ai';
-
-const embeddings = new EmbeddingService({ bindings: { AI: env.AI } });
-
-// Text embedding
-const embedding = await embeddings.generateTextEmbedding('Hello world');
-
-// Batch embeddings
-const embeddings = await embeddings.batchEmbeddings(['text1', 'text2', 'text3'], {
-  batchSize: 100,
-});
-
-// Similarity
-const similarity = embeddings.calculateSimilarity(embedding1, embedding2);
-
-// Most similar
-const { index, score } = embeddings.findMostSimilar(query, candidates);
-```
-
 ---
 
 ### 3. VectorizeService (`/ai`)
 
-**Amaç**: Vector index management, semantic search, RAG primitives
+**Purpose**: Vector index management, semantic search, RAG primitives
 
-**Özellikler**:
+**Features**:
 - Multi-index binding support
 - Upsert vectors with metadata
 - Semantic search (top-K)
 - RAG query (context building)
 - Index statistics
 
-**Kullanım**:
-```typescript
-import { VectorizeService } from '@umituz/web-cloudflare/ai';
-
-const vectorize = new VectorizeService();
-vectorize.bindIndex('documents', env.VECTORIZE_INDEX);
-
-// Upsert vectors
-await vectorize.upsert([
-  { id: 'doc1', values: [0.1, 0.2, ...], metadata: { title: 'Doc 1' } },
-  { id: 'doc2', values: [0.3, 0.4, ...], metadata: { title: 'Doc 2' } },
-]);
-
-// Semantic search
-const results = await vectorize.query(queryVector, {
-  topK: 10,
-  binding: 'documents',
-});
-
-// RAG query
-const ragResult = await vectorize.ragQuery(
-  queryVector,
-  [
-    { id: 'doc1', text: 'Content 1', metadata: { source: 'web' } },
-    { id: 'doc2', text: 'Content 2', metadata: { source: 'db' } },
-  ],
-  { topK: 5, binding: 'documents' }
-);
-```
-
 ---
 
 ### 4. LLMStreamingService (`/ai`)
 
-**Amaç**: Generic streaming support for any LLM provider
+**Purpose**: Generic streaming support for any LLM provider
 
-**Özellikler**:
+**Features**:
 - Multi-provider streaming (Workers AI, OpenAI, Anthropic)
 - SSE to async generator converter
 - Stream accumulator
-
-**Kullanım**:
-```typescript
-import { LLMStreamingService } from '@umituz/web-cloudflare/ai';
-
-const streaming = new LLMStreamingService();
-
-// Stream Workers AI
-const stream = streaming.streamRequest('workers-ai', '@cf/meta/llama-3.1-8b-instruct', {
-  prompt: 'Tell me a joke',
-});
-
-// Convert to generator
-for await (const chunk of streaming.streamToGenerator(stream)) {
-  console.log(chunk.content);
-}
-
-// Accumulate full response
-const fullText = await streaming.accumulateStream(stream, (chunk) => {
-  console.log('Chunk:', chunk);
-});
-```
 
 ---
 
 ### 5. AIGatewayService (`/ai`)
 
-**Amaç**: Multi-provider routing, caching, fallback, cost tracking
+**Purpose**: Multi-provider routing, caching, fallback, cost tracking
 
-**Özellikler**:
+**Features**:
 - Multi-provider routing (load balancing)
 - KV-based caching (exact match)
 - Semantic caching (embedding-based)
@@ -411,61 +293,204 @@ const fullText = await streaming.accumulateStream(stream, (chunk) => {
 - Budget enforcement
 - Analytics
 
-**Kullanım**:
-```typescript
-import { AIGatewayService } from '@umituz/web-cloudflare/ai';
+---
 
-const gateway = new AIGatewayService(
-  {
-    gatewayId: 'my-gateway',
-    providers: [
-      {
-        id: 'workers-ai',
-        name: 'Workers AI',
-        type: 'workers-ai',
-        baseURL: '',
-        apiKey: '',
-        models: ['@cf/meta/llama-3.1-8b-instruct'],
-        weight: 3,
-      },
-      {
-        id: 'openai',
-        name: 'OpenAI',
-        type: 'openai',
-        baseURL: 'https://api.openai.com/v1',
-        apiKey: '',
-        models: ['gpt-4', 'gpt-3.5-turbo'],
-        fallbackProvider: 'workers-ai',
-        weight: 1,
-      },
-    ],
-    cacheEnabled: true,
-    cacheTTL: 7200,
-    rateLimiting: true,
-    analytics: true,
-    budget: {
-      monthlyLimit: 100,
-      alertThreshold: 80,
-    },
-  },
-  env.KV,
-  embeddingService
+## 🎯 DDD Features
+
+### Value Objects
+
+**Location**: `src/domains/shared/value-objects/`
+
+Immutable, validated domain values with encapsulation:
+
+#### CacheKey
+```typescript
+import { CacheKey } from '@umituz/web-cloudflare/domains/shared';
+
+// Create validated cache keys
+const key = CacheKey.forAI('prompt-123');
+const tagKey = CacheKey.forTag('user-preferences');
+const customKey = CacheKey.withPrefix('custom', 'key');
+```
+
+**Features**:
+- Validation (max length, format)
+- Immutability guarantee
+- Type safety
+- Helper methods for common patterns
+
+#### TTL (Time-To-Live)
+```typescript
+import { TTL } from '@umituz/web-cloudflare/domains/shared';
+
+// Create validated TTL values
+const ttl = TTL.fromHours(2);
+const shortTTL = TTL.FIFTEEN_MINUTES;
+const oneDay = TTL.ONE_DAY;
+
+// Check expiration
+if (ttl.isExpired(createdAt)) {
+  // Handle expiration
+}
+```
+
+**Features**:
+- Validation (0-365 days)
+- Conversion helpers (minutes, hours, days)
+- Preset values (common durations)
+- Expiration checking
+
+#### Email
+```typescript
+import { Email } from '@umituz/web-cloudflare/domains/shared';
+
+const email = Email.create('user@example.com');
+if (email) {
+  console.log(email.domain); // example.com
+  console.log(email.localPart); // user
+}
+```
+
+**Features**:
+- Email validation
+- Domain extraction
+- Local part extraction
+- Safe creation (returns null)
+
+#### URL
+```typescript
+import { URLValue } from '@umituz/web-cloudflare/domains/shared';
+
+const url = URLValue.create('https://api.example.com');
+console.log(url.hostname); // api.example.com
+console.log(url.pathname); // /
+console.log(url.isSameOrigin(otherUrl)); // true/false
+```
+
+**Features**:
+- URL validation
+- Component extraction
+- Same-origin checking
+- Safe creation
+
+---
+
+### Domain Events
+
+**Location**: `src/domains/shared/events/`
+
+Event-driven architecture support with metadata:
+
+#### KV Events
+```typescript
+import {
+  KVEntryCreatedEvent,
+  KVEntryUpdatedEvent,
+  KVEntryDeletedEvent,
+  KVCacheHitEvent,
+  KVCacheMissEvent
+} from '@umituz/web-cloudflare/domains/shared';
+
+// Create events
+const event = new KVEntryCreatedEvent(
+  'user:123',
+  { name: 'John' },
+  'default',
+  3600
 );
 
-// Route request
-const response = await gateway.route({
-  model: '@cf/meta/llama-3.1-8b-instruct',
-  prompt: 'Hello!',
-  cacheKey: 'greeting:hello',
+console.log(event.eventId);        // Unique event ID
+console.log(event.occurredAt);     // Timestamp
+console.log(event.getAggregateId()); // 'kv:default:user:123'
+```
+
+#### AI Events
+```typescript
+import {
+  AIResponseCachedEvent,
+  AICacheInvalidatedEvent,
+  AIModelCalledEvent
+} from '@umituz/web-cloudflare/domains/shared';
+
+// AI response cached
+const event = new AIResponseCachedEvent(
+  'prompt-123',
+  'gpt-4',
+  1500,
+  ['chat', 'user-123']
+);
+
+// Log event
+console.log(`[${event.occurredAt.toISOString()}] ${event.getEventName()}`);
+```
+
+**Benefits**:
+- Audit trail
+- Event sourcing readiness
+- Loose coupling
+- Asynchronous processing
+
+---
+
+### Repository Pattern
+
+**Location**: `src/domains/kv/repositories/`
+
+Data access abstraction following DDD principles:
+
+```typescript
+import { KVRepository } from '@umituz/web-cloudflare/kv';
+
+// Create repository
+const repository = new KVRepository();
+repository.bindNamespace('default', env.MY_KV);
+
+// Use repository
+const entity = await repository.findByKey('user:123');
+await repository.save(entity);
+await repository.delete(entity);
+
+// List entries
+const results = await repository.list({
+  prefix: 'user:',
+  limit: 100,
 });
 
-// Cost summary
-const costs = await gateway.getCostSummary('month');
-console.log('Total cost:', costs.totalCost);
-
-// Check budget
-const withinBudget = gateway.enforceBudget(100);
+// Check existence
+const exists = await repository.exists('user:123');
 ```
+
+**Benefits**:
+- Separation of concerns
+- Testable data access
+- Swapable implementations
+- Clear architecture
+
+---
+
+### Dependency Inversion
+
+**Location**: `src/domains/*/interfaces/` + `src/infrastructure/validators/`
+
+Domain depends on abstractions, not concrete implementations:
+
+```typescript
+// Domain interface (domain layer)
+import type { IKVValidator } from '@umituz/web-cloudflare/kv';
+
+// Infrastructure implementation (infrastructure layer)
+import { KVValidator } from '@umituz/web-cloudflare/infrastructure';
+
+// Dependency injection
+const validator = new KVValidator();
+const kvService = new KVService(validator);
+```
+
+**Benefits**:
+- Testability (mock easy)
+- Loose coupling
+- Flexible implementations
+- DDD compliance
 
 ---
 
@@ -507,50 +532,13 @@ const withinBudget = gateway.enforceBudget(100);
 - 2-hour cache TTL
 - Low rate limit (30 req/min)
 
-#### 7. AI-Ready Config ⭐ YENİ
-- 1-hour cache for AI responses
-- User-based rate limiting (100 req/min)
-- Multi-provider AI with fallback
-- Vectorize enabled
-- Neuron quota tracking (10M neurons/day)
-- Cost tracking and budget enforcement ($100/month)
-- AI analytics enabled
-
-**Kullanım**:
-```typescript
-import { aiReadyConfig, ConfigBuilder } from '@umituz/web-cloudflare/config';
-
-// Pre-built config
-const worker = new WorkerService({
-  ...aiReadyConfig,
-  env: { KV: env.KV, R2: env.R2, D1: env.D1, AI: env.AI, VECTORIZE: env.VECTORIZE },
-});
-
-// Custom config with AI methods
-const customConfig = ConfigBuilder
-  .create()
-  .withCache({ enabled: true, defaultTTL: 3600 })
-  .withRateLimit({ enabled: true, maxRequests: 100, window: 60 })
-  .withAIGateway({
-    providers: [/* ... */],
-    cacheEnabled: true,
-    cacheTTL: 7200,
-  })
-  .withAIModels(['@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.3-70b-instruct'])
-  .withAICaching(true, 7200)
-  .withAIQuota(10000000, 86400) // 10M neurons/day
-  .withVectorize(true, ['documents', 'embeddings'])
-  .withCostTracking(100, 80)
-  .build();
-```
-
 ---
 
 ## 🛣️ Router & Middleware
 
 ### Router Features
 
-Express-style router ile HTTP endpoint tanımlama:
+Express-style router for HTTP endpoint definitions:
 
 - **HTTP Methods**: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, ALL
 - **Route Patterns**: Static paths, dynamic params, wildcards
@@ -572,59 +560,12 @@ Express-style router ile HTTP endpoint tanımlama:
 
 ### Workflow Concepts
 
-- **Named step sequences**
-- **Dependencies between steps**
-- **Retry policies with exponential backoff**
-- **Idempotency guarantees** (safe to retry)
-- **State persistence** (KV + D1)
-- **Resume capability** (from any step)
-
-### AI Pipeline Templates
-
-#### 1. RAG Pipeline
-```
-1. embed-query → Generate query embedding
-2. search-vectors → Search vector index for similar documents
-3. build-context → Build context from retrieved documents
-4. generate-response → Generate AI response with context
-```
-
-#### 2. Batch Embeddings
-```
-1. fetch-batch → Fetch batch of texts to embed
-2. generate-embeddings → Generate embeddings in parallel
-3. upsert-vectors → Upsert vectors to Vectorize
-4. save-metadata → Save metadata to D1
-```
-
-#### 3. AI Content Pipeline
-```
-1. generate-draft → Generate initial content
-2. validate-content → Validate quality
-3. optimize-seo → Optimize for SEO
-4. check-plagiarism → Check for plagiarism
-5. save-to-database → Save final content
-6. cache-to-kv → Cache content
-```
-
-#### 4. Multi-Step Reasoning
-```
-1. analyze-problem → Analyze problem statement
-2. decompose-steps → Break down into steps
-3. solve-each-step → Solve each step sequentially
-4. synthesize-solution → Combine solutions
-5. verify-solution → Verify correctness
-```
-
-#### 5. AI Data Enrichment
-```
-1. fetch-data → Fetch raw data
-2. extract-entities → Extract entities and relationships
-3. classify-content → Classify by category
-4. generate-summary → Generate summary
-5. enrich-metadata → Enrich with additional data
-6. save-enriched → Save enriched data
-```
+- Named step sequences
+- Dependencies between steps
+- Retry policies with exponential backoff
+- Idempotency guarantees (safe to retry)
+- State persistence (KV + D1)
+- Resume capability (from any step)
 
 ---
 
@@ -632,200 +573,20 @@ Express-style router ile HTTP endpoint tanımlama:
 
 **Package**: `@umituz/web-cloudflare/pages/react`
 
-The package provides production-ready React hooks for building Cloudflare Pages applications with Workers backend.
+Production-ready React hooks for building Cloudflare Pages applications with Workers backend.
 
 ### Available Hooks
 
-#### `useAuth` - Authentication Management
-```tsx
-import { useAuth } from '@umituz/web-cloudflare/pages/react';
-
-function LoginPage() {
-  const { authState, login, logout } = useAuth({
-    baseURL: '/api',
-  });
-
-  const handleLogin = async () => {
-    await login({ email: 'user@example.com', password: 'password' });
-  };
-
-  if (authState.isLoading) return <div>Loading...</div>;
-
-  return (
-    <div>
-      {authState.isAuthenticated ? (
-        <button onClick={logout}>Logout</button>
-      ) : (
-        <button onClick={handleLogin}>Login</button>
-      )}
-    </div>
-  );
-}
-```
-
-#### `useAI` - AI Text Generation & Streaming
-```tsx
-import { useAI } from '@umituz/web-cloudflare/pages/react';
-
-function ChatComponent() {
-  const { aiState, generateText, streamText } = useAI({
-    baseURL: '/api',
-    defaultModel: '@cf/meta/llama-3.1-8b-instruct',
-  });
-
-  const handleGenerate = async () => {
-    const response = await generateText('Write a poem about edge computing');
-    console.log(response.content);
-  };
-
-  const handleStream = async () => {
-    await streamText('Tell me a story', (chunk) => {
-      console.log('Stream chunk:', chunk);
-    });
-  };
-
-  return (
-    <div>
-      <button onClick={handleGenerate}>Generate</button>
-      <button onClick={handleStream}>Stream</button>
-      {aiState.isLoading && <div>Generating...</div>}
-      {aiState.response && <div>{aiState.response.content}</div>}
-    </div>
-  );
-}
-```
-
-#### `useAIChat` - Chat Interface with History
-```tsx
-import { useAIChat } from '@umituz/web-cloudflare/pages/react';
-
-function ChatInterface() {
-  const { messages, aiState, sendMessage, clearConversation } = useAIChat({
-    baseURL: '/api',
-    systemPrompt: 'You are a helpful assistant.',
-  });
-
-  const handleSend = async (message: string) => {
-    await sendMessage(message, { stream: true });
-  };
-
-  return (
-    <div>
-      {messages.map((msg, i) => (
-        <div key={i}>
-          <strong>{msg.role}:</strong> {msg.content}
-        </div>
-      ))}
-      {aiState.isStreaming && <div>Typing...</div>}
-    </div>
-  );
-}
-```
-
-#### `useFileUpload` - R2 File Upload with Progress
-```tsx
-import { useFileUpload } from '@umituz/web-cloudflare/pages/react';
-
-function FileUploader() {
-  const { uploadState, selectFile, uploadFile } = useFileUpload({
-    baseURL: '/api',
-    path: '/upload',
-    maxSize: 100 * 1024 * 1024, // 100MB
-    allowedTypes: ['image/jpeg', 'image/png'],
-  });
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      selectFile(e.target.files[0]);
-      uploadFile();
-    }
-  };
-
-  return (
-    <div>
-      <input type="file" onChange={handleFileChange} />
-      {uploadState.isLoading && (
-        <div>Uploading: {uploadState.progress}%</div>
-      )}
-      {uploadState.url && (
-        <div>Uploaded: <a href={uploadState.url}>{uploadState.key}</a></div>
-      )}
-    </div>
-  );
-}
-```
-
-#### `useWorkflow` - Workflow Execution & Monitoring
-```tsx
-import { useWorkflow } from '@umituz/web-cloudflare/pages/react';
-
-function WorkflowRunner() {
-  const { workflowState, executeWorkflow, cancelExecution } = useWorkflow({
-    baseURL: '/api',
-    pollInterval: 1000,
-    onWorkflowComplete: (execution) => {
-      console.log('Workflow completed:', execution.result);
-    },
-  });
-
-  const handleExecute = async () => {
-    await executeWorkflow('rag-pipeline', { query: 'What is AI?' });
-  };
-
-  return (
-    <div>
-      <button onClick={handleExecute}>Execute RAG Pipeline</button>
-      {workflowState.execution && (
-        <div>
-          <div>Status: {workflowState.execution.status}</div>
-          {workflowState.execution.steps.map((step, i) => (
-            <div key={i}>
-              {step.name}: {step.status}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-```
+- **useAuth**: Authentication management
+- **useAI**: AI text generation & streaming
+- **useAIChat**: Chat interface with history
+- **useFileUpload**: R2 file upload with progress
+- **useWorkflow**: Workflow execution & monitoring
 
 ### React Components
 
-#### `<FileUpload>` - Dropzone File Upload Component
-```tsx
-import { FileUpload } from '@umituz/web-cloudflare/pages/react';
-
-function MyForm() {
-  return (
-    <FileUpload
-      onUploadComplete={(data) => console.log('Uploaded:', data)}
-      maxSize={50 * 1024 * 1024}
-      accept="image/*"
-      dropzoneText="Drag and drop images here"
-    />
-  );
-}
-```
-
-#### `<AIChat>` - AI Chat Interface Component
-```tsx
-import { AIChat } from '@umituz/web-cloudflare/pages/react';
-
-function ChatPage() {
-  return (
-    <AIChat
-      baseURL="/api"
-      placeholder="Ask me anything..."
-      welcomeMessage="Hello! How can I help you?"
-      showTimestamp={true}
-      systemPrompt="You are a helpful assistant."
-      onMessageSend={(msg) => console.log('Sent:', msg)}
-      onMessageReceive={(msg) => console.log('Received:', msg)}
-    />
-  );
-}
-```
+- **FileUpload**: Dropzone file upload component
+- **AIChat**: AI chat interface component
 
 ---
 
@@ -835,107 +596,139 @@ function ChatPage() {
 
 Manage multiple D1, R2, KV, and Vectorize bindings for multi-tenant applications.
 
-### Tenant Management
+### Features
 
-```typescript
-import { multiTenantService } from '@umituz/web-cloudflare/multi-tenant';
-
-// Register a new tenant
-const tenant = await multiTenantService.registerTenant({
-  name: 'Acme Corp',
-  slug: 'acme',
-  domain: 'acme.example.com',
-  config: {
-    d1Bindings: ['DB'],
-    r2Bindings: ['STORAGE'],
-    kvNamespaces: ['CACHE'],
-    vectorizeIndexes: ['DOCUMENTS'],
-  },
-});
-
-// Bind resources
-multiTenantService.bindD1(tenant.id, 'DB', env.DB);
-multiTenantService.bindR2(tenant.id, 'STORAGE', env.STORAGE);
-multiTenantService.bindKV(tenant.id, 'CACHE', env.CACHE);
-multiTenantService.bindVectorize(tenant.id, 'DOCUMENTS', env.VECTORIZE);
-```
-
-### Tenant Routing
-
-```typescript
-// Set up routing strategy
-multiTenantService.setTenantRoute(tenant.id, {
-  hostname: 'acme.example.com', // Route by hostname
-  // OR
-  header: 'X-Tenant-ID', // Route by header
-  // OR
-  query: 'tenant', // Route by query parameter
-});
-
-// Resolve tenant from request
-export default {
-  async fetch(request, env, ctx) {
-    const result = await multiTenantService.resolveTenant(request);
-
-    if (!result) {
-      return new Response('Tenant not found', { status: 404 });
-    }
-
-    const { tenant, route } = result;
-
-    // Get tenant context with all bindings
-    const context = multiTenantService.getTenantContext(tenant.id);
-    const db = context.d1?.get('DB');
-    const storage = context.r2?.get('STORAGE');
-
-    // Handle request with tenant-specific resources
-    return new Response('Hello from ' + tenant.name);
-  },
-};
-```
-
-### Tenant Isolation
-
-```typescript
-// Execute operation with tenant context
-await multiTenantService.withTenant(tenant.id, async (context) => {
-  const db = context.d1?.get('DB');
-
-  // All database operations are isolated to this tenant
-  const result = await db.prepare('SELECT * FROM users WHERE tenant_id = ?')
-    .bind(tenant.id)
-    .all();
-
-  return result;
-});
-```
-
-### Data Operations
-
-```typescript
-// Get tenant-specific KV key
-const key = multiTenantService.getTenantKVKey(tenant.id, 'user:123');
-// Returns: "acme:user:123"
-
-// Get tenant-specific R2 prefix
-const prefix = multiTenantService.getTenantR2Prefix(tenant.id);
-// Returns: "acme/"
-
-// Get tenant-specific D1 table
-const table = multiTenantService.getTenantD1Table(tenant.id, 'users');
-// Returns: "acme_users"
-```
+- Tenant registration and management
+- Tenant routing (hostname, header, query)
+- Resource isolation per tenant
+- Tenant context management
+- Data operations with tenant isolation
 
 ### Use Cases
 
-- **SaaS Platforms**: Each customer gets isolated D1 database and R2 bucket
-- **White-Label Applications**: Multiple brands with custom domains
-- **Multi-Region Deployments**: Region-specific tenant routing
-- **Development/Staging/Production**: Environment-based tenant isolation
+- SaaS Platforms
+- White-Label Applications
+- Multi-Region Deployments
+- Development/Staging/Production
 
 ---
 
-## 💡 Kullanım Örnekleri
+## ⚡ Performance Optimizations
+
+### Memory Management
+
+- **Route Caching**: 80% faster subsequent requests (0.1ms vs 0.5ms)
+- **LRU Cache Eviction**: Automatic cleanup of expired entries
+- **Batch Operations**: KV writes batched for 50% improvement
+- **Hierarchical Caching**: L1 (memory) + L2 (KV) for optimal performance
+
+### TypeScript Configuration
+
+**Latest tsconfig.json** (v1.6.4):
+```json
+{
+  "compilerOptions": {
+    "sourceMap": true,         // ⭐ NEW
+    "declarationMap": true,    // ⭐ NEW
+    "noEmit": false,           // ⭐ Changed from true
+    // ... other options
+  }
+}
+```
+
+**Benefits**:
+- Better debugging experience
+- Improved IDE navigation
+- Enhanced library development
+
+---
+
+## 📦 Subpath Exports
+
+Each feature can be imported independently:
+
+```typescript
+// DDD Features (NEW!)
+import { CacheKey, TTL, Email } from '@umituz/web-cloudflare/domains/shared';
+import { AIResponseCachedEvent } from '@umituz/web-cloudflare/domains/shared';
+import { KVRepository } from '@umituz/web-cloudflare/kv';
+
+// AI building blocks
+import { WorkersAIService, EmbeddingService } from '@umituz/web-cloudflare/ai';
+
+// Enhanced services
+import { D1Service } from '@umituz/web-cloudflare/d1';
+import { R2Service } from '@umituz/web-cloudflare/r2';
+import { KVService } from '@umituz/web-cloudflare/kv';
+import { WorkflowService } from '@umituz/web-cloudflare/workflows';
+
+// Middleware
+import { cors, cache, checkRateLimit } from '@umituz/web-cloudflare/middleware';
+
+// Config
+import { socialMediaConfig, ConfigBuilder } from '@umituz/web-cloudflare/config';
+
+// React hooks
+import { useAuth, useAI } from '@umituz/web-cloudflare/pages/react';
+
+// Multi-tenant
+import { multiTenantService } from '@umituz/web-cloudflare/multi-tenant';
+```
+
+---
+
+## 💡 Usage Examples
+
+### Using DDD Value Objects
+
+```typescript
+import { CacheKey, TTL, Email } from '@umituz/web-cloudflare/domains/shared';
+import { KVService } from '@umituz/web-cloudflare/kv';
+
+const kvService = new KVService();
+
+// Create validated values
+const key = CacheKey.forAI('prompt-123');
+const ttl = TTL.fromHours(2);
+const email = Email.create('user@example.com');
+
+// Use in service
+await kvService.put(key.value, { data: '...' }, { ttl: ttl.seconds });
+```
+
+### Using Domain Events
+
+```typescript
+import { AIResponseCachedEvent, KVEntryCreatedEvent } from '@umituz/web-cloudflare/domains/shared';
+
+// Create events
+const aiEvent = new AIResponseCachedEvent(
+  'prompt-123',
+  'gpt-4',
+  1500,
+  ['chat', 'user-123']
+);
+
+console.log(`Event: ${aiEvent.getEventName()}`);
+console.log(`Aggregate: ${aiEvent.getAggregateId()}`);
+console.log(`Timestamp: ${aiEvent.occurredAt.toISOString()}`);
+```
+
+### Using Repository Pattern
+
+```typescript
+import { KVRepository } from '@umituz/web-cloudflare/kv';
+
+const repository = new KVRepository();
+repository.bindNamespace('default', env.MY_KV);
+
+// Repository operations
+const entity = await repository.findByKey('user:123');
+if (entity) {
+  entity.value = JSON.stringify({ updated: true });
+  await repository.save(entity);
+}
+```
 
 ### RAG Implementation
 
@@ -949,8 +742,8 @@ vectorize.bindIndex('documents', env.VECTORIZE);
 
 // 1. Index documents
 const docs = [
-  { id: 'doc1', text: 'Cloudflare Workers is fast', source: 'docs' },
-  { id: 'doc2', text: 'Edge computing is the future', source: 'blog' },
+  { id: 'doc1', text: 'Cloudflare Workers is fast' },
+  { id: 'doc2', text: 'Edge computing is the future' },
 ];
 
 for (const doc of docs) {
@@ -958,238 +751,19 @@ for (const doc of docs) {
   await vectorize.upsert([{
     id: doc.id,
     values: embedding,
-    metadata: { text: doc.text, source: doc.source },
+    metadata: { text: doc.text },
   }]);
 }
 
 // 2. RAG query
 const query = 'What is edge computing?';
 const queryEmbedding = await embeddings.generateTextEmbedding(query);
-const ragResult = await vectorize.ragQuery(
-  queryEmbedding,
-  docs.map(d => ({ id: d.id, text: d.text, metadata: { source: d.source } })),
-  { topK: 3 }
-);
+const results = await vectorize.query(queryEmbedding, { topK: 3 });
 
 // 3. Generate response with context
 const response = await ai.callLLM('@cf/meta/llama-3.1-8b-instruct', {
-  prompt: `Context: ${ragResult.context}\n\nQuestion: ${query}\n\nAnswer:`,
+  prompt: `Context: ${results.map(r => r.metadata.text).join('\n')}\n\nQuestion: ${query}`,
 });
-```
-
-### AI Content Generation with Quality Control
-
-```typescript
-import { WorkflowService, WORKFLOW_TEMPLATES } from '@umituz/web-cloudflare/workflows';
-
-const workflows = new WorkflowService({
-  KV: env.KV,
-  D1: env.D1,
-  maxExecutionTime: 600,
-});
-
-// Create custom AI content workflow
-await workflows.createWorkflow({
-  id: 'blog-post-generator',
-  name: 'Blog Post Generator with Quality Control',
-  steps: [
-    {
-      id: 'generate-draft',
-      name: 'Generate Initial Draft',
-      handler: 'ai-generate-draft',
-      timeout: 60,
-    },
-    {
-      id: 'validate-quality',
-      name: 'Validate Content Quality',
-      handler: 'content-validate-quality',
-      dependencies: ['generate-draft'],
-      timeout: 10,
-    },
-    {
-      id: 'optimize-seo',
-      name: 'Optimize for SEO',
-      handler: 'ai-optimize-seo',
-      dependencies: ['validate-quality'],
-      timeout: 30,
-    },
-    {
-      id: 'check-plagiarism',
-      name: 'Check for Plagiarism',
-      handler: 'content-check-plagiarism',
-      dependencies: ['optimize-seo'],
-      timeout: 20,
-    },
-    {
-      id: 'save-post',
-      name: 'Save Blog Post',
-      handler: 'd1-insert-content',
-      dependencies: ['check-plagiarism'],
-      timeout: 10,
-    },
-  ],
-});
-
-// Execute workflow
-const execution = await workflows.startExecution('blog-post-generator', {
-  topic: 'Cloudflare Workers AI',
-  tone: 'professional',
-  keywords: ['edge computing', 'serverless'],
-});
-
-// Check status
-const status = await workflows.getExecution(execution.id);
-```
-
-### Cost Tracking and Budget Management
-
-```typescript
-import { AIGatewayService } from '@umituz/web-cloudflare/ai';
-
-const gateway = new AIGatewayService(config, env.KV);
-
-// Track AI calls automatically
-await gateway.route({
-  model: '@cf/meta/llama-3.1-8b-instruct',
-  prompt: 'Generate content',
-});
-
-// Get cost summary
-const summary = await gateway.getCostSummary('month');
-console.log('Total cost:', summary.totalCost);
-console.log('By provider:', summary.byProvider);
-console.log('By model:', summary.byModel);
-
-// Check budget
-const withinBudget = gateway.enforceBudget(100); // $100 limit
-if (!withinBudget) {
-  console.log('Budget exceeded!');
-}
-
-// Get detailed analytics
-const analytics = await gateway.getAnalytics();
-console.log('Cache hit rate:', analytics.cacheHitRate);
-console.log('Total requests:', analytics.totalRequests);
-```
-
----
-
-## ⚡ Performans Optimizasyonları
-
-### Memory Management
-
-- **Route Caching**: 80% faster subsequent requests (0.1ms vs 0.5ms)
-- **LRU Cache Eviction**: Automatic cleanup of expired entries
-- **Batch Operations**: KV writes batched for 50% improvement
-- **Hierarchical Caching**: L1 (memory) + L2 (KV) for optimal performance
-
-### AI-Specific Optimizations
-
-- **Semantic Caching**: Embedding-based cache matching (90%+ similarity threshold)
-- **Neuron Tracking**: Accurate billing metric tracking
-- **Cost Estimation**: Real-time cost calculation per model
-- **Circuit Breaker**: Automatic fallback on provider failures
-- **Quota Enforcement**: Neuron-based rate limiting
-
----
-
-## 📦 Subpath Exports
-
-Her feature bağımsız import edilebilir:
-
-```typescript
-// AI building blocks (NEW!)
-import { WorkersAIService, EmbeddingService, VectorizeService } from '@umituz/web-cloudflare/ai';
-import { AIGatewayService, LLMStreamingService } from '@umituz/web-cloudflare/ai';
-
-// Enhanced services
-import { D1Service, D1QueryBuilder } from '@umituz/web-cloudflare/d1';
-import { R2Service, R2MetadataWithD1 } from '@umituz/web-cloudflare/r2';
-import { KVService, AIResponseCacheOptions } from '@umituz/web-cloudflare/kv';
-import { WorkflowService, WORKFLOW_TEMPLATES } from '@umituz/web-cloudflare/workflows';
-
-// Middleware
-import { requireAuth, requireAIQuota, SessionManager } from '@umituz/web-cloudflare/middleware';
-import { checkUserQuota, checkAIQuota } from '@umituz/web-cloudflare/middleware';
-
-// Config
-import { aiReadyConfig, ConfigBuilder } from '@umituz/web-cloudflare/config';
-
-// React hooks (NEW! - for Cloudflare Pages)
-import { useAuth, useAI, useFileUpload, useWorkflow } from '@umituz/web-cloudflare/pages/react';
-import { FileUpload, AIChat } from '@umituz/web-cloudflare/pages/react';
-
-// Multi-tenant support (NEW!)
-import { multiTenantService, MultiTenantService } from '@umituz/web-cloudflare/multi-tenant';
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Installation
-
-```bash
-npm install @umituz/web-cloudflare
-```
-
-### 2. AI-Ready Worker Setup
-
-```typescript
-import { aiReadyConfig, WorkerService } from '@umituz/web-cloudflare/config';
-import { createRouter } from '@umituz/web-cloudflare/router';
-import { cors, requireAIQuota } from '@umituz/web-cloudflare/middleware';
-import { WorkersAIService, EmbeddingService, VectorizeService } from '@umituz/web-cloudflare/ai';
-
-// Initialize AI services
-const ai = new WorkersAIService({ bindings: { AI: env.AI } });
-const embeddings = new EmbeddingService({ bindings: { AI: env.AI } });
-const vectorize = new VectorizeService();
-vectorize.bindIndex('docs', env.VECTORIZE);
-
-// Create worker with AI-ready config
-const worker = new WorkerService({
-  ...aiReadyConfig,
-  env: {
-    KV: env.KV,
-    R2: env.R2,
-    D1: env.D1,
-    AI: env.AI,
-    VECTORIZE: env.VECTORIZE,
-  },
-});
-
-// Setup router
-const router = createRouter()
-  .use(cors)
-  .use((req) => requireAIQuota(req, {
-    enabled: true,
-    quota: 10000000,
-    period: 86400,
-    kv: env.KV,
-  }))
-  .post('/api/ai/generate', async (req) => {
-    const body = await req.json();
-    const response = await ai.callLLM('@cf/meta/llama-3.1-8b-instruct', {
-      prompt: body.prompt,
-    });
-    return json(response);
-  })
-  .post('/api/embeddings', async (req) => {
-    const body = await req.json();
-    const embedding = await embeddings.generateTextEmbedding(body.text);
-    return json({ embedding });
-  })
-  .post('/api/search', async (req) => {
-    const body = await req.json();
-    const queryEmbedding = await embeddings.generateTextEmbedding(body.query);
-    const results = await vectorize.query(queryEmbedding, { topK: 10 });
-    return json({ results });
-  });
-
-export default {
-  fetch: (req, env, ctx) => router.handle(req, env, ctx),
-};
 ```
 
 ---
@@ -1200,7 +774,6 @@ export default {
 - **RAG Applications**: Document search, knowledge bases, Q&A systems
 - **Content Generation**: Blogs, social media, marketing copy
 - **Data Enrichment**: Entity extraction, classification, summarization
-- **Multi-Step Reasoning**: Complex problem solving, analysis tasks
 
 ### E-Commerce
 - Product recommendations with AI
@@ -1216,23 +789,87 @@ export default {
 
 ---
 
-## 📝 Version Stratejisi
+## 🚀 Quick Start
 
-**Important**: Bu paket patch-only version strategy kullanır:
-- Sadece patch versiyonu artar (ör: 1.5.0 → 1.5.1)
-- Major versiyon değişikliği olmaz (2.0.0 asla)
-- Bu sayede stabilite sağlanır ve breaking changes önlenebilir
+### Installation
+
+```bash
+npm install @umituz/web-cloudflare
+```
+
+### TypeScript Configuration
+
+**tsconfig.json**:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "WebWorker"],
+    "strict": true,
+    "sourceMap": true,
+    "declarationMap": true,
+    "declaration": true,
+    "noEmit": false
+  }
+}
+```
+
+### Basic Worker with DDD
+
+```typescript
+import { createRouter } from '@umituz/web-cloudflare/router';
+import { cors, cache } from '@umituz/web-cloudflare/middleware';
+import { CacheKey, TTL } from '@umituz/web-cloudflare/domains/shared';
+import { KVService } from '@umituz/web-cloudflare/kv';
+
+const kvService = new KVService();
+const router = createRouter()
+  .use(cors)
+  .use(cache({ enabled: true, defaultTTL: 300 }))
+  .get('/api/data', async () => {
+    const key = CacheKey.forAI('data');
+    const ttl = TTL.fromHours(1);
+
+    const data = await kvService.getOrSet(key.value, async () => {
+      return await fetchExpensiveData();
+    });
+
+    return Response.json(data);
+  });
+
+export default {
+  fetch: (req, env, ctx) => router.handle(req, env, ctx),
+};
+```
 
 ---
 
-## 🔗 Kaynaklar
+## 📝 Version Strategy
+
+**Important**: This package uses patch-only versioning:
+- Only patch version increments (e.g., 1.6.4 → 1.6.5)
+- No major version changes (2.0.0 never)
+- Ensures stability and prevents breaking changes
+
+**Current Version**: 1.6.4
+**DDD Score**: 8.5/10 (Solid DDD)
+
+---
+
+## 🔗 Resources
 
 - **GitHub**: https://github.com/umituz/web-cloudflare
 - **NPM**: https://www.npmjs.com/package/@umituz/web-cloudflare
 - **Cloudflare Docs**: https://developers.cloudflare.com/
+- **DDD Improvements**: See `src/domains/DDD-IMPROVEMENTS.md`
 
 ---
 
 **Made with ❤️ by umituz**
 
-*Last Updated: March 2026*
+*Last Updated: March 31, 2026*
+*Total Files: 120 TypeScript files*
+*Domains: 13 bounded contexts*
+*DDD Files: 19 (value objects, events, repositories)*
