@@ -75,6 +75,59 @@ const MODELS: Record<string, ModelInfo> = {
     capabilities: ['image'],
   },
 
+  // Audio Models (TTS - Text-to-Speech)
+  '@cf/myshell-ai/melotts': {
+    name: 'MeloTS Text-to-Speech',
+    contextLength: 0,
+    neuronsPer1KTokens: 500,
+    costPer1KNeurons: 0.0005,
+    capabilities: ['audio', 'tts', 'speech'],
+  },
+  '@cf/deepgram/aura-1': {
+    name: 'Aura TTS v1',
+    contextLength: 0,
+    neuronsPer1KTokens: 400,
+    costPer1KNeurons: 0.0004,
+    capabilities: ['audio', 'tts', 'speech'],
+  },
+  '@cf/deepgram/aura-asteria-en': {
+    name: 'Aura Asteria English',
+    contextLength: 0,
+    neuronsPer1KTokens: 400,
+    costPer1KNeurons: 0.0004,
+    capabilities: ['audio', 'tts', 'speech', 'english'],
+  },
+  '@cf/deepgram/aura-luna-en': {
+    name: 'Aura Luna English',
+    contextLength: 0,
+    neuronsPer1KTokens: 400,
+    costPer1KNeurons: 0.0004,
+    capabilities: ['audio', 'tts', 'speech', 'english'],
+  },
+  '@cf/deepgram/aura-stella-en': {
+    name: 'Aura Stella English',
+    contextLength: 0,
+    neuronsPer1KTokens: 400,
+    costPer1KNeurons: 0.0004,
+    capabilities: ['audio', 'tts', 'speech', 'english'],
+  },
+
+  // Audio Models (ASR - Automatic Speech Recognition)
+  '@cf/deepgram/nova-2': {
+    name: 'Deepgram Nova-2',
+    contextLength: 0,
+    neuronsPer1KTokens: 300,
+    costPer1KNeurons: 0.0003,
+    capabilities: ['audio', 'asr', 'transcription'],
+  },
+  '@cf/openai/whisper': {
+    name: 'OpenAI Whisper',
+    contextLength: 0,
+    neuronsPer1KTokens: 350,
+    costPer1KNeurons: 0.00035,
+    capabilities: ['audio', 'asr', 'transcription'],
+  },
+
   // Embedding Models
   '@cf/openai/clip-vit-base-patch32': {
     name: 'CLIP ViT Base',
@@ -336,6 +389,212 @@ export class WorkersAIService implements IWorkersAIService {
    */
   getModelInfo(model: string): ModelInfo | null {
     return MODELS[model] || null;
+  }
+
+  // ============================================================
+  // Text-to-Speech (TTS) Methods
+  // ============================================================
+
+  /**
+   * Generate speech from text using Workers AI TTS models
+   * @param model TTS model (default: '@cf/myshell-ai/melotts')
+   * @param text Text to convert to speech
+   * @param options TTS options
+   * @returns Base64 encoded audio (MP3)
+   */
+  async generateSpeech(
+    text: string,
+    options: {
+      model?: string;
+      lang?: string;
+      returnRawResponse?: boolean;
+    } = {}
+  ): Promise<{ audio: string; format: string; model: string }> {
+    const ai = this.getAI();
+
+    if (!ai) {
+      throw new Error('Workers AI binding not configured');
+    }
+
+    const model = options.model || '@cf/myshell-ai/melotts';
+    const modelInfo = MODELS[model];
+
+    if (!modelInfo || !modelInfo.capabilities.includes('tts')) {
+      throw new Error(`Model ${model} does not support TTS`);
+    }
+
+    try {
+      const params: Record<string, unknown> = {
+        text,
+      };
+
+      // Add language parameter for MeloTS
+      if (model.includes('melotts')) {
+        params.lang = options.lang || 'en';
+      }
+
+      const response = await ai.run(model, params);
+
+      // MeloTS returns { audio: "base64..." }
+      if (typeof response === 'object' && response !== null) {
+        const r = response as Record<string, unknown>;
+        if ('audio' in r && typeof r.audio === 'string') {
+          return {
+            audio: r.audio,
+            format: 'mp3',
+            model,
+          };
+        }
+      }
+
+      // If returnRawResponse, return as-is
+      if (options.returnRawResponse) {
+        return {
+          audio: typeof response === 'string' ? response : JSON.stringify(response),
+          format: 'mp3',
+          model,
+        };
+      }
+
+      throw new Error('Unexpected response format from TTS model');
+
+    } catch (error) {
+      throw new Error(
+        `TTS generation failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  // ============================================================
+  // Automatic Speech Recognition (ASR) Methods
+  // ============================================================
+
+  /**
+   * Transcribe audio to text using Workers AI ASR models
+   * @param audio Audio data (ArrayBuffer, Uint8Array, or base64 string)
+   * @param options ASR options
+   * @returns Transcription result with text and metadata
+   */
+  async transcribeAudio(
+    audio: ArrayBuffer | Uint8Array | string,
+    options: {
+      model?: string;
+      detectLanguage?: boolean;
+      language?: string;
+      returnRawResponse?: boolean;
+    } = {}
+  ): Promise<{ text: string; language?: string; duration?: number; model: string }> {
+    const ai = this.getAI();
+
+    if (!ai) {
+      throw new Error('Workers AI binding not configured');
+    }
+
+    const model = options.model || '@cf/openai/whisper';
+    const modelInfo = MODELS[model];
+
+    if (!modelInfo || !modelInfo.capabilities.includes('asr')) {
+      throw new Error(`Model ${model} does not support ASR`);
+    }
+
+    try {
+      // Prepare audio input
+      let audioInput: Record<string, unknown>;
+
+      if (typeof audio === 'string') {
+        // Base64 string - convert to Uint8Array
+        const binaryString = atob(audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        audioInput = {
+          audio: Array.from(bytes),
+        };
+      } else if (audio instanceof Uint8Array) {
+        audioInput = {
+          audio: Array.from(audio),
+        };
+      } else {
+        // ArrayBuffer
+        audioInput = {
+          audio: Array.from(new Uint8Array(audio)),
+        };
+      }
+
+      // Add ASR-specific parameters
+      if (options.detectLanguage) {
+        audioInput.detect_language = options.detectLanguage;
+      }
+
+      if (options.language) {
+        audioInput.language = options.language;
+      }
+
+      const response = await ai.run(model, audioInput);
+
+      // Extract transcription text
+      let text = '';
+      let language: string | undefined;
+
+      if (typeof response === 'string') {
+        text = response;
+      } else if (typeof response === 'object' && response !== null) {
+        const r = response as Record<string, unknown>;
+
+        // Whisper format: { text: "...", language: "en" }
+        if ('text' in r && typeof r.text === 'string') {
+          text = r.text;
+        }
+
+        if ('language' in r && typeof r.language === 'string') {
+          language = r.language;
+        }
+
+        // Nova-2 format: { result: "...", detected_language: "en" }
+        if ('result' in r && typeof r.result === 'string') {
+          text = r.result;
+        }
+
+        if ('detected_language' in r && typeof r.detected_language === 'string') {
+          language = r.detected_language;
+        }
+      }
+
+      if (!text) {
+        throw new Error('Could not extract transcription from response');
+      }
+
+      return {
+        text,
+        language,
+        model,
+      };
+
+    } catch (error) {
+      throw new Error(
+        `ASR transcription failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Get available TTS models
+   */
+  getAvailableTTSModels(): string[] {
+    return Object.entries(MODELS)
+      .filter(([_, info]) => info.capabilities.includes('tts'))
+      .map(([model, _]) => model);
+  }
+
+  /**
+   * Get available ASR models
+   */
+  getAvailableASRModels(): string[] {
+    return Object.entries(MODELS)
+      .filter(([_, info]) => info.capabilities.includes('asr'))
+      .map(([model, _]) => model);
   }
 
   // ============================================================
