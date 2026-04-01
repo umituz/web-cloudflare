@@ -37,6 +37,8 @@ export { d1Service, D1Service } from "./domains/d1";
 export { kvService, KVService } from "./domains/kv";
 export { imagesService, ImagesService } from "./domains/images";
 export { analyticsService, AnalyticsService } from "./domains/analytics";
+// Auth - Device-based anonymous user authentication
+export * from "./domains/auth";
 // Pages - Node.js-only service
 export { pagesService, PagesService } from "./domains/pages";
 // Wrangler - Node.js-only service

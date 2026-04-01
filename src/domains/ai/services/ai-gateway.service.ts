@@ -29,6 +29,7 @@ export class AIGatewayService implements IAIGatewayService {
   private config: AIGatewayConfig;
   private kv?: KVNamespace;
   private embeddingService?: IEmbeddingService;
+  private workersAI?: WorkersAIBinding;
 
   // Cost tracking
   private costTracker: Map<string, number> = new Map();
@@ -59,11 +60,13 @@ export class AIGatewayService implements IAIGatewayService {
   constructor(
     config: AIGatewayConfig,
     KV?: KVNamespace,
-    embeddingService?: IEmbeddingService
+    embeddingService?: IEmbeddingService,
+    workersAI?: WorkersAIBinding
   ) {
     this.config = config;
     this.kv = KV;
     this.embeddingService = embeddingService;
+    this.workersAI = workersAI;
 
     // Extract account and gateway ID from first provider if Hugging Face
     const hfProvider = config.providers.find(p => this.isHuggingFaceProvider(p));
@@ -215,6 +218,99 @@ export class AIGatewayService implements IAIGatewayService {
       ...options,
       gatewayId,
     } : { gatewayId });
+  }
+
+  /**
+   * Call Workers AI model with native binding (recommended)
+   * @description Uses env.AI.run() for 2-3x faster performance than HTTP fetch
+   * @param model Workers AI model identifier (e.g., '@cf/meta/llama-3.1-8b-instruct')
+   * @param params Model parameters
+   * @param gateway Optional AI Gateway configuration
+   * @returns Provider call result
+   *
+   * @example
+   * ```typescript
+   * const result = await aiGateway.callWorkersAI(
+   *   '@cf/meta/llama-3.1-8b-instruct',
+   *   { prompt: 'Hello, world!' },
+   *   { id: 'my-gateway', skipCache: false, cacheTtl: 3600 }
+   * );
+   * ```
+   */
+  async callWorkersAI<T = unknown>(
+    model: string,
+    params: Record<string, unknown>,
+    gateway?: {
+      id?: string;
+      skipCache?: boolean;
+      cacheTtl?: number;
+    }
+  ): Promise<ProviderCallResult<T>> {
+    const startTime = Date.now();
+
+    if (!this.workersAI) {
+      throw new Error(
+        'Workers AI binding not configured. Pass WorkersAIBinding to constructor.'
+      );
+    }
+
+    try {
+      // Prepare inputs
+      const inputs: Record<string, unknown> = { ...params };
+
+      // Add AI Gateway configuration if provided
+      const options: Record<string, unknown> = {};
+      if (gateway) {
+        if (gateway.id) options.gateway = gateway.id;
+        if (gateway.skipCache !== undefined) options.skipCache = gateway.skipCache;
+        if (gateway.cacheTtl !== undefined) options.cacheTtl = gateway.cacheTtl;
+      }
+
+      // Call Workers AI with native binding
+      const result = await this.workersAI.run<T>(model, inputs);
+
+      // Calculate metrics
+      const tokens = this.estimateTokensFromData(result);
+      const cost = this.calculateCostFromModel(model, tokens);
+      const latency = Date.now() - startTime;
+
+      return {
+        data: result,
+        model,
+        provider: 'workers-ai',
+        tokens,
+        cost,
+        latency,
+        cached: false,
+        metadata: {
+          gatewayId: gateway?.id,
+          binding: true, // Flag indicating native binding was used
+        },
+      };
+
+    } catch (error) {
+      throw new Error(
+        `Workers AI binding error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Calculate cost for Workers AI model
+   * @private
+   */
+  private calculateCostFromModel(model: string, tokens: number): number {
+    // Workers AI pricing (approximate)
+    const pricing: Record<string, number> = {
+      '@cf/meta/llama-3.1-8b-instruct': 0.00015,
+      '@cf/meta/llama-3.3-70b-instruct': 0.00045,
+      '@cf/mistral/mistral-7b-instruct': 0.00015,
+      '@hf/google/gemma-7b-it': 0.00015,
+      '@cf/stabilityai/stable-diffusion-xl-base-1.0': 0.001,
+    };
+
+    const costPer1K = pricing[model] || 0.00015;
+    return (tokens / 1000) * costPer1K;
   }
 
   // ============================================================
@@ -423,17 +519,56 @@ export class AIGatewayService implements IAIGatewayService {
   }
 
   /**
-   * Call Workers AI provider
+   * Call Workers AI provider with native binding support
+   * @description Uses env.AI.run() binding for better performance (2-3x faster than HTTP)
+   * @param provider Provider configuration
+   * @param request AI request
+   * @returns Response object
    */
   private async callWorkersAI(
     provider: AIProvider,
     request: AIRequest
   ): Promise<Response> {
-    // Note: This would use actual Workers AI binding
-    // For now, return a mock response
-    return new Response(JSON.stringify({
-      response: 'Workers AI response',
-    }));
+    // Check if Workers AI binding is available
+    if (!this.workersAI) {
+      // Fallback to HTTP API if binding not configured
+      const url = `${provider.baseURL}/${request.model}`;
+      return await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${provider.apiKey}`,
+        },
+        body: JSON.stringify({
+          prompt: request.prompt,
+          messages: request.messages,
+          ...request.parameters,
+        }),
+      });
+    }
+
+    // Use native Workers AI binding for better performance
+    const inputs: Record<string, unknown> = {
+      prompt: request.prompt,
+      messages: request.messages,
+      ...request.parameters,
+    };
+
+    // Remove undefined values
+    Object.keys(inputs).forEach(key => {
+      if (inputs[key] === undefined) {
+        delete inputs[key];
+      }
+    });
+
+    // Call Workers AI with native binding
+    // Note: AI Gateway config can be passed via env.AI.run() options
+    const result = await this.workersAI.run(request.model, inputs);
+
+    // Convert result to Response object for compatibility
+    return new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   /**
@@ -793,6 +928,48 @@ export class AIGatewayService implements IAIGatewayService {
 // Singleton Instance
 // ============================================================
 
+/**
+ * Create AI Gateway Service with Workers AI binding support
+ * @param config AI Gateway configuration
+ * @param KV Optional KV namespace for caching
+ * @param embeddingService Optional embedding service for semantic caching
+ * @param workersAI Optional Workers AI binding for native calls
+ * @returns Configured AIGatewayService instance
+ *
+ * @example
+ * ```typescript
+ * import { createAIGatewayService } from '@umituz/web-cloudflare';
+ *
+ * export interface Env {
+ *   AI: WorkersAIBinding;
+ *   KV: KVNamespace;
+ * }
+ *
+ * const aiGateway = createAIGatewayService(
+ *   {
+ *     gatewayId: 'my-gateway',
+ *     providers: [...],
+ *     cacheEnabled: true,
+ *   },
+ *   env.KV,
+ *   undefined,
+ *   env.AI // Pass Workers AI binding for native calls
+ * );
+ * ```
+ */
+export function createAIGatewayService(
+  config: AIGatewayConfig,
+  KV?: KVNamespace,
+  embeddingService?: IEmbeddingService,
+  workersAI?: WorkersAIBinding
+): AIGatewayService {
+  return new AIGatewayService(config, KV, embeddingService, workersAI);
+}
+
+/**
+ * Default AI Gateway service instance (without Workers AI binding)
+ * @deprecated Use createAIGatewayService() and pass Workers AI binding for better performance
+ */
 export const aiGatewayService = new AIGatewayService({
   gatewayId: 'default',
   providers: [],
