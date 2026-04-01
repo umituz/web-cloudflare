@@ -431,6 +431,121 @@ await sessions.destroySession(sessionId);
 await sessions.destroyUserSessions('user123');
 ```
 
+### Device-Based Authentication ⭐ NEW
+
+**Package**: `@umituz/web-cloudflare/auth`
+
+Firebase-style anonymous user authentication with device ID support and account upgrade functionality. Perfect for mobile apps where users can start using the app immediately and create an account later.
+
+#### Features
+
+- ✅ **Anonymous Users** - Auto-create users from device ID
+- ✅ **Account Upgrade** - Convert anonymous users to real accounts
+- ✅ **Credit System** - Built-in credit/quota management
+- ✅ **Session Management** - KV + D1 hybrid session storage
+- ✅ **iOS/Android Ready** - React Native examples included
+
+#### Quick Start
+
+```typescript
+import { DeviceAuthService } from '@umituz/web-cloudflare/auth';
+import { createRouter, success } from '@umituz/web-cloudflare/router';
+
+const authService = new DeviceAuthService(env.DB, env.CACHE, {
+  initialCredits: 10,    // 10 free credits for new users
+  sessionTTL: 86400,     // 24 hour sessions
+  tokenSecret: 'your-secret-key',
+});
+
+const router = createRouter()
+  // Register device (anonymous auth)
+  .post('/api/auth/register-device', async (req) => {
+    const { device_id } = await req.json();
+    const result = await authService.registerDevice({
+      deviceId: device_id,
+      deviceInfo: { model: 'iPhone', os: 'iOS' },
+    });
+    return success(result, 'Device registered');
+  })
+
+  // Upgrade to real account
+  .post('/api/auth/upgrade-account', async (req) => {
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    const session = await authService.validateSession(token!);
+    const { email, password, display_name } = await req.json();
+
+    const result = await authService.upgradeAccount(session!.user.id, {
+      email,
+      password,
+      displayName: display_name,
+    });
+    return success(result, 'Account upgraded');
+  })
+
+  // Consume credits
+  .post('/api/generate', async (req) => {
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    const session = await authService.validateSession(token!);
+
+    // Check credits
+    if (session!.user.creditsRemaining < 1) {
+      return new Response('Insufficient credits', { status: 402 });
+    }
+
+    // Consume credit
+    await authService.consumeCredits(session!.user.id, 1, 'AI generation');
+
+    // Do the work...
+
+    return success({ generated: '...' });
+  });
+```
+
+#### iOS/React Native Integration
+
+```typescript
+import { DeviceAuthService } from '@umituz/web-cloudflare/auth';
+
+const authService = new DeviceAuthService('https://your-worker.workers.dev');
+
+// App launch - register device
+const deviceInfo = await authService.getDeviceInfo();
+const response = await authService.registerDevice({
+  deviceId: deviceInfo.deviceId,
+  deviceInfo: deviceInfo,
+});
+
+// User now has 10 free credits!
+console.log('Credits:', response.user.credits_remaining); // 10
+
+// Later - upgrade to real account
+await authService.upgradeAccount({
+  email: 'user@example.com',
+  password: 'secure-password',
+  displayName: 'John Doe',
+});
+
+// User is now a real user with same ID and credits preserved!
+```
+
+#### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/register-device` | POST | Create/get anonymous user by device ID |
+| `/api/auth/upgrade-account` | POST | Upgrade anonymous to real account |
+| `/api/auth/signup` | POST | Create new real account |
+| `/api/auth/login` | POST | Login with email/password |
+| `/api/auth/me` | GET | Get current user info |
+| `/api/auth/refresh-token` | POST | Refresh session token |
+| `/api/auth/logout` | POST | Logout and revoke session |
+| `/api/auth/credits` | GET | Get credit balance |
+| `/api/auth/credits/consume` | POST | Consume credits |
+| `/api/auth/credits/history` | GET | Get credit transaction history |
+
 ### Cost Tracking & Budget Management
 
 ```typescript
@@ -659,6 +774,52 @@ import { FileUpload, AIChat } from '@umituz/web-cloudflare/pages/react';
 />
 ```
 
+## 🔐 Device-Based Authentication ⭐ NEW
+
+**Package**: `@umituz/web-cloudflare/auth`
+
+Firebase-style anonymous user authentication with device ID support and account upgrade functionality. Perfect for mobile apps where users can start using the app immediately and create an account later.
+
+### Quick Start
+
+```typescript
+import { DeviceAuthService } from '@umituz/web-cloudflare/auth';
+
+const authService = new DeviceAuthService(env.DB, env.CACHE, {
+  initialCredits: 10,
+  sessionTTL: 86400,
+});
+
+// Register device (anonymous user with 10 free credits)
+const { user, sessionToken } = await authService.registerDevice({
+  deviceId: 'ios-device-123',
+  deviceInfo: { model: 'iPhone 15', os: 'iOS 17' },
+});
+
+// User is anonymous but authenticated
+console.log(user.isAnonymous); // true
+console.log(user.creditsRemaining); // 10
+
+// Later - upgrade to real account
+await authService.upgradeAccount(user.id, {
+  email: 'user@example.com',
+  password: 'secure-pass',
+  displayName: 'John Doe',
+});
+
+// User is now real, same ID preserved
+console.log(user.isAnonymous); // false
+console.log(user.email); // 'user@example.com'
+console.log(user.creditsRemaining); // Still 10 (preserved!)
+```
+
+### Use Cases
+
+- **Mobile Apps** - Users start immediately, sign up later
+- **Freemium Models** - 10 free credits, then pay
+- **Progressive Web Apps** - Anonymous browsing → account creation
+- **Gaming** - Guest play → account sync
+
 ## 🏢 Multi-Tenant Support
 
 **Package**: `@umituz/web-cloudflare/multi-tenant`
@@ -784,7 +945,8 @@ await wrangler.versionsRollback(versions[0].id);
 │   │   ├── pages/           # Pages deployment domain
 │   │   ├── wrangler/        # Wrangler CLI domain
 │   │   ├── middleware/      # Middleware domain
-│   │   └── multi-tenant/     # ⭐ NEW Multi-tenant support
+│   │   ├── auth/            # ⭐ NEW Device-based authentication
+│   │   └── multi-tenant/    # ⭐ NEW Multi-tenant support
 │   ├── infrastructure/
 │   │   ├── router/          # Express-like router
 │   │   ├── middleware/      # Middleware collection
