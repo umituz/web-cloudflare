@@ -456,8 +456,18 @@ export class AIGatewayService implements IAIGatewayService {
       let response: Response;
 
       if (provider.type === 'workers-ai') {
-        // Use Workers AI binding
-        response = await this.callWorkersAI(provider, request);
+        // Use Workers AI binding - call public method with retry
+        const result = await this.callWorkersAI(
+          request.model,
+          {
+            prompt: request.prompt,
+            messages: request.messages,
+            ...request.parameters,
+          }
+        );
+        response = new Response(JSON.stringify(result.data), {
+          headers: { 'Content-Type': 'application/json' },
+        });
       } else {
         // Use HTTP API
         response = await fetch(url, {
@@ -519,61 +529,8 @@ export class AIGatewayService implements IAIGatewayService {
   }
 
   /**
-   * Call Workers AI provider with native binding support
-   * @description Uses env.AI.run() binding for better performance (2-3x faster than HTTP)
-   * @param provider Provider configuration
-   * @param request AI request
-   * @returns Response object
-   */
-  private async callWorkersAI(
-    provider: AIProvider,
-    request: AIRequest
-  ): Promise<Response> {
-    // Check if Workers AI binding is available
-    if (!this.workersAI) {
-      // Fallback to HTTP API if binding not configured
-      const url = `${provider.baseURL}/${request.model}`;
-      return await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${provider.apiKey}`,
-        },
-        body: JSON.stringify({
-          prompt: request.prompt,
-          messages: request.messages,
-          ...request.parameters,
-        }),
-      });
-    }
-
-    // Use native Workers AI binding for better performance
-    const inputs: Record<string, unknown> = {
-      prompt: request.prompt,
-      messages: request.messages,
-      ...request.parameters,
-    };
-
-    // Remove undefined values
-    Object.keys(inputs).forEach(key => {
-      if (inputs[key] === undefined) {
-        delete inputs[key];
-      }
-    });
-
-    // Call Workers AI with native binding
-    // Note: AI Gateway config can be passed via env.AI.run() options
-    const result = await this.workersAI.run(request.model, inputs);
-
-    // Convert result to Response object for compatibility
-    return new Response(JSON.stringify(result), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  /**
    * Select provider by ID or load balancing
-   */
+  */
   private selectProvider(providerId?: string): AIProvider | null {
     if (providerId) {
       return this.config.providers.find(p => p.id === providerId) || null;

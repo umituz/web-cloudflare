@@ -12,3 +12,8 @@ export {
   aiGatewayService,
   createAIGatewayService
 } from './ai-gateway.service';
+export {
+  AudioGenerationService,
+  audioGenerationService,
+  createAudioGenerationService
+} from './audio-generation.service';
