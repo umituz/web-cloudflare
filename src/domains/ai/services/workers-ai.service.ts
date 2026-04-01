@@ -90,26 +90,19 @@ const MODELS: Record<string, ModelInfo> = {
     costPer1KNeurons: 0.0004,
     capabilities: ['audio', 'tts', 'speech'],
   },
-  '@cf/deepgram/aura-asteria-en': {
-    name: 'Aura Asteria English',
+  '@cf/deepgram/aura-2-en': {
+    name: 'Aura-2 English',
     contextLength: 0,
     neuronsPer1KTokens: 400,
     costPer1KNeurons: 0.0004,
     capabilities: ['audio', 'tts', 'speech', 'english'],
   },
-  '@cf/deepgram/aura-luna-en': {
-    name: 'Aura Luna English',
+  '@cf/deepgram/aura-2-es': {
+    name: 'Aura-2 Spanish',
     contextLength: 0,
     neuronsPer1KTokens: 400,
     costPer1KNeurons: 0.0004,
-    capabilities: ['audio', 'tts', 'speech', 'english'],
-  },
-  '@cf/deepgram/aura-stella-en': {
-    name: 'Aura Stella English',
-    contextLength: 0,
-    neuronsPer1KTokens: 400,
-    costPer1KNeurons: 0.0004,
-    capabilities: ['audio', 'tts', 'speech', 'english'],
+    capabilities: ['audio', 'tts', 'speech', 'spanish'],
   },
 
   // Audio Models (ASR - Automatic Speech Recognition)
