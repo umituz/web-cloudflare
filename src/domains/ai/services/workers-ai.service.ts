@@ -452,6 +452,36 @@ export class WorkersAIService implements IWorkersAIService {
 
       const response = await ai.run(model, params);
 
+      // Handle ReadableStream response (Deepgram Aura models)
+      if (response instanceof ReadableStream) {
+        const reader = response.getReader();
+        const chunks: Uint8Array[] = [];
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+
+        // Combine chunks and convert to base64
+        const combined = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+        let offset = 0;
+        for (const chunk of chunks) {
+          combined.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        // Convert binary to base64
+        const binary = Array.from(combined, byte => String.fromCharCode(byte)).join('');
+        const base64 = btoa(binary);
+
+        return {
+          audio: base64,
+          format: 'mp3',
+          model,
+        };
+      }
+
       // MeloTS returns { audio: "base64..." }
       if (typeof response === 'object' && response !== null) {
         const r = response as Record<string, unknown>;
