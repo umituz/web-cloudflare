@@ -421,13 +421,14 @@ export class WorkersAIService implements IWorkersAIService {
     }
 
     try {
-      const params: Record<string, unknown> = {
-        text,
-      };
+      const params: Record<string, unknown> = {};
 
-      // Add language parameter for MeloTS
+      // MeloTTS uses 'prompt' parameter, others use 'text'
       if (model.includes('melotts')) {
+        params.prompt = text;
         params.lang = options.lang || 'en';
+      } else {
+        params.text = text;
       }
 
       // Add voice/style parameters (if supported)
