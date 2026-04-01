@@ -408,6 +408,10 @@ export class WorkersAIService implements IWorkersAIService {
       model?: string;
       lang?: string;
       returnRawResponse?: boolean;
+      voice?: string;
+      speed?: number;
+      pitch?: number;
+      emotion?: string;
     } = {}
   ): Promise<{ audio: string; format: string; model: string }> {
     const ai = this.getAI();
@@ -431,6 +435,26 @@ export class WorkersAIService implements IWorkersAIService {
       // Add language parameter for MeloTS
       if (model.includes('melotts')) {
         params.lang = options.lang || 'en';
+      }
+
+      // Add voice/style parameters (if supported)
+      if (options.voice) {
+        params.voice = options.voice;
+      }
+
+      // Add speed control
+      if (options.speed !== undefined) {
+        params.speed = Math.max(0.25, Math.min(4.0, options.speed));
+      }
+
+      // Add pitch control
+      if (options.pitch !== undefined) {
+        params.pitch = Math.max(-20, Math.min(20, options.pitch));
+      }
+
+      // Add emotion control (if supported)
+      if (options.emotion) {
+        params.emotion = options.emotion;
       }
 
       const response = await ai.run(model, params);
@@ -463,6 +487,64 @@ export class WorkersAIService implements IWorkersAIService {
         `TTS generation failed: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  }
+
+  /**
+   * Generate batch TTS for multiple texts
+   * @param texts Array of texts to convert
+   * @param options TTS options
+   * @returns Array of audio results
+   */
+  async generateBatchSpeech(
+    texts: string[],
+    options: {
+      model?: string;
+      lang?: string;
+      parallel?: boolean;
+      onProgress?: (index: number, total: number) => void;
+    } = {}
+  ): Promise<Array<{ audio: string; format: string; model: string; index: number }>> {
+    const parallel = options.parallel !== false;
+    const results: Array<{ audio: string; format: string; model: string; index: number }> = [];
+
+    if (parallel) {
+      // Generate in parallel
+      const promises = texts.map((text, index) =>
+        this.generateSpeech(text, options).then(result => {
+          options.onProgress?.(index + 1, texts.length);
+          return { ...result, index };
+        })
+      );
+      return await Promise.all(promises);
+    } else {
+      // Generate sequentially
+      for (let i = 0; i < texts.length; i++) {
+        const result = await this.generateSpeech(texts[i], options);
+        results.push({ ...result, index: i });
+        options.onProgress?.(i + 1, texts.length);
+      }
+      return results;
+    }
+  }
+
+  /**
+   * Generate speech with voice profile
+   * @param text Text to convert
+   * @param profile Voice profile settings
+   * @returns Audio result
+   */
+  async generateSpeechWithProfile(
+    text: string,
+    profile: {
+      model?: string;
+      lang?: string;
+      voice?: string;
+      speed?: number;
+      pitch?: number;
+      emotion?: string;
+    }
+  ): Promise<{ audio: string; format: string; model: string }> {
+    return this.generateSpeech(text, profile);
   }
 
   // ============================================================

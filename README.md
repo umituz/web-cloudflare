@@ -678,6 +678,17 @@ import type { Tenant, TenantContext, TenantRoute } from '@umituz/web-cloudflare/
 **Embeddings**:
 - `@cf/openai/clip-vit-base-patch32` - Text/image embeddings (52 neurons/1K tokens)
 
+**Text-to-Speech (TTS)**:
+- `@cf/myshell-ai/melotts` - MeloTS multilingual TTS (500 neurons/1K tokens)
+- `@cf/deepgram/aura-1` - Aura TTS v1 (400 neurons/1K tokens)
+- `@cf/deepgram/aura-asteria-en` - Aura Asteria English (400 neurons/1K tokens)
+- `@cf/deepgram/aura-luna-en` - Aura Luna English (400 neurons/1K tokens)
+- `@cf/deepgram/aura-stella-en` - Aura Stella English (400 neurons/1K tokens)
+
+**Automatic Speech Recognition (ASR)**:
+- `@cf/deepgram/nova-2` - Deepgram Nova-2 transcription (300 neurons/1K tokens)
+- `@cf/openai/whisper` - OpenAI Whisper transcription (350 neurons/1K tokens)
+
 ### AI Pipeline Templates
 
 - `rag-pipeline` - RAG (Retrieval-Augmented Generation)
@@ -685,6 +696,195 @@ import type { Tenant, TenantContext, TenantRoute } from '@umituz/web-cloudflare/
 - `ai-content-pipeline` - Multi-step content generation
 - `ai-multi-step-reasoning` - Chain-of-thought reasoning
 - `ai-data-enrichment` - AI-powered data enrichment
+
+### 🎵 Audio, TTS & Voice Features ⭐ NEW
+
+**Package**: `@umituz/web-cloudflare/ai`
+
+Comprehensive audio and voice capabilities powered by Workers AI and Cloudflare services.
+
+#### Text-to-Speech (TTS)
+
+```typescript
+import { WorkersAIService } from '@umituz/web-cloudflare/ai';
+
+const ai = new WorkersAIService({ bindings: { AI: env.AI } });
+
+// Generate speech from text
+const result = await ai.generateSpeech('Hello, world!', {
+  model: '@cf/myshell-ai/melotts',
+  lang: 'en',
+  speed: 1.0,
+  pitch: 0,
+  emotion: 'neutral',
+});
+
+// result.audio contains base64-encoded MP3
+const audioBuffer = atob(result.audio);
+```
+
+**Supported TTS Models**:
+- `@cf/myshell-ai/melotts` - Multilingual TTS with emotion control
+- `@cf/deepgram/aura-1` - Fast English TTS
+- `@cf/deepgram/aura-asteria-en` - Female voice English
+- `@cf/deepgram/aura-luna-en` - Calm female voice
+- `@cf/deepgram/aura-stella-en` - Professional female voice
+
+**TTS Options**:
+```typescript
+{
+  model?: string;        // TTS model to use
+  lang?: string;         // Language code (en, es, fr, etc.)
+  voice?: string;        // Voice style
+  speed?: number;        // 0.25 - 4.0 (1.0 = normal)
+  pitch?: number;        // -20 to 20
+  emotion?: string;      // neutral, happy, sad, angry, etc.
+}
+```
+
+#### Automatic Speech Recognition (ASR)
+
+```typescript
+// Transcribe audio to text
+const transcription = await ai.transcribeAudio(audioBuffer, {
+  model: '@cf/openai/whisper',
+  detectLanguage: true,
+});
+
+console.log(transcription.text);
+// "Hello, this is a test recording."
+console.log(transcription.language);
+// "en"
+```
+
+**Supported ASR Models**:
+- `@cf/openai/whisper` - Multilingual transcription (99 languages)
+- `@cf/deepgram/nova-2` - Fast English transcription
+
+#### Audio Project Management
+
+```typescript
+import { AudioProjectService } from '@umituz/web-cloudflare/ai';
+
+const audioProject = new AudioProjectService(env.KV, env.DB);
+
+// Create a new voice project
+const project = await audioProject.createProject({
+  name: 'Podcast Production',
+  description: 'My podcast voiceovers',
+  userId: 'user123',
+  settings: {
+    defaultTTSEngine: 'workers-ai',
+    audioQuality: 'high',
+    outputFormat: 'mp3',
+    enableEmotionControl: true,
+    maxDuration: 600, // 10 minutes
+  },
+});
+
+// Add voice profiles
+const narratorVoice = await audioProject.addVoiceProfile(project.id, {
+  name: 'Narrator',
+  type: 'preset',
+  settings: {
+    ttsModel: '@cf/deepgram/aura-stella-en',
+    language: 'en',
+    emotion: 'professional',
+    speed: 1.0,
+  },
+});
+
+// List projects
+const projects = await audioProject.listProjects('user123');
+```
+
+#### Audio Streaming & Range Requests
+
+```typescript
+import { AudioStreamingService } from '@umituz/web-cloudflare/ai';
+import { R2Service } from '@umituz/web-cloudflare/r2';
+
+const r2 = new R2Service();
+const streaming = new AudioStreamingService(r2);
+
+// Handle range requests for audio streaming
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const key = url.pathname.slice(1);
+
+    if (request.method === 'GET') {
+      const rangeHeader = request.headers.get('Range');
+      return await streaming.handleRangeRequest(key, rangeHeader, 'audio');
+    }
+  },
+};
+```
+
+**Features**:
+- ✅ HTTP Range requests (byte serving)
+- ✅ Progressive download
+- ✅ Chunked transfer encoding
+- ✅ HLS playlist generation
+- ✅ Waveform visualization data
+- ✅ Progress callbacks
+
+#### Audio Format Utilities
+
+```typescript
+import {
+  detectAudioFormat,
+  extractAudioMetadata,
+  generateAudioWaveform,
+  optimizeAudioForWeb,
+} from '@umituz/web-cloudflare/ai';
+
+// Detect audio format
+const format = detectAudioFormat(audioBuffer);
+// "mp3", "wav", "ogg", etc.
+
+// Extract metadata
+const metadata = await extractAudioMetadata(audioBuffer);
+// { format, duration, bitrate, sampleRate, channels, codec, size }
+
+// Generate waveform for visualization
+const waveform = generateAudioWaveform(audioBuffer, 1000);
+// [0.5, 0.8, 0.3, ...] - 1000 samples normalized 0-1
+
+// Optimize for web streaming
+const optimized = await optimizeAudioForWeb(audioBuffer);
+```
+
+#### Voice Workflows
+
+```typescript
+import { WorkflowService, WORKFLOW_TEMPLATES } from '@umituz/web-cloudflare/workflows';
+
+const workflows = new WorkflowService({ KV: env.KV, D1: env.DB });
+
+// Voice cloning complete pipeline
+await workflows.createWorkflow({
+  ...WORKFLOW_TEMPLATES['voice-cloning-complete'],
+  id: 'my-voice-clone',
+});
+
+// Execute workflow
+const execution = await workflows.startExecution('my-voice-clone', {
+  text: 'Hello, this is a test of my cloned voice!',
+  emotion: 'friendly',
+  speed: 1.0,
+});
+
+// Resume from any step (idempotent)
+await workflows.resumeExecution(execution.id, 'generate-tts');
+```
+
+**Available Voice Workflows**:
+- `voice-cloning-complete` - Record sample → Clone voice → Generate script → TTS
+- `audio-processing-pipeline` - Download → Validate → Convert → Optimize → Upload
+- `batch-tts-generation` - Batch TTS with parallel processing
+- `podcast-automation` - Script → TTS → Music → Master → RSS
+- `audiobook-creation` - Parse chapters → TTS → Combine → Metadata
 
 ## ⚛️ React Hooks for Cloudflare Pages
 

@@ -17,3 +17,13 @@ export {
   audioGenerationService,
   createAudioGenerationService
 } from './audio-generation.service';
+export {
+  AudioProjectService,
+  audioProjectService,
+  createAudioProjectService
+} from './audio-project.service';
+export {
+  AudioStreamingService,
+  audioStreamingService,
+  createAudioStreamingService
+} from './audio-streaming.service';
