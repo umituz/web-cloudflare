@@ -153,15 +153,22 @@ export class QueueService {
   private async emitEvent(queueName: string, event: MessageQueuedEvent): Promise<void> {
     if (this.eventHandlers?.has('message_queued')) {
       const handler = this.eventHandlers.get('message_queued')!;
-      await handler(event, {
-        queue: queueName,
-        env: {},
-        ctx: {
-          waitUntil: () => {},
+      await handler(
+        {
+          id: `${queueName}-${event.timestamp}`,
+          body: event,
+          timestamp: event.timestamp,
         },
-        retry: () => {},
-        ack: () => {},
-      });
+        {
+          queue: queueName,
+          env: {},
+          ctx: {
+            waitUntil: () => {},
+          },
+          retry: () => {},
+          ack: () => {},
+        }
+      );
     }
   }
 

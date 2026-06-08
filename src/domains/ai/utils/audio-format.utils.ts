@@ -417,7 +417,7 @@ export class AudioFormatUtils {
     }
 
     // Get duration from MP3 frame headers (simplified)
-    metadata.duration = this.getMP3Duration(buffer);
+    metadata.duration = this.getMP3Duration(buffer) ?? undefined;
 
     return metadata;
   }
@@ -464,7 +464,7 @@ export class AudioFormatUtils {
     const metadata: Partial<AudioMetadata> = {};
 
     // FLAC metadata parsing (simplified)
-    metadata.duration = this.getFLACDuration(buffer);
+    metadata.duration = this.getFLACDuration(buffer) ?? undefined;
 
     return metadata;
   }

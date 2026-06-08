@@ -338,7 +338,7 @@ export class AIGatewayService implements IAIGatewayService {
    */
   private parseHuggingFaceGatewayURL(url: string): void {
     // Match pattern: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface
-    const match = url.match(/\/v1\/([^\/]+)\/([^\/]+)\/huggingface/);
+    const match = url.match(/\/v1\/([^/]+)\/([^/]+)\/huggingface/);
     if (match) {
       this.accountId = match[1];
       this.gatewayId = match[2];
@@ -582,13 +582,16 @@ export class AIGatewayService implements IAIGatewayService {
 
     // Persist to KV if available
     if (this.kv) {
+      const periodKey = `cost:${Math.floor(Date.now() / 3600000)}`; // Hourly
       try {
-        const periodKey = `cost:${Math.floor(Date.now() / 3600000)}`; // Hourly
         await this.kv.put(periodKey, JSON.stringify(this.costHistory), {
           expirationTtl: 86400, // 24 hours
         });
-      } catch {
-        // Silently fail - cost tracking shouldn't break the app
+      } catch (error) {
+        // Cost tracking is auxiliary; surface to console but never break
+        // the caller's flow because telemetry write failed.
+        // eslint-disable-next-line no-console
+        console.warn('[AIGateway] Failed to persist cost history:', error);
       }
     }
   }
@@ -636,15 +639,19 @@ export class AIGatewayService implements IAIGatewayService {
    * Get cached response (exact match)
    */
   async getCached(key: string): Promise<AIResponse | null> {
-    if (this.kv) {
-      try {
-        const data = await this.kv.get(`ai_cache:${key}`);
-        return data ? JSON.parse(data) : null;
-      } catch {
-        return null;
-      }
+    if (!this.kv) {
+      return null;
     }
-    return null;
+    try {
+      const data = await this.kv.get(`ai_cache:${key}`);
+      return data ? (JSON.parse(data) as AIResponse) : null;
+    } catch (error) {
+      // A cache miss is recoverable; corruption is reported so operators
+      // can investigate, but the caller still receives a "not cached" answer.
+      // eslint-disable-next-line no-console
+      console.warn('[AIGateway] Cache read failed:', error);
+      return null;
+    }
   }
 
   /**
@@ -677,7 +684,9 @@ export class AIGatewayService implements IAIGatewayService {
 
       return null;
 
-    } catch {
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[AIGateway] Semantic cache lookup failed:', error);
       return null;
     }
   }
@@ -686,16 +695,18 @@ export class AIGatewayService implements IAIGatewayService {
    * Save response to cache
    */
   async saveToCache(key: string, response: AIResponse): Promise<void> {
-    if (this.kv && this.config.cacheTTL) {
-      try {
-        await this.kv.put(
-          `ai_cache:${key}`,
-          JSON.stringify(response),
-          { expirationTtl: this.config.cacheTTL }
-        );
-      } catch {
-        // Silently fail
-      }
+    if (!this.kv || !this.config.cacheTTL) {
+      return;
+    }
+    try {
+      await this.kv.put(
+        `ai_cache:${key}`,
+        JSON.stringify(response),
+        { expirationTtl: this.config.cacheTTL }
+      );
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[AIGateway] Cache write failed:', error);
     }
   }
 

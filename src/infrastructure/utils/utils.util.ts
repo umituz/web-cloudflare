@@ -1,6 +1,16 @@
 /**
  * Utility Functions
  * @description Common utility functions for Cloudflare operations
+ *
+ * @deprecated The "util" / "utils" naming is prohibited by the package's
+ * domain conventions. New code should compose the same helpers from the
+ * dedicated modules (e.g. `infrastructure/utils/helpers.ts`) and the
+ * value objects under `domains/shared/value-objects` (e.g. `Email`,
+ * `URLValue`, `TTL`).
+ *
+ * This file is kept for backward compatibility with consumers that import
+ * `dateUtils`, `cacheUtils`, `validationUtils`, or `transformUtils` from
+ * `@umituz/web-cloudflare/utils`. New consumers should not depend on it.
  */
 
 /**

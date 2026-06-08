@@ -5,7 +5,7 @@ import type {
   R2PutOptions,
   R2PresignedURL,
 } from '../entities';
-import type { IR2Service } from '../types/service.interface';
+import type { IR2Service, R2ObjectMetadata, R2GetOptions } from '../types/service.interface';
 import type { GeneratedAssetMetadata } from '../../ai/value-objects';
 import type { D1Service } from '../../d1/services/d1.service';
 import { validationUtils } from '../../../infrastructure/utils';
@@ -175,6 +175,73 @@ export class R2Service implements IR2Service {
     };
   }
 
+  /**
+   * Fetch object metadata without downloading the body.
+   * Returns null when the object is missing. Cloudflare's R2 head() returns
+   * null on miss rather than throwing.
+   */
+  async head(key: string, options?: R2GetOptions): Promise<R2ObjectMetadata | null> {
+    if (!validationUtils.isValidR2Key(key)) {
+      throw new Error(`Invalid R2 key: ${key}`);
+    }
+
+    const bucket = this.getBucket(options?.binding);
+    const object = await bucket.head(key);
+
+    if (!object) return null;
+
+    return {
+      key: object.key,
+      size: object.size,
+      uploaded: object.uploaded,
+      httpMetadata: object.httpMetadata
+        ? {
+            contentType: object.httpMetadata.contentType,
+            contentLanguage: object.httpMetadata.contentLanguage,
+            contentDisposition: object.httpMetadata.contentDisposition,
+            contentEncoding: object.httpMetadata.contentEncoding,
+            cacheControl: object.httpMetadata.cacheControl,
+          }
+        : undefined,
+      customMetadata: object.customMetadata,
+      etag: object.etag,
+      httpEtag: object.httpEtag,
+      checksums: object.checksums
+        ? {
+            md5: object.checksums.md5,
+            sha1: object.checksums.sha1,
+            sha256: object.checksums.sha256,
+          }
+        : undefined,
+      range: object.range && 'offset' in object.range && object.range.offset !== undefined && object.range.length !== undefined
+        ? { offset: object.range.offset, length: object.range.length }
+        : undefined,
+      storageClass: object.storageClass,
+    };
+  }
+
+  /**
+   * Fetch object body as ArrayBuffer. Returns null on miss.
+   * Supports R2 range requests via the optional `range` parameter.
+   * Translates the public `{ start, end }` (inclusive) shape to Cloudflare's
+   * `{ offset, length }` (offset + length) range format.
+   */
+  async getBody(key: string, options?: R2GetOptions): Promise<ArrayBuffer | null> {
+    if (!validationUtils.isValidR2Key(key)) {
+      throw new Error(`Invalid R2 key: ${key}`);
+    }
+
+    const bucket = this.getBucket(options?.binding);
+    const r2Range = options?.range
+      ? { offset: options.range.start, length: options.range.end - options.range.start + 1 }
+      : undefined;
+
+    const object = await bucket.get(key, r2Range ? { range: r2Range } : undefined);
+    if (!object) return null;
+
+    return await object.arrayBuffer();
+  }
+
   async put(
     key: string,
     data: ReadableStream | ArrayBuffer | string,
@@ -323,49 +390,6 @@ export class R2Service implements IR2Service {
     return Promise.all(uploads);
   }
 
-  /**
-   * Get file extension from content type
-   * @param contentType MIME type
-   * @returns File extension (without dot)
-   */
-  private getExtensionFromContentType(contentType: string): string {
-    const extensions: Record<string, string> = {
-      // Audio
-      'audio/mpeg': 'mp3',
-      'audio/wav': 'wav',
-      'audio/ogg': 'ogg',
-      'audio/aac': 'aac',
-      'audio/flac': 'flac',
-      'audio/webm': 'webm',
-
-      // Image
-      'image/jpeg': 'jpg',
-      'image/png': 'png',
-      'image/webp': 'webp',
-      'image/gif': 'gif',
-      'image/svg+xml': 'svg',
-      'image/avif': 'avif',
-
-      // Video
-      'video/mp4': 'mp4',
-      'video/webm': 'webm',
-      'video/ogg': 'ogv',
-      'video/quicktime': 'mov',
-
-      // Text/JSON
-      'application/json': 'json',
-      'text/plain': 'txt',
-      'text/csv': 'csv',
-      'text/html': 'html',
-      'text/markdown': 'md',
-
-      // Binary
-      'application/octet-stream': 'bin',
-    };
-
-    return extensions[contentType] || 'bin';
-  }
-
   // ============================================================
   // Original R2 Methods
   // ============================================================
@@ -408,99 +432,98 @@ export class R2Service implements IR2Service {
     expiresIn = 3600,
     options?: { method?: 'GET' | 'PUT'; binding?: string }
   ): Promise<R2PresignedURL> {
-    // Note: R2 uses S3-compatible presigned URLs
-    // This requires AWS signature calculation which needs:
-    // - Access Key ID and Secret Access Key
-    // - Proper canonical request signing
-    // - This is a simplified implementation
-
-    const bucket = this.getBucket(options?.binding as string | undefined);
+    // Real presigned URLs require AWS SigV4 signing using R2 access keys.
+    // We don't ship credentials inside the Worker, so this implementation
+    // returns a *public* URL (only useful when the bucket/object is public).
+    //
+    // For private buckets, consumers should:
+    //   - Use Cloudflare's S3-compatible API with @aws-sdk/client-s3
+    //     signed with R2 access keys, or
+    //   - Use R2's public bucket + custom domain pattern.
+    //
+    // Throwing would be more defensive, but returning a public URL keeps
+    // existing call sites functional against public buckets while making
+    // the limitation explicit in the docs and the warning below.
     const expires = Date.now() + expiresIn * 1000;
+    const url = this.getPublicURL(key, { binding: options?.binding });
 
-    // In production, you would:
-    // 1. Get R2 credentials from environment or binding
-    // 2. Create AWS signature V4
-    // 3. Generate proper presigned URL
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[R2Service.getPresignedURL] returning public URL — supply R2 access keys and SigV4 for private bucket access.'
+    );
 
-    // For now, return the public URL (works for public buckets)
-    const publicURL = this.getPublicURL(key, { binding: options?.binding });
-
-    return {
-      url: publicURL,
-      expires,
-    };
+    return { url, expires };
   }
 
   // ============================================================
   // Multipart Upload Support
   // ============================================================
+  //
+  // The native R2 bindings do not expose an S3-style multipart upload
+  // (CreateMultipartUpload / UploadPart / CompleteMultipartUpload). The
+  // R2 team recommends using the AWS SDK against the S3-compatible
+  // endpoint for that flow. The methods below throw with a clear pointer
+  // to that approach so callers cannot accidentally use a stub that
+  // silently no-ops.
 
   /**
-   * Create a multipart upload
+   * Create a multipart upload.
+   * Throws because R2 bindings do not support S3-style multipart APIs.
+   * Use the AWS SDK against the S3-compatible endpoint instead.
    */
   async createMultipartUpload(
-    key: string,
-    options?: R2UploadOptions
+    _key: string,
+    _options?: R2UploadOptions
   ): Promise<string> {
-    if (!validationUtils.isValidR2Key(key)) {
-      throw new Error(`Invalid R2 key: ${key}`);
-    }
-
-    const bucket = this.getBucket(options?.binding as string | undefined);
-    const uploadId = `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-
-    // Note: R2's multipart upload API is different
-    // This is a simplified implementation
-    // In production, use the AWS SDK for proper multipart upload
-
-    return uploadId;
+    throw new Error(
+      'R2Service.createMultipartUpload: R2 bindings do not expose S3-style multipart uploads. ' +
+      'Use @aws-sdk/client-s3 against the R2 S3-compatible endpoint, or use r2Service.put() for objects <= 5GB.'
+    );
   }
 
   /**
-   * Upload a part in multipart upload
+   * Upload a part in a multipart upload.
+   * Throws — see {@link createMultipartUpload}.
    */
   async uploadPart(
-    uploadId: string,
-    partNumber: number,
-    data: ArrayBuffer | ReadableStream | string,
-    binding?: string
+    _uploadId: string,
+    _partNumber: number,
+    _data: ArrayBuffer | ReadableStream | string,
+    _binding?: string
   ): Promise<string> {
-    const bucket = this.getBucket(binding);
-
-    // Note: This is a simplified implementation
-    // In production, use the AWS SDK for proper part upload
-
-    const etag = `${partNumber}-${Math.random().toString(36).substring(2, 11)}`;
-    return etag;
+    throw new Error(
+      'R2Service.uploadPart: R2 bindings do not expose S3-style multipart uploads. ' +
+      'Use @aws-sdk/client-s3 against the R2 S3-compatible endpoint.'
+    );
   }
 
   /**
-   * Complete multipart upload
+   * Complete a multipart upload.
+   * Throws — see {@link createMultipartUpload}.
    */
   async completeMultipartUpload(
-    uploadId: string,
-    parts: R2UploadedPart[],
-    binding?: string
+    _uploadId: string,
+    _parts: R2UploadedPart[],
+    _binding?: string
   ): Promise<void> {
-    const bucket = this.getBucket(binding);
-
-    // Note: This is a simplified implementation
-    // In production, use the AWS SDK for proper multipart upload completion
-
-    // The parts would be combined into a single object
+    throw new Error(
+      'R2Service.completeMultipartUpload: R2 bindings do not expose S3-style multipart uploads. ' +
+      'Use @aws-sdk/client-s3 against the R2 S3-compatible endpoint.'
+    );
   }
 
   /**
-   * Abort multipart upload
+   * Abort a multipart upload.
+   * Throws — see {@link createMultipartUpload}.
    */
   async abortMultipartUpload(
-    uploadId: string,
-    binding?: string
+    _uploadId: string,
+    _binding?: string
   ): Promise<void> {
-    const bucket = this.getBucket(binding);
-
-    // Note: This is a simplified implementation
-    // In production, use the AWS SDK for proper abort
+    throw new Error(
+      'R2Service.abortMultipartUpload: R2 bindings do not expose S3-style multipart uploads. ' +
+      'Use @aws-sdk/client-s3 against the R2 S3-compatible endpoint.'
+    );
   }
 
   /**

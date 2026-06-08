@@ -1,6 +1,14 @@
 /**
  * Web Device Service
  * @description Device ID generation and management for web browsers using localStorage and fingerprinting
+ *
+ * IMPORTANT: This service is browser-only. It must never be imported from
+ * Worker code, because the runtime does not provide `localStorage`, `navigator`,
+ * or `screen`. Use the `WebDeviceService.isBrowserAvailable()` guard before
+ * touching any DOM API.
+ *
+ * Browser global types are declared locally so they don't collide with the
+ * WebWorker `WorkerNavigator` provided by the default lib.
  */
 
 export interface WebDeviceInfo {
@@ -15,119 +23,106 @@ export interface WebDeviceInfo {
   lastSeenAt: number;
 }
 
-/**
- * Generate device ID for web browsers
- * Uses combination of localStorage and browser fingerprinting
- */
+interface BrowserScreen {
+  width: number;
+  height: number;
+  colorDepth: number;
+}
+
+interface BrowserNavigator {
+  userAgent: string;
+  language: string;
+  platform: string;
+  cookieEnabled: boolean;
+  doNotTrack: string | null;
+}
+
+interface BrowserCanvasRenderingContext {
+  textBaseline: string;
+  font: string;
+  fillText(text: string, x: number, y: number): void;
+}
+
+interface BrowserCanvas {
+  getContext(contextId: '2d'): BrowserCanvasRenderingContext | null;
+  toDataURL(): string;
+  width: number;
+  height: number;
+}
+
+interface BrowserDocument {
+  createElement(tagName: 'canvas' | string): BrowserCanvas;
+}
+
+interface BrowserGlobalScope {
+  localStorage: Storage;
+  navigator: BrowserNavigator;
+  screen?: BrowserScreen;
+  document?: BrowserDocument;
+}
+
+const STORAGE_KEY = 'web_device_id';
+const FINGERPRINT_KEY = 'web_device_fingerprint';
+
 export class WebDeviceService {
-  private storageKey = 'web_device_id';
-  private fingerprintKey = 'web_device_fingerprint';
+  /**
+   * Check if the current runtime exposes the browser APIs the service depends on.
+   * Use this to guard usage inside Workers, SSR, or test environments.
+   */
+  static isBrowserAvailable(): boolean {
+    const g = globalThis as unknown as Partial<BrowserGlobalScope>;
+    return typeof g.localStorage !== 'undefined' && typeof g.navigator !== 'undefined';
+  }
 
   /**
-   * Get or create device ID
-   * Uses localStorage with fallback to fingerprinting
+   * Get or create device ID.
+   * Uses localStorage with fallback to fingerprinting.
    */
   getDeviceId(): string {
-    // Try to get from localStorage first
-    const stored = this.getFromLocalStorage<WebDeviceInfo>(this.storageKey);
+    if (!WebDeviceService.isBrowserAvailable()) {
+      throw new Error('WebDeviceService must be used in a browser runtime');
+    }
 
-    if (stored && stored.deviceId) {
-      // Update last seen
+    const stored = this.getFromLocalStorage<WebDeviceInfo>(STORAGE_KEY);
+    if (stored?.deviceId) {
       stored.lastSeenAt = Date.now();
-      this.setToLocalStorage(this.storageKey, stored);
+      this.setToLocalStorage(STORAGE_KEY, stored);
       return stored.deviceId;
     }
 
-    // Generate new device ID
     const deviceId = this.generateDeviceId();
-
-    // Store device info
-    const deviceInfo: WebDeviceInfo = {
-      deviceId,
-      userAgent: navigator.userAgent,
-      language: navigator.language,
-      screenResolution: `${screen.width}x${screen.height}`,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      cookieEnabled: navigator.cookieEnabled,
-      doNotTrack: navigator.doNotTrack,
-      firstSeenAt: Date.now(),
-      lastSeenAt: Date.now(),
-    };
-
-    this.setToLocalStorage(this.storageKey, deviceInfo);
-
+    const deviceInfo = this.collectDeviceInfo(deviceId);
+    this.setToLocalStorage(STORAGE_KEY, deviceInfo);
     return deviceId;
   }
 
   /**
-   * Get complete device info
+   * Get complete device info. Builds a fresh info record rather than returning
+   * the cached one so the snapshot reflects the current page state.
    */
   getDeviceInfo(): WebDeviceInfo {
-    const deviceId = this.getDeviceId();
-
-    return {
-      deviceId,
-      userAgent: navigator.userAgent,
-      language: navigator.language,
-      screenResolution: `${screen.width}x${screen.height}`,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      cookieEnabled: navigator.cookieEnabled,
-      doNotTrack: navigator.doNotTrack,
-      firstSeenAt: Date.now(),
-      lastSeenAt: Date.now(),
-    };
+    if (!WebDeviceService.isBrowserAvailable()) {
+      throw new Error('WebDeviceService must be used in a browser runtime');
+    }
+    return this.collectDeviceInfo(this.getDeviceId());
   }
 
   /**
-   * Generate browser fingerprint
-   * Uses canvas, webgl, and other browser attributes
+   * Generate browser fingerprint.
+   * Uses canvas, webgl, and other browser attributes when available.
    */
   getFingerprint(): string {
-    // Try to get cached fingerprint
-    const cached = this.getFromLocalStorage<string>(this.fingerprintKey);
+    if (!WebDeviceService.isBrowserAvailable()) {
+      throw new Error('WebDeviceService must be used in a browser runtime');
+    }
+
+    const cached = this.getFromLocalStorage<string>(FINGERPRINT_KEY);
     if (cached) {
       return cached;
     }
 
-    // Generate fingerprint from various browser attributes
-    const components = [
-      // Screen info
-      `${screen.width}x${screen.height}x${screen.colorDepth}`,
-      // Timezone
-      Intl.DateTimeFormat().resolvedOptions().timeZone,
-      // Language
-      navigator.language,
-      // Platform
-      navigator.platform,
-      // User agent (truncated)
-      navigator.userAgent.substring(0, 100),
-      // Cookie enabled
-      navigator.cookieEnabled ? '1' : '0',
-      // Do not track
-      navigator.doNotTrack || '0',
-    ];
-
-    // Try to get canvas fingerprint
-    try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.textBaseline = 'top';
-        ctx.font = '14px Arial';
-        ctx.fillText('Fingerprint', 2, 2);
-        const canvasData = canvas.toDataURL().slice(0, 50);
-        components.push(canvasData);
-      }
-    } catch {
-      // Canvas not available
-    }
-
-    // Create simple hash from components
-    const fingerprint = this.simpleHash(components.join('|'));
-
-    // Cache fingerprint
-    this.setToLocalStorage(this.fingerprintKey, fingerprint);
-
+    const fingerprint = this.computeFingerprint();
+    this.setToLocalStorage(FINGERPRINT_KEY, fingerprint);
     return fingerprint;
   }
 
@@ -135,21 +130,72 @@ export class WebDeviceService {
    * Reset device ID (for testing or privacy)
    */
   resetDeviceId(): void {
-    localStorage.removeItem(this.storageKey);
-    localStorage.removeItem(this.fingerprintKey);
+    if (!WebDeviceService.isBrowserAvailable()) return;
+    const g = globalThis as unknown as BrowserGlobalScope;
+    g.localStorage.removeItem(STORAGE_KEY);
+    g.localStorage.removeItem(FINGERPRINT_KEY);
   }
 
   /**
    * Check if device ID exists
    */
   hasDeviceId(): boolean {
-    const stored = this.getFromLocalStorage<WebDeviceInfo>(this.storageKey);
-    return !!(stored && stored.deviceId);
+    if (!WebDeviceService.isBrowserAvailable()) return false;
+    const stored = this.getFromLocalStorage<WebDeviceInfo>(STORAGE_KEY);
+    return Boolean(stored?.deviceId);
   }
 
   // ============================================================
   // Private Helpers
   // ============================================================
+
+  private collectDeviceInfo(deviceId: string): WebDeviceInfo {
+    const g = globalThis as unknown as BrowserGlobalScope;
+    const now = Date.now();
+
+    return {
+      deviceId,
+      userAgent: g.navigator.userAgent,
+      language: g.navigator.language,
+      screenResolution: g.screen ? `${g.screen.width}x${g.screen.height}` : 'unknown',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      cookieEnabled: g.navigator.cookieEnabled,
+      doNotTrack: g.navigator.doNotTrack ?? null,
+      firstSeenAt: now,
+      lastSeenAt: now,
+    };
+  }
+
+  private computeFingerprint(): string {
+    const g = globalThis as unknown as BrowserGlobalScope;
+    const components: string[] = [
+      g.screen ? `${g.screen.width}x${g.screen.height}x${g.screen.colorDepth}` : 'unknown',
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+      g.navigator.language,
+      g.navigator.platform,
+      g.navigator.userAgent.substring(0, 100),
+      g.navigator.cookieEnabled ? '1' : '0',
+      g.navigator.doNotTrack || '0',
+    ];
+
+    // Optional canvas fingerprint
+    try {
+      if (g.document) {
+        const canvas = g.document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.textBaseline = 'top';
+          ctx.font = '14px Arial';
+          ctx.fillText('Fingerprint', 2, 2);
+          components.push(canvas.toDataURL().slice(0, 50));
+        }
+      }
+    } catch {
+      // Canvas not available, continue without it
+    }
+
+    return this.simpleHash(components.join('|'));
+  }
 
   /**
    * Generate v4 UUID
@@ -180,14 +226,11 @@ export class WebDeviceService {
    */
   private getFromLocalStorage<T>(key: string): T | null {
     try {
-      const item = localStorage.getItem(key);
-      if (item) {
-        return JSON.parse(item) as T;
-      }
+      const item = globalThis.localStorage.getItem(key);
+      return item ? (JSON.parse(item) as T) : null;
     } catch {
-      // LocalStorage not available or corrupted
+      return null;
     }
-    return null;
   }
 
   /**
@@ -195,9 +238,10 @@ export class WebDeviceService {
    */
   private setToLocalStorage<T>(key: string, value: T): void {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      globalThis.localStorage.setItem(key, JSON.stringify(value));
     } catch {
-      // LocalStorage not available or quota exceeded
+      // Quota exceeded or storage disabled — silently skip.
+      // The service degrades to per-session device IDs in that case.
     }
   }
 }

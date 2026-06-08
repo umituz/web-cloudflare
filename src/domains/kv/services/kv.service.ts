@@ -7,8 +7,12 @@ import type { KVEntry, KVListOptions, KVListResult } from "../entities";
 import type { IKVService } from "../types/service.interface";
 import type { AIResponse } from "../../ai/entities";
 import type { IKVValidator } from "../interfaces/kv-validator.interface";
-import { CacheKey, TTL } from "../../shared";
-import type { TTL as TTLType } from "../../shared";
+
+/**
+ * Default TTL in seconds (1 hour).
+ * Centralized so service initialization and ad-hoc put() calls stay aligned.
+ */
+const DEFAULT_TTL_SECONDS = 3600;
 
 // ============================================================
 // LRU Cache for L1 Memory Cache
@@ -103,7 +107,7 @@ export interface AIResponseCacheOptions {
 
 export class KVService implements IKVService {
   private namespaces: Map<string, KVNamespace> = new Map();
-  private defaultTTL: number | TTLType;
+  private defaultTTL: number = DEFAULT_TTL_SECONDS;
   private l1Cache: LRUCache<unknown>;
   private enableL1Cache: boolean;
   private validator: IKVValidator;
@@ -111,25 +115,23 @@ export class KVService implements IKVService {
   constructor(validator?: IKVValidator) {
     this.l1Cache = new LRUCache(1000);
     this.enableL1Cache = true;
-    this.defaultTTL = 3600; // 1 hour default in seconds
+    this.defaultTTL = DEFAULT_TTL_SECONDS;
     this.validator = validator || this.createDefaultValidator();
   }
 
   private createDefaultValidator(): IKVValidator {
-    // Default implementation if no validator provided
-    // This maintains backward compatibility
+    // Default implementation if no validator provided.
+    // Mirrors the canonical regex in `KVValidator` (domains/kv/interfaces/*).
     return {
       isValidKey: (key: string) => {
         if (!key || key.trim().length === 0) return false;
         if (key.length > 512) return false;
-        const validFormat = /^[a-zA-Z0-9:_\-./]+$/;
-        return validFormat.test(key);
+        return /^[a-zA-Z0-9:_\-./]+$/.test(key);
       },
       validate: (input: string) => {
         if (!input || input.trim().length === 0) return false;
         if (input.length > 512) return false;
-        const validFormat = /^[a-zA-Z0-9:_\-./]+$/;
-        return validFormat.test(input);
+        return /^[a-zA-Z0-9:_\-./]+$/.test(input);
       },
       errorMessage: 'Invalid KV key format'
     };
@@ -138,7 +140,7 @@ export class KVService implements IKVService {
   initialize(options: KVCacheOptions): void {
     // Namespaces are bound by Cloudflare at runtime
     // This is just a reference to the binding name
-    this.defaultTTL = options.defaultTTL ?? 3600;
+    this.defaultTTL = options.defaultTTL ?? DEFAULT_TTL_SECONDS;
     this.enableL1Cache = options.enableL1Cache ?? true;
 
     if (options.l1CacheSize) {
@@ -160,7 +162,6 @@ export class KVService implements IKVService {
   }
 
   async get<T>(key: string, binding?: string): Promise<T | null> {
-    // Use validator from domain
     if (!this.validator.isValidKey(key)) {
       throw new Error(`Invalid KV key: ${key}`);
     }
@@ -172,13 +173,12 @@ export class KVService implements IKVService {
   }
 
   async put<T>(key: string, value: T, options?: { ttl?: number; binding?: string }): Promise<void> {
-    // Use validator from domain
     if (!this.validator.isValidKey(key)) {
       throw new Error(`Invalid KV key: ${key}`);
     }
 
     const namespace = this.getNamespace(options?.binding);
-    const ttl = options?.ttl ?? (this.defaultTTL instanceof TTL ? this.defaultTTL.seconds : this.defaultTTL);
+    const ttl = options?.ttl ?? this.defaultTTL;
 
     await namespace.put(key, JSON.stringify(value), {
       expirationTtl: ttl,
@@ -186,7 +186,6 @@ export class KVService implements IKVService {
   }
 
   async delete(key: string, binding?: string): Promise<boolean> {
-    // Use validator from domain
     if (!this.validator.isValidKey(key)) {
       throw new Error(`Invalid KV key: ${key}`);
     }
@@ -205,9 +204,9 @@ export class KVService implements IKVService {
       prefix: options?.prefix,
     });
 
-    // Handle cursor property which may not be in the type definition
-    type ListResultWithCursor = typeof list & { cursor?: string };
-    const cursor = (list as ListResultWithCursor).cursor;
+    // Cloudflare's KV list response has a cursor at runtime that isn't
+    // surfaced in @cloudflare/workers-types yet; widen locally to read it.
+    const cursor = (list as { cursor?: string }).cursor;
 
     return {
       keys: list.keys.map((k) => ({
@@ -215,7 +214,7 @@ export class KVService implements IKVService {
         value: '',
         metadata: k.metadata as Record<string, unknown> | undefined,
       })),
-      cursor: cursor,
+      cursor,
     };
   }
 
@@ -243,7 +242,7 @@ export class KVService implements IKVService {
 
     // Store in L1 if found in L2
     if (value !== null && this.enableL1Cache) {
-      const ttl = options?.ttl ?? (typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds);
+      const ttl = options?.ttl ?? this.defaultTTL;
       this.l1Cache.set(key, value, ttl);
     }
 
@@ -260,7 +259,7 @@ export class KVService implements IKVService {
   ): Promise<void> {
     // Store in L1 (memory)
     if (this.enableL1Cache) {
-      const ttl = options?.ttl ?? (typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds);
+      const ttl = options?.ttl ?? this.defaultTTL;
       this.l1Cache.set(key, value, ttl);
     }
 
@@ -280,7 +279,7 @@ export class KVService implements IKVService {
     response: AIResponse,
     options?: AIResponseCacheOptions
   ): Promise<void> {
-    const ttl = options?.ttl ?? (typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds);
+    const ttl = options?.ttl ?? this.defaultTTL;
     const tags = options?.tags || [];
 
     // Store with metadata
@@ -349,7 +348,7 @@ export class KVService implements IKVService {
   ): Promise<void> {
     // Warm L1 cache
     if (this.enableL1Cache) {
-      const defaultTtl = typeof this.defaultTTL === 'number' ? this.defaultTTL : this.defaultTTL.seconds;
+      const defaultTtl = this.defaultTTL;
       for (const entry of entries) {
         this.l1Cache.set(entry.key, entry.value, entry.ttl ?? defaultTtl);
       }

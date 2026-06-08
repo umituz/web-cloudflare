@@ -251,19 +251,5 @@ export interface BatchCompletedEvent extends QueueEvent {
   processingTime: number;
 }
 
-// ============================================================
-// Export Types
-// ============================================================
-
-export type {
-  QueueMessage,
-  MessageBatch,
-  QueueConsumerConfig,
-  QueueProducerConfig,
-  QueueStats,
-  RetryPolicy,
-  RetryResult,
-  MessageHandler,
-  MessageHandlerWithContext,
-  QueueHandlerContext,
-};
+// All types above are exported individually via the `export interface` /
+// `export type` declarations — no re-export block needed.

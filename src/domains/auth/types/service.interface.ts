@@ -16,6 +16,7 @@ import type {
   UserSession,
   CreditTransaction,
   CreditBalance,
+  TokenPayload,
 } from '../entities';
 
 // ============================================================
@@ -71,9 +72,7 @@ export interface DeviceAuthServiceOptions {
 // ============================================================
 
 export interface ITokenService {
-  generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): Promise<string>;
+  generateToken(payload: Omit<TokenPayload, 'iat'> & { exp?: number }): Promise<string>;
   verifyToken(token: string): Promise<TokenPayload | null>;
   refreshToken(token: string, ttl: number): Promise<string | null>;
 }
-
-export type { TokenPayload } from '../entities';

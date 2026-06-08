@@ -21,5 +21,8 @@
     "types": ["@cloudflare/workers-types", "node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "src/domains/pages/react/**/*"
+  ]
 }

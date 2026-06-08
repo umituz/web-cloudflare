@@ -6,10 +6,10 @@
 import type {
   IDeviceAuthService,
   DeviceAuthServiceOptions,
-  TokenPayload,
 } from '../types';
 import type {
   User,
+  TokenPayload,
   DeviceAuthInput,
   SignUpInput,
   LoginInput,
@@ -359,16 +359,14 @@ export class DeviceAuthService implements IDeviceAuthService {
     const now = Date.now();
     const expiresAt = now + this.options.sessionTTL * 1000;
 
-    // Create session token
-    const tokenPayload: Omit<TokenPayload, 'iat' | 'exp'> = {
+    // Create session token payload and pass the expiration explicitly
+    // so the local `deviceId?` parameter (string | undefined) is normalized
+    // to the persisted `string | null` shape that the token requires.
+    const sessionToken = await this.tokenService.generateToken({
       userId: user.id,
       sessionId,
-      deviceId: deviceId || null,
+      deviceId: deviceId ?? null,
       isAnonymous: user.isAnonymous,
-    };
-
-    const sessionToken = await this.tokenService.generateToken({
-      ...tokenPayload,
       exp: expiresAt,
     });
 
@@ -746,8 +744,12 @@ export class DeviceAuthService implements IDeviceAuthService {
 }
 
 // Export singleton instance
+// The singleton is intentionally created with placeholder dependencies;
+// consumers should construct their own `DeviceAuthService` with real D1/KV
+// bindings bound via `d1.bindDatabase` / `kv.bindNamespace` before use.
 export const deviceAuthService = new DeviceAuthService(
-  // @ts-ignore - Will be initialized with proper D1/KV instances
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   null as any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   null as any
 );

@@ -229,7 +229,7 @@ export async function requireAuth(
   let authenticated = false;
 
   switch (config.type) {
-    case 'bearer':
+    case 'bearer': {
       if (!authHeader.startsWith('Bearer ')) {
         return new Response(
           JSON.stringify({ error: 'Invalid authorization type' }),
@@ -264,8 +264,9 @@ export async function requireAuth(
         authenticated = true;
       }
       break;
+    }
 
-    case 'apikey':
+    case 'apikey': {
       const apiKey = request.headers.get(config.apiKeyHeader || 'X-API-Key');
       if (apiKey !== config.apiKeyValue) {
         if (config.logAccess) {
@@ -282,8 +283,9 @@ export async function requireAuth(
       userId = apiKey;
       authenticated = true;
       break;
+    }
 
-    case 'basic':
+    case 'basic': {
       if (!authHeader.startsWith('Basic ')) {
         return new Response(
           JSON.stringify({ error: 'Invalid authorization type' }),
@@ -310,6 +312,7 @@ export async function requireAuth(
       userId = username;
       authenticated = true;
       break;
+    }
   }
 
   // Additional user validation if provided

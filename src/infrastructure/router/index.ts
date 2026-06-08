@@ -259,10 +259,16 @@ export class Router {
       const match = matchedRoute.pattern.exec(url);
       const params = this.extractParams(match || null);
 
+      // Annotate the request so handler-side helpers (e.g. `params(req)`) can read
+      // path params without each handler having to plumb them through manually.
+      const annotatedRequest = params
+        ? Object.assign(request, { __routerParams: params })
+        : request;
+
       // Run route middlewares
       if (matchedRoute.middlewares) {
         for (const middleware of matchedRoute.middlewares) {
-          const response = await middleware(request, env, ctx);
+          const response = await middleware(annotatedRequest, env, ctx);
           if (response) {
             return response;
           }
@@ -271,7 +277,7 @@ export class Router {
 
       // Run handler
       try {
-        return await matchedRoute.handler(request, params, env, ctx);
+        return await matchedRoute.handler(annotatedRequest, params, env, ctx);
       } catch (error) {
         return json(
           {
@@ -595,12 +601,15 @@ export function query(request: Request): Record<string, string> {
 }
 
 /**
- * Get path params
+ * Get path params from a Request that was previously annotated by the router.
+ *
+ * The router mutates the request's `cf` properties bag with `params` so this
+ * helper can be called from inside a handler without threading extra context.
+ * Returns an empty object for requests not produced by this router.
  */
 export function params(request: Request): Record<string, string> {
-  // This should be called from within a route handler
-  // and relies on the router passing params
-  return {};
+  const annotated = (request as Request & { __routerParams?: Record<string, string> }).__routerParams;
+  return annotated ?? {};
 }
 
 /**

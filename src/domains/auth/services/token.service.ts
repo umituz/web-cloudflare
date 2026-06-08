@@ -3,7 +3,8 @@
  * @description Simple JWT-like token generation and verification for Cloudflare Workers
  */
 
-import type { ITokenService, TokenPayload } from '../types';
+import type { ITokenService } from '../types';
+import type { TokenPayload } from '../entities';
 
 // ============================================================
 // Token Service Implementation
@@ -20,12 +21,12 @@ export class TokenService implements ITokenService {
    * Generate a token from payload
    * Uses base64url encoding with HMAC-SHA256 signature
    */
-  async generateToken(payload: Omit<TokenPayload, 'iat' | 'exp'>): Promise<string> {
+  async generateToken(payload: Omit<TokenPayload, 'iat'> & { exp?: number }): Promise<string> {
     const now = Date.now();
     const fullPayload: TokenPayload = {
       ...payload,
       iat: now,
-      exp: payload.exp || now + 86400000, // 24 hours default
+      exp: payload.exp ?? now + 86400000, // 24 hours default
     };
 
     // Encode payload
