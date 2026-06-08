@@ -60,14 +60,13 @@ export function getClientCountry(request: Request): string | null {
 }
 
 /**
- * Get request timestamp
+ * Get request timestamp.
+ * CF-Ray is a Cloudflare request ID, not a timestamp source, so we always
+ * return the current time. The argument is kept for backward-compat callers
+ * that pass through their request.
  */
-export function getRequestTimestamp(request: Request): number {
-  const cfDate = request.headers.get('CF-Ray');
-  if (cfDate) {
-    // Extract timestamp from CF-Ray if available
-    return Date.now();
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function getRequestTimestamp(_request: Request): number {
   return Date.now();
 }
 
@@ -368,15 +367,24 @@ export function parseCacheControl(header: string): {
   mustRevalidate?: boolean;
 } {
   const directives = header.split(',').map((d) => d.trim());
-  const result: Record<string, boolean | number> = {};
+  const result: {
+    maxAge?: number;
+    noCache?: boolean;
+    noStore?: boolean;
+    mustRevalidate?: boolean;
+  } = {};
 
   for (const directive of directives) {
     const [key, value] = directive.split('=');
 
     switch (key.toLowerCase()) {
-      case 'max-age':
-        result.maxAge = parseInt(value, 10);
+      case 'max-age': {
+        const parsed = parseInt(value, 10);
+        if (Number.isFinite(parsed) && parsed >= 0) {
+          result.maxAge = parsed;
+        }
         break;
+      }
       case 'no-cache':
         result.noCache = true;
         break;
@@ -389,12 +397,7 @@ export function parseCacheControl(header: string): {
     }
   }
 
-  return result as {
-    maxAge?: number;
-    noCache?: boolean;
-    noStore?: boolean;
-    mustRevalidate?: boolean;
-  };
+  return result;
 }
 
 // ============================================================
@@ -622,65 +625,68 @@ export function groupBy<T>(
   array: T[],
   key: keyof T
 ): Record<string, T[]> {
-  return array.reduce((result, item) => {
+  const result: Record<string, T[]> = {};
+  for (const item of array) {
     const group = String(item[key]);
-    if (!result[group]) {
-      result[group] = [];
-    }
-    result[group].push(item);
-    return result;
-  }, {} as Record<string, T[]>);
+    (result[group] ??= []).push(item);
+  }
+  return result;
 }
 
 // ============================================================
 // Object Utilities
 // ============================================================
 
+function isObject(item: unknown): item is Record<string, unknown> {
+  return Boolean(item && typeof item === 'object' && !Array.isArray(item));
+}
+
 /**
  * Deep clone object
  * Uses structuredClone when available for better performance and security
  */
 export function deepClone<T>(obj: T): T {
-  // Use structuredClone for better performance and to handle more types
   if (typeof structuredClone !== 'undefined') {
     return structuredClone(obj);
   }
-
-  // Fallback to JSON method (less safe but works in older environments)
   return JSON.parse(JSON.stringify(obj));
 }
 
+// `clone` and `deepClone` share identical semantics. Alias the deep clone
+// implementation so the two helpers cannot drift out of sync.
+export const clone = deepClone;
+
 /**
- * Deep merge objects
+ * Deep merge objects (immutable: returns a new object, never mutates the target)
  */
 export function deepMerge<T extends Record<string, any>>(
   target: T,
   ...sources: Array<Partial<Record<string, any>>>
 ): T {
-  if (!sources.length) return target;
-  const source = sources.shift();
+  if (!sources.length) return { ...target };
+  const source = sources[0];
+  const remaining = sources.slice(1);
 
-  if (isObject(target) && isObject(source)) {
-    for (const key in source) {
-      const sourceValue = source[key];
-      const targetValue = (target as Record<string, unknown>)[key];
+  if (!isObject(target) || !isObject(source)) {
+    return deepMerge(target, ...remaining);
+  }
 
-      if (isObject(sourceValue)) {
-        if (!targetValue) {
-          (target as Record<string, unknown>)[key] = {};
-        }
-        deepMerge((target as Record<string, unknown>)[key] as Record<string, any>, sourceValue);
-      } else {
-        (target as Record<string, unknown>)[key] = sourceValue;
-      }
+  const output: Record<string, unknown> = { ...target };
+
+  for (const key in source) {
+    const sourceValue = source[key];
+    const targetValue = (target as Record<string, unknown>)[key];
+
+    if (isObject(sourceValue) && isObject(targetValue)) {
+      output[key] = deepMerge(targetValue, sourceValue);
+    } else if (isObject(sourceValue)) {
+      output[key] = deepMerge({}, sourceValue);
+    } else {
+      output[key] = sourceValue;
     }
   }
 
-  return deepMerge(target, ...sources);
-}
-
-function isObject(item: unknown): item is Record<string, unknown> {
-  return Boolean(item && typeof item === 'object' && !Array.isArray(item));
+  return deepMerge(output as T, ...remaining) as T;
 }
 
 /**
@@ -697,13 +703,6 @@ export function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pi
 }
 
 /**
- * Merge multiple objects
- */
-export function merge<T extends object>(target: T, ...sources: Array<Partial<T>>): T {
-  return Object.assign(target, ...sources);
-}
-
-/**
  * Omit properties from object
  */
 export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
@@ -712,20 +711,6 @@ export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
     delete result[key];
   });
   return result as Omit<T, K>;
-}
-
-/**
- * Clone object
- * Uses structuredClone when available for better performance and security
- */
-export function clone<T>(obj: T): T {
-  // Use structuredClone for better performance and to handle more types
-  if (typeof structuredClone !== 'undefined') {
-    return structuredClone(obj);
-  }
-
-  // Fallback to JSON method (less safe but works in older environments)
-  return JSON.parse(JSON.stringify(obj));
 }
 
 // ============================================================
@@ -785,7 +770,7 @@ export function isEmpty(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim().length === 0;
   if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === 'object') return Object.keys(value).length === 0;
+  if (typeof value === 'object') return Object.keys(value as object).length === 0;
   return false;
 }
 

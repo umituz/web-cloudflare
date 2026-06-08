@@ -69,7 +69,9 @@ export function createSSEReadableStream(
 
       try {
         for await (const chunk of generator()) {
-          controller.enqueue(encoder.encode(chunk));
+          // `chunk` is an SSEMessage object; serialize it via the SSE
+          // formatter before encoding to UTF-8 bytes.
+          controller.enqueue(encoder.encode(createSSEMessage(chunk)));
         }
       } catch (error) {
         const errorMsg = createSSEMessage({
@@ -118,6 +120,14 @@ export class ProgressTracker {
   private metadata: Record<string, unknown> = {};
 
   /**
+   * Optional error sink invoked when a subscriber throws.
+   * Defaults to console.error; consumers can override for telemetry.
+   */
+  onCallbackError?: (error: unknown) => void = (error) => {
+    console.error('[ProgressTracker] subscriber threw:', error);
+  };
+
+  /**
    * Add progress callback
    */
   onProgress(callback: ProgressCallback): this {
@@ -139,8 +149,11 @@ export class ProgressTracker {
     for (const callback of this.callbacks) {
       try {
         callback(this.currentProgress, this.currentStatus, this.metadata);
-      } catch {
-        // Ignore callback errors
+      } catch (error) {
+        // Surface callback errors to the consumer without breaking the tracker.
+        // Throwing here would abort the entire progress stream for a single
+        // bad consumer; reporting preserves isolation.
+        this.onCallbackError?.(error);
       }
     }
   }
@@ -212,6 +225,10 @@ export class ProgressTracker {
 
 /**
  * Stream long-running task progress
+ *
+ * The progress counter is intentionally capped at 90% until the underlying
+ * task resolves — emitting 100% before the task completes would lie to
+ * consumers and break idempotent progress UIs.
  */
 export async function* streamTaskProgress<T>(
   task: () => Promise<T>,
@@ -225,44 +242,41 @@ export async function* streamTaskProgress<T>(
   let progress = 0;
   let result: T | undefined;
   let error: string | undefined;
+  let resolved = false;
 
   // Start task in background
   const taskPromise = task()
-    .then(r => {
+    .then((r) => {
       result = r;
-      progress = 100;
-      progressCallback?.(progress);
+      resolved = true;
       return r;
     })
-    .catch(e => {
+    .catch((e) => {
       error = e instanceof Error ? e.message : String(e);
-      progressCallback?.(progress);
+      resolved = true;
     });
 
-  // Yield progress updates
-  while (!result && !error) {
+  // Yield indeterminate progress until the task resolves
+  while (!resolved) {
     yield { progress };
     progress = Math.min(progress + 10, 90);
     progressCallback?.(progress);
-    await new Promise(resolve => setTimeout(resolve, updateInterval));
+    await new Promise((resolve) => setTimeout(resolve, updateInterval));
   }
 
-  // Yield final result
+  // Wait for the task to settle in case it resolved between the loop check
+  // and the final yield.
+  await taskPromise.catch(() => undefined);
+
   if (error) {
     yield { progress, error };
   } else {
-    yield { progress: 100, result };
+    progress = 100;
+    progressCallback?.(progress);
+    yield { progress, result };
   }
 }
 
-/**
- * Create streaming response for Hono
- */
-export function createHonoStreamingResponse(
-  generator: () => AsyncIterable<SSEMessage>
-): Response {
-  return createSSEResponse(generator);
-}
 
 // ============================================================
 // Utility Functions

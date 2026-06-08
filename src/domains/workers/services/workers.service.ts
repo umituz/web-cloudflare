@@ -1,6 +1,13 @@
 /**
  * Workers Service
  * @description Cloudflare Workers HTTP handler and routing
+ *
+ * NOTE: This is a thin convenience wrapper that mirrors the Express-like
+ * router in `infrastructure/router`. For new code we recommend the
+ * `Router` class directly — it supports more method/path patterns, a
+ * fluent `RouteBuilder`, and richer middleware composition. This class
+ * is kept for backward compatibility with consumers that already use
+ * `workersService.route(...)` and `workersService.use(...)`.
  */
 
 import type { WorkerRequest, WorkerResponse, CloudflareWorkerConfig } from "../entities";

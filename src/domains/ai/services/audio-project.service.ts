@@ -137,7 +137,7 @@ export class AudioProjectService {
 
     // Load from KV
     if (this.kv) {
-      const data = await this.kv.get(`audio_project:${projectId}`);
+      const data = await this.kv.get<string>(`audio_project:${projectId}`);
       if (data) {
         const project = JSON.parse(data) as AudioProject;
         if (this.cacheEnabled) {
@@ -473,9 +473,9 @@ export class AudioProjectService {
       SELECT * FROM audio_projects WHERE id = ?
     `, [projectId]);
 
-    if (!result.results || result.results.length === 0) return null;
+    if (!result.rows || result.rows.length === 0) return null;
 
-    const row = result.results[0] as any;
+    const row = result.rows[0] as any;
     const project: AudioProject = {
       id: row.id,
       name: row.name,
@@ -497,9 +497,9 @@ export class AudioProjectService {
       SELECT * FROM voice_profiles WHERE project_id = ?
     `, [projectId]);
 
-    if (!result.results || result.results.length === 0) return [];
+    if (!result.rows || result.rows.length === 0) return [];
 
-    return result.results.map((row: any) => ({
+    return result.rows.map((row: any) => ({
       id: row.id,
       name: row.name,
       description: row.description,
@@ -522,10 +522,10 @@ export class AudioProjectService {
       LIMIT ? OFFSET ?
     `, [userId, limit, offset]);
 
-    if (!result.results || result.results.length === 0) return [];
+    if (!result.rows || result.rows.length === 0) return [];
 
     const projects: AudioProject[] = [];
-    for (const row of result.results as any[]) {
+    for (const row of result.rows as any[]) {
       const project = await this.loadProjectFromD1(row.id);
       if (project) projects.push(project);
     }

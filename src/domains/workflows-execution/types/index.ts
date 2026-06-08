@@ -237,7 +237,7 @@ export interface WorkflowListResult {
  */
 export interface WorkflowStatusChangeOptions {
   /** New status */
-  status: 'paused' | 'running' | 'cancelled' | 'failed';
+  status: WorkflowStatus;
 
   /** Reason for status change */
   reason?: string;

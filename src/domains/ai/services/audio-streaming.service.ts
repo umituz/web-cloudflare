@@ -4,7 +4,7 @@
  * for large audio files in Workers runtime.
  */
 
-import type { IR2Service } from '../../r2/types/service.interface';
+import type { IR2Service, R2GetOptions } from '../../r2/types/service.interface';
 
 // ============================================================
 // Types
@@ -39,6 +39,9 @@ export interface StreamInfo {
   supportsRanges: boolean;
 }
 
+const DEFAULT_CHUNK_SIZE = 256 * 1024; // 256 KB
+const DEFAULT_CACHE_TTL = 3600;
+
 // ============================================================
 // Audio Streaming Service
 // ============================================================
@@ -50,293 +53,225 @@ export class AudioStreamingService {
   constructor(r2?: IR2Service, options?: Partial<AudioStreamOptions>) {
     this.r2 = r2;
     this.options = {
-      enableRangeRequests: true,
-      enableCaching: true,
-      cacheTTL: 3600,
-      chunkSize: 256 * 1024, // 256KB default
-      maxChunkSize: 10 * 1024 * 1024, // 10MB max
-      ...options,
+      enableRangeRequests: options?.enableRangeRequests ?? true,
+      enableCaching: options?.enableCaching ?? true,
+      cacheTTL: options?.cacheTTL,
+      chunkSize: options?.chunkSize,
+      maxChunkSize: options?.maxChunkSize,
     };
   }
 
   /**
-   * Handle range request for audio streaming
+   * Handle range request for audio streaming.
+   * Returns 206 with the requested byte range, or 200 with the full body
+   * when the client did not request a range.
    */
   async handleRangeRequest(
     key: string,
     rangeHeader: string | null,
     bucket?: string
   ): Promise<Response> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    // Get object metadata
-    const object = await this.r2.head(key, bucket ? { binding: bucket } : undefined);
-    if (!object) {
+    const metadata = await this.requireR2().head(key, this.bucketOptions(bucket));
+    if (!metadata) {
       return new Response('Not Found', { status: 404 });
     }
 
-    const totalSize = object.size;
-    const mimeType = object.httpMetadata?.contentType || 'audio/mpeg';
-
-    // Parse range header
+    const totalSize = metadata.size;
+    const mimeType = metadata.httpMetadata?.contentType ?? 'audio/mpeg';
     const range = this.parseRangeHeader(rangeHeader, totalSize);
 
-    // Handle range request
-    if (range && this.options.enableRangeRequests) {
+    if (range) {
       return this.streamRange(key, range, totalSize, mimeType, bucket);
     }
-
-    // Handle full request
     return this.streamFull(key, totalSize, mimeType, bucket);
   }
 
   /**
-   * Stream audio with chunked transfer
+   * Stream audio in chunks via a ReadableStream.
+   * Yields chunks until the full body has been consumed.
    */
-  async streamAudio(
+  streamAudio(
     key: string,
     bucket?: string,
     onChunk?: (chunk: AudioStreamChunk) => void
-  ): Promise<ReadableStream<Uint8Array>> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+  ): ReadableStream<Uint8Array> {
+    
 
-    const object = await this.r2.head(key, bucket ? { binding: bucket } : undefined);
-    if (!object) {
-      throw new Error('Object not found');
-    }
+    const r2 = this.requireR2();
+    const chunkSize = this.options.chunkSize ?? DEFAULT_CHUNK_SIZE;
+    const options = this.bucketOptions(bucket);
 
-    const totalSize = object.size;
     let offset = 0;
+    let totalSize: number | null = null;
 
     return new ReadableStream<Uint8Array>({
-      async pull(controller) {
-        const chunkSize = Math.min(
-          this.options.chunkSize || 256 * 1024,
-          totalSize - offset
-        );
-
-        if (chunkSize === 0) {
-          controller.close();
-          return;
-        }
-
+      async pull(controller): Promise<void> {
         try {
-          const chunk = await this.r2!.get(
-            key,
-            bucket ? { binding: bucket, range: { offset, length: chunkSize } } : { range: { offset, length: chunkSize } }
-          );
+          if (totalSize === null) {
+            const metadata = await r2.head(key, options);
+            if (!metadata) {
+              controller.close();
+              return;
+            }
+            totalSize = metadata.size;
+          }
 
-          if (!chunk) {
+          if (offset >= totalSize) {
             controller.close();
             return;
           }
 
-          const arrayBuffer = await chunk.arrayBuffer();
-          const data = new Uint8Array(arrayBuffer);
-
-          controller.enqueue(data);
-
-          // Notify callback
-          onChunk?.({
-            data: arrayBuffer,
-            offset,
-            size: chunkSize,
-            isFinal: offset + chunkSize >= totalSize,
+          const length = Math.min(chunkSize, totalSize - offset);
+          const buffer = await r2.getBody(key, {
+            ...options,
+            range: { start: offset, end: offset + length - 1 },
           });
 
-          offset += chunkSize;
+          if (!buffer) {
+            controller.close();
+            return;
+          }
+
+          const data = new Uint8Array(buffer);
+          controller.enqueue(data);
+          onChunk?.({ data: buffer, offset, size: data.byteLength, isFinal: offset + length >= totalSize });
+          offset += length;
         } catch (error) {
           controller.error(error);
         }
       },
-      cancel() {
-        // Cleanup if needed
-      },
     });
   }
 
   /**
-   * Generate streaming response with proper headers
-   */
-  generateStreamingResponse(
-    stream: ReadableStream<Uint8Array>,
-    info: StreamInfo,
-    range?: RangeRequest
-  ): Response {
-    const headers = new Headers();
-
-    // Content-Type
-    headers.set('Content-Type', info.mimeType);
-
-    // Accept-Ranges
-    if (info.supportsRanges) {
-      headers.set('Accept-Ranges', 'bytes');
-    }
-
-    // Content-Length
-    if (range) {
-      headers.set('Content-Length', String(range.size));
-      headers.set('Content-Range', `bytes ${range.start}-${range.end}/${info.totalSize}`);
-    } else {
-      headers.set('Content-Length', String(info.totalSize));
-    }
-
-    // Cache headers
-    if (this.options.enableCaching) {
-      headers.set('Cache-Control', `public, max-age=${this.options.cacheTTL || 3600}`);
-    }
-
-    // CORS headers
-    headers.set('Access-Control-Allow-Origin', '*');
-    headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    headers.set('Access-Control-Allow-Headers', 'Range');
-
-    // Streaming headers
-    headers.set('Transfer-Encoding', 'chunked');
-    headers.set('X-Content-Duration', String(info.duration || 0));
-
-    return new Response(stream, {
-      status: range ? 206 : 200,
-      headers,
-    });
-  }
-
-  /**
-   * Generate HLS (HTTP Live Streaming) playlist
+   * Generate an HLS (HTTP Live Streaming) playlist for the audio file.
+   * The caller is responsible for translating this string into a Response.
    */
   async generateHLSPlaylist(
     key: string,
     segmentDuration: number = 10,
     bucket?: string
   ): Promise<string> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    const object = await this.r2.head(key, bucket ? { binding: bucket } : undefined);
+    const object = await this.requireR2().head(key, this.bucketOptions(bucket));
     if (!object) {
       throw new Error('Object not found');
     }
 
     const totalSize = object.size;
-    const duration = object.customMetadata?.duration ?
-      Number(object.customMetadata.duration) :
-      0;
+    const duration = this.parseNumberMetadata(object.customMetadata, 'duration');
 
-    // Estimate segments
-    const segmentCount = Math.ceil(duration / segmentDuration);
+    if (!duration) {
+      // Without duration we cannot segment, so return a single-item playlist
+      // that streams the whole file. Callers can short-circuit if they need
+      // exact HLS semantics.
+      return [
+        '#EXTM3U',
+        '#EXT-X-VERSION:3',
+        '#EXT-X-TARGETDURATION:1',
+        '#EXT-X-MEDIA-SEQUENCE:0',
+        `#EXTINF:0.0,`,
+        `${key}?segment=0&start=0&end=${totalSize}`,
+        '#EXT-X-ENDLIST',
+      ].join('\n');
+    }
+
+    const segmentCount = Math.max(1, Math.ceil(duration / segmentDuration));
     const segmentSize = Math.ceil(totalSize / segmentCount);
 
-    // Generate M3U8 playlist
-    const playlist = [
+    const playlist: string[] = [
       '#EXTM3U',
       '#EXT-X-VERSION:3',
-      '#EXT-X-TARGETDURATION:' + Math.ceil(segmentDuration),
+      `#EXT-X-TARGETDURATION:${Math.ceil(segmentDuration)}`,
       '#EXT-X-MEDIA-SEQUENCE:0',
     ];
 
     for (let i = 0; i < segmentCount; i++) {
       const start = i * segmentSize;
       const end = Math.min(start + segmentSize, totalSize);
-      const segDuration = Math.min(segmentDuration, duration - (i * segmentDuration));
+      const segDuration = Math.min(segmentDuration, duration - i * segmentDuration);
 
       playlist.push(`#EXTINF:${segDuration.toFixed(2)},`);
       playlist.push(`${key}?segment=${i}&start=${start}&end=${end}`);
     }
 
     playlist.push('#EXT-X-ENDLIST');
-
     return playlist.join('\n');
   }
 
   /**
-   * Handle HLS segment request
+   * Handle an HLS segment request.
    */
   async handleHLSSegment(
     key: string,
-    segmentIndex: number,
+    _segmentIndex: number,
     start: number,
     end: number,
     bucket?: string
   ): Promise<Response> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    const range = { start, end };
+    const buffer = await this.requireR2().getBody(key, {
+      ...this.bucketOptions(bucket),
+      range: { start, end },
+    });
 
-    const object = await this.r2.get(
-      key,
-      bucket ? { binding: bucket, range } : { range }
-    );
-
-    if (!object) {
+    if (!buffer) {
       return new Response('Segment Not Found', { status: 404 });
     }
 
-    const arrayBuffer = await object.arrayBuffer();
-
-    return new Response(arrayBuffer, {
+    return new Response(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'audio/mpeg',
-        'Content-Length': String(arrayBuffer.byteLength),
-        'Cache-Control': `public, max-age=${this.options.cacheTTL || 3600}`,
+        'Content-Length': String(buffer.byteLength),
+        'Cache-Control': `public, max-age=${this.options.cacheTTL ?? DEFAULT_CACHE_TTL}`,
       },
     });
   }
 
   /**
-   * Get stream info for audio file
+   * Get stream info for an audio file. Returns null when the object is missing.
    */
   async getStreamInfo(key: string, bucket?: string): Promise<StreamInfo | null> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    const object = await this.r2.head(key, bucket ? { binding: bucket } : undefined);
+    const object = await this.requireR2().head(key, this.bucketOptions(bucket));
     if (!object) {
       return null;
     }
 
     return {
       totalSize: object.size,
-      mimeType: object.httpMetadata?.contentType || 'audio/mpeg',
-      duration: object.customMetadata?.duration ?
-        Number(object.customMetadata.duration) :
-        undefined,
-      bitrate: object.customMetadata?.bitrate ?
-        Number(object.customMetadata.bitrate) :
-        undefined,
+      mimeType: object.httpMetadata?.contentType ?? 'audio/mpeg',
+      duration: this.parseNumberMetadata(object.customMetadata, 'duration'),
+      bitrate: this.parseNumberMetadata(object.customMetadata, 'bitrate'),
       supportsRanges: this.options.enableRangeRequests,
     };
   }
 
   /**
-   * Generate waveform data for visualization
+   * Generate waveform data for visualization.
+   * Reads the entire object into memory and computes peak amplitude per bucket.
    */
   async generateWaveform(
     key: string,
     samples: number = 1000,
     bucket?: string
   ): Promise<number[]> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    const object = await this.r2.get(key, bucket ? { binding: bucket } : undefined);
-    if (!object) {
+    const buffer = await this.requireR2().getBody(key, this.bucketOptions(bucket));
+    if (!buffer) {
       throw new Error('Object not found');
     }
 
-    const arrayBuffer = await object.arrayBuffer();
-    const data = new Int16Array(arrayBuffer);
+    const data = new Int16Array(buffer);
     const waveform: number[] = [];
-    const step = Math.floor(data.length / samples);
+    const step = Math.max(1, Math.floor(data.length / samples));
 
     for (let i = 0; i < samples; i++) {
       const start = i * step;
@@ -347,52 +282,49 @@ export class AudioStreamingService {
         max = Math.max(max, Math.abs(data[j]));
       }
 
-      waveform.push(max / 32768); // Normalize to 0-1
+      waveform.push(max / 32768);
     }
 
     return waveform;
   }
 
   /**
-   * Progressive download with progress callback
+   * Progressive download with progress callback.
    */
   async progressiveDownload(
     key: string,
     onProgress: (progress: number, downloaded: number, total: number) => void,
     bucket?: string
   ): Promise<ArrayBuffer> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    const object = await this.r2.head(key, bucket ? { binding: bucket } : undefined);
-    if (!object) {
+    const metadata = await this.requireR2().head(key, this.bucketOptions(bucket));
+    if (!metadata) {
       throw new Error('Object not found');
     }
 
-    const totalSize = object.size;
-    const chunks: ArrayBuffer[] = [];
+    const totalSize = metadata.size;
     let downloaded = 0;
-
-    const stream = await this.streamAudio(key, bucket, (chunk) => {
+    const stream = this.streamAudio(key, bucket, (chunk) => {
       downloaded += chunk.size;
       const progress = (downloaded / totalSize) * 100;
       onProgress(progress, downloaded, totalSize);
     });
 
     const reader = stream.getReader();
+    const collected: Uint8Array[] = [];
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value.buffer);
+      collected.push(value);
     }
 
-    // Combine all chunks
-    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const totalLength = collected.reduce((sum, chunk) => sum + chunk.byteLength, 0);
     const result = new Uint8Array(totalLength);
     let offset = 0;
-    for (const chunk of chunks) {
-      result.set(new Uint8Array(chunk), offset);
+    for (const chunk of collected) {
+      result.set(chunk, offset);
       offset += chunk.byteLength;
     }
 
@@ -404,7 +336,35 @@ export class AudioStreamingService {
   // ============================================================
 
   /**
-   * Parse Range header
+   * Returns the bound R2 service or throws. Throws first so callers can
+   * safely use `!` after — TypeScript cannot narrow the class's `r2?`
+   * field through an assertion signature in all targets.
+   */
+  private requireR2(): IR2Service {
+    if (!this.r2) {
+      throw new Error('R2 service not configured');
+    }
+    return this.r2;
+  }
+
+  private bucketOptions(bucket?: string): R2GetOptions {
+    return bucket ? { binding: bucket } : {};
+  }
+
+  private parseNumberMetadata(
+    metadata: Record<string, unknown> | undefined,
+    key: string
+  ): number | undefined {
+    if (!metadata) return undefined;
+    const raw = metadata[key];
+    if (raw === undefined || raw === null) return undefined;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  /**
+   * Parse a Range header into a concrete byte range.
+   * Returns null if the header is missing, malformed, or unsatisfiable.
    */
   private parseRangeHeader(rangeHeader: string | null, totalSize: number): RangeRequest | null {
     if (!rangeHeader) return null;
@@ -413,17 +373,19 @@ export class AudioStreamingService {
     if (!matches) return null;
 
     const start = parseInt(matches[1], 10);
-    const end = matches[2] ? parseInt(matches[2], 10) : totalSize - 1;
+    if (!Number.isFinite(start) || start < 0) return null;
 
-    return {
-      start: Math.max(0, start),
-      end: Math.min(end, totalSize - 1),
-      size: end - start + 1,
-    };
+    const end = matches[2] ? parseInt(matches[2], 10) : totalSize - 1;
+    if (!Number.isFinite(end)) return null;
+
+    const safeEnd = Math.min(end, totalSize - 1);
+    if (safeEnd < start) return null;
+
+    return { start, end: safeEnd, size: safeEnd - start + 1 };
   }
 
   /**
-   * Stream range of audio file
+   * Stream a specific byte range of an audio file as a 206 response.
    */
   private async streamRange(
     key: string,
@@ -432,35 +394,31 @@ export class AudioStreamingService {
     mimeType: string,
     bucket?: string
   ): Promise<Response> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    const object = await this.r2.get(
-      key,
-      bucket ? { binding: bucket, range: { offset: range.start, length: range.size } } : undefined
-    );
+    const buffer = await this.requireR2().getBody(key, {
+      ...this.bucketOptions(bucket),
+      range: { start: range.start, end: range.end },
+    });
 
-    if (!object) {
+    if (!buffer) {
       return new Response('Range Not Satisfiable', { status: 416 });
     }
 
-    const arrayBuffer = await object.arrayBuffer();
-
-    return new Response(arrayBuffer, {
+    return new Response(buffer, {
       status: 206,
       headers: {
         'Content-Range': `bytes ${range.start}-${range.end}/${totalSize}`,
-        'Content-Length': String(range.size),
+        'Content-Length': String(buffer.byteLength),
         'Content-Type': mimeType,
         'Accept-Ranges': 'bytes',
-        'Cache-Control': `public, max-age=${this.options.cacheTTL || 3600}`,
+        'Cache-Control': `public, max-age=${this.options.cacheTTL ?? DEFAULT_CACHE_TTL}`,
       },
     });
   }
 
   /**
-   * Stream full audio file
+   * Stream the full audio file as a 200 response.
    */
   private async streamFull(
     key: string,
@@ -468,24 +426,20 @@ export class AudioStreamingService {
     mimeType: string,
     bucket?: string
   ): Promise<Response> {
-    if (!this.r2) {
-      throw new Error('R2 service not configured');
-    }
+    
 
-    const object = await this.r2.get(key, bucket ? { binding: bucket } : undefined);
-    if (!object) {
+    const buffer = await this.requireR2().getBody(key, this.bucketOptions(bucket));
+    if (!buffer) {
       return new Response('Not Found', { status: 404 });
     }
 
-    const arrayBuffer = await object.arrayBuffer();
-
-    return new Response(arrayBuffer, {
+    return new Response(buffer, {
       status: 200,
       headers: {
-        'Content-Length': String(arrayBuffer.byteLength),
+        'Content-Length': String(buffer.byteLength),
         'Content-Type': mimeType,
         'Accept-Ranges': this.options.enableRangeRequests ? 'bytes' : 'none',
-        'Cache-Control': `public, max-age=${this.options.cacheTTL || 3600}`,
+        'Cache-Control': `public, max-age=${this.options.cacheTTL ?? DEFAULT_CACHE_TTL}`,
       },
     });
   }
@@ -502,7 +456,7 @@ export function createAudioStreamingService(
   return new AudioStreamingService(r2, options);
 }
 
-/**
- * Default instance
- */
-export const audioStreamingService = new AudioStreamingService();
+// Default singleton — useful for stateless Workers, but consumers should
+// prefer `createAudioStreamingService(r2Service)` so the R2 binding is wired
+// in rather than relying on a later `bind*` call.
+export const audioStreamingService = createAudioStreamingService();
