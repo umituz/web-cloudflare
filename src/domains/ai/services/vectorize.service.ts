@@ -111,7 +111,8 @@ export class VectorizeService implements IVectorizeService {
         return [];
       }
 
-      return matches.map((match: any) => ({
+      type RawMatch = { id: string; score: number; metadata?: unknown };
+      return (matches as RawMatch[]).map((match) => ({
         id: match.id,
         score: match.score,
         metadata: match.metadata as Record<string, unknown> | undefined,
@@ -128,7 +129,8 @@ export class VectorizeService implements IVectorizeService {
    * Delete vectors by ID
    */
   async delete(ids: string[], binding?: string): Promise<void> {
-    const index = this.resolveIndex(binding);
+    // Validate the binding resolves (throws for unknown bindings)
+    this.resolveIndex(binding);
 
     try {
       // Vectorize does not have a delete method yet
@@ -236,7 +238,8 @@ export class VectorizeService implements IVectorizeService {
     count: number;
     dimension: number;
   }> {
-    const index = this.resolveIndex(binding);
+    // Validate the binding resolves (throws for unknown bindings)
+    this.resolveIndex(binding);
 
     try {
       // Note: Vectorize doesn't have a direct stats API

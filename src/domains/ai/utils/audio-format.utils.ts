@@ -244,7 +244,7 @@ export class AudioFormatUtils {
   /**
    * Normalize audio volume
    */
-  static async normalizeVolume(buffer: ArrayBuffer): Promise<ArrayBuffer> {
+  static async normalizeVolume(_buffer: ArrayBuffer): Promise<ArrayBuffer> {
     // Requires audio processing library
     throw new Error(
       'Audio normalization requires external service. ' +
@@ -256,9 +256,9 @@ export class AudioFormatUtils {
    * Trim audio file
    */
   static async trimAudio(
-    buffer: ArrayBuffer,
-    startSeconds: number,
-    endSeconds?: number
+    _buffer: ArrayBuffer,
+    _startSeconds: number,
+    _endSeconds?: number
   ): Promise<ArrayBuffer> {
     // Requires audio processing library
     throw new Error(
@@ -412,8 +412,7 @@ export class AudioFormatUtils {
     // Try to find ID3 tag
     if (this.isMP3(new Uint8Array(buffer, 0, 3))) {
       // ID3v2 header
-      const size = (view.getUint32(6) >>> 0) + 10;
-      // Parse ID3 tags here if needed
+      // Parse ID3 tags here if needed (header size = getUint32(6) + 10)
     }
 
     // Get duration from MP3 frame headers (simplified)
@@ -490,7 +489,7 @@ export class AudioFormatUtils {
 
         // Layer III bitrate table
         const bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
-        const sampleRates = [44100, 48000, 32000];
+        // Sample-rate table per MPEG version: [44100, 48000, 32000] (v1) etc.
 
         if (bitrateIndex > 0 && bitrateIndex < 16 && sampleRateIndex < 3) {
           bitrateSum += bitrates[bitrateIndex];
@@ -522,7 +521,7 @@ export class AudioFormatUtils {
     return null;
   }
 
-  private static getFLACDuration(buffer: ArrayBuffer): number | null {
+  private static getFLACDuration(_buffer: ArrayBuffer): number | null {
     // FLAC duration calculation requires parsing metadata blocks
     // This is a simplified version
     return null;
