@@ -20,7 +20,7 @@
     },
     "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": [
     "node_modules",
     "src/domains/pages/react/**/*"

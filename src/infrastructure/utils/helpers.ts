@@ -676,9 +676,9 @@ export const clone = deepClone;
 /**
  * Deep merge objects (immutable: returns a new object, never mutates the target)
  */
-export function deepMerge<T extends Record<string, any>>(
+export function deepMerge<T extends Record<string, unknown>>(
   target: T,
-  ...sources: Array<Partial<Record<string, any>>>
+  ...sources: Array<Partial<Record<string, unknown>>>
 ): T {
   if (!sources.length) return { ...target };
   const source = sources[0];

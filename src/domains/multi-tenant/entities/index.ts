@@ -36,7 +36,7 @@ export interface TenantContext {
   r2?: Map<string, R2Bucket>;
   kv?: Map<string, KVNamespace>;
   vectorize?: Map<string, VectorizeIndex>;
-  queues?: Map<string, Queue<any>>;
+  queues?: Map<string, Queue<unknown>>;
 }
 
 // ============================================================
