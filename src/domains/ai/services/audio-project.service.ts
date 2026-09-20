@@ -6,6 +6,7 @@
 
 import type { IKVService } from '../../kv/types/service.interface';
 import type { ID1Service } from '../../d1/types/service.interface';
+import { generateId } from '../../../infrastructure/utils/helpers';
 
 // ============================================================
 // Types
@@ -442,7 +443,8 @@ export class AudioProjectService {
   }
 
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
+    return generateId();
   }
 
   // ============================================================

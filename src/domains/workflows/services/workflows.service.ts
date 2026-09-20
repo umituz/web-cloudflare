@@ -8,6 +8,7 @@ import type {
   WorkflowExecution,
   WorkflowStep,
 } from '../entities';
+import { generateId } from '../../../infrastructure/utils/helpers';
 
 // Additional workflow types
 export type WorkflowInstanceState = 'pending' | 'running' | 'completed' | 'failed';
@@ -401,7 +402,8 @@ export class WorkflowService {
   }
 
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
+    return generateId();
   }
 }
 

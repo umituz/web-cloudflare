@@ -21,36 +21,139 @@ import type {
 } from '../entities';
 import type { D1Service } from '../../d1/services/d1.service';
 import type { KVService } from '../../kv/services/kv.service';
-import { TokenService } from './token.service';
+import { TokenService, INSECURE_DEFAULT_SECRET } from './token.service';
+import { generateId, secureCompare } from '../../../infrastructure/utils/helpers';
 
 // ============================================================
-// Password Hashing Helper
+// Password Hashing
 // ============================================================
 
-async function hashPassword(password: string, rounds: number = 10): Promise<string> {
-  // Simple password hashing using Web Crypto API
+/**
+ * Password hashing via PBKDF2-SHA256 (Web Crypto — available in Workers).
+ * Stored format: `pbkdf2$<iterations>$<saltHex>$<hashHex>` with a 16-byte
+ * per-password salt. Previously this was a single unsalted SHA-256 with a
+ * hardcoded pepper and a cosmetic "rounds" prefix; `verifyPassword` still
+ * accepts that legacy format so existing stored hashes keep working —
+ * set a new password (or touch updateUser) to rehash to PBKDF2.
+ */
+async function hashPassword(password: string, iterations: number = 100000): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(password + 'pepper'); // Add pepper in production
+  const salt = new Uint8Array(16);
+  crypto.getRandomValues(salt);
 
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: Math.max(1000, iterations) },
+    keyMaterial,
+    256
+  );
 
-  // Add rounds (in production, use bcrypt/scrypt/argon2)
-  return `${rounds}$${hashHex}`;
+  const toHex = (bytes: Uint8Array): string =>
+    Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+
+  return `pbkdf2$${iterations}$${toHex(salt)}$${toHex(new Uint8Array(bits))}`;
 }
 
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const [rounds, hashHex] = hash.split('$');
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const parts = stored.split('$');
+
+  // Legacy unsalted SHA-256 format: `<rounds>$<hex>` — verify read-only so
+  // existing accounts can still log in. No new hashes use this format.
+  if (parts.length === 2 && !stored.startsWith('pbkdf2$')) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + 'pepper');
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const computedHex = Array.from(new Uint8Array(hashBuffer), (b) =>
+      b.toString(16).padStart(2, '0')
+    ).join('');
+    return secureCompare(computedHex, parts[1]);
+  }
+
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2') {
+    return false;
+  }
+
+  const iterations = parseInt(parts[1], 10);
+  const salt = new Uint8Array(parts[2].match(/.{2}/g)!.map((h) => parseInt(h, 16)));
+  const expectedHex = parts[3];
 
   const encoder = new TextEncoder();
-  const data = encoder.encode(password + 'pepper');
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
+    keyMaterial,
+    256
+  );
+  const computedHex = Array.from(new Uint8Array(bits), (b) =>
+    b.toString(16).padStart(2, '0')
+  ).join('');
 
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const computedHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return secureCompare(computedHex, expectedHex);
+}
 
-  return computedHex === hashHex;
+// ============================================================
+// Database Row Shapes (D1 snake_case → entity camelCase)
+// ============================================================
+
+interface DbUserRow {
+  id: string;
+  device_id: string | null;
+  email: string | null;
+  password_hash: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  is_anonymous: number;
+  created_at: number;
+  updated_at: number;
+  last_active_at: number;
+  metadata: string | null;
+  credits_remaining: number;
+}
+
+interface DbSessionRow {
+  session_id: string;
+  user_id: string;
+  device_id: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: number;
+  expires_at: number;
+  last_refreshed_at: number;
+}
+
+interface DbCreditRow {
+  id: string;
+  user_id: string;
+  amount: number;
+  type: CreditTransaction['type'];
+  description: string;
+  metadata: string | null;
+  created_at: number;
+}
+
+interface StoredSession {
+  userId: string;
+  sessionId: string;
+  deviceId: string | null;
+  isAnonymous: boolean;
+  createdAt: number;
+  expiresAt: number;
+  /** Present only when the session was refreshed (write-back shape). */
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  lastRefreshedAt?: number;
 }
 
 // ============================================================
@@ -74,8 +177,10 @@ export class DeviceAuthService implements IDeviceAuthService {
     this.options = {
       initialCredits: options.initialCredits ?? 10,
       sessionTTL: options.sessionTTL ?? 86400, // 24 hours
-      tokenSecret: options.tokenSecret ?? 'default-secret-change-in-production',
-      passwordHashRounds: options.passwordHashRounds ?? 10,
+      tokenSecret: options.tokenSecret ?? INSECURE_DEFAULT_SECRET,
+      // Interpreted as PBKDF2 iterations. Values < 1000 (the legacy default
+      // was 10) are clamped up by hashPassword.
+      passwordHashRounds: options.passwordHashRounds ?? 100000,
     };
   }
 
@@ -143,7 +248,7 @@ export class DeviceAuthService implements IDeviceAuthService {
    * Get user by device ID
    */
   async getDeviceUser(deviceId: string): Promise<User | null> {
-    const result = await this.d1.findOne<any>(
+    const result = await this.d1.findOne<DbUserRow>(
       `SELECT * FROM users WHERE device_id = ? AND is_anonymous = 1`,
       [deviceId]
     );
@@ -159,7 +264,7 @@ export class DeviceAuthService implements IDeviceAuthService {
    * Get user by ID
    */
   async getUserById(userId: string): Promise<User | null> {
-    const result = await this.d1.findOne<any>(
+    const result = await this.d1.findOne<DbUserRow>(
       `SELECT * FROM users WHERE id = ?`,
       [userId]
     );
@@ -171,7 +276,7 @@ export class DeviceAuthService implements IDeviceAuthService {
    * Get user by email
    */
   async getUserByEmail(email: string): Promise<User | null> {
-    const result = await this.d1.findOne<any>(
+    const result = await this.d1.findOne<DbUserRow>(
       `SELECT * FROM users WHERE email = ?`,
       [email.toLowerCase()]
     );
@@ -183,7 +288,7 @@ export class DeviceAuthService implements IDeviceAuthService {
    * Update user
    */
   async updateUser(userId: string, input: UpdateUserInput): Promise<User> {
-    const updates: Record<string, any> = {};
+    const updates: Record<string, string | number | null> = {};
     const now = Date.now();
 
     if (input.email !== undefined) {
@@ -206,7 +311,11 @@ export class DeviceAuthService implements IDeviceAuthService {
 
     await this.d1.update('users', updates, 'id = ?', [userId]);
 
-    return this.getUserById(userId) as Promise<User>;
+    const updated = await this.getUserById(userId);
+    if (!updated) {
+      throw new Error('User not found after update');
+    }
+    return updated;
   }
 
   /**
@@ -265,9 +374,12 @@ export class DeviceAuthService implements IDeviceAuthService {
     );
 
     const updatedUser = await this.getUserById(userId);
+    if (!updatedUser) {
+      throw new Error('User not found after upgrade');
+    }
 
     // Create new session
-    return this.createSession(updatedUser!, user.deviceId || undefined);
+    return this.createSession(updatedUser, user.deviceId || undefined);
   }
 
   // ============================================================
@@ -397,10 +509,18 @@ export class DeviceAuthService implements IDeviceAuthService {
     });
 
     return {
-      user,
+      // SECURITY: never send the stored password hash to the client.
+      user: this.sanitizeUser(user),
       sessionToken,
       expiresAt,
     };
+  }
+
+  /**
+   * Strip credential material from a user before returning it in a response.
+   */
+  private sanitizeUser(user: User): User {
+    return { ...user, passwordHash: null };
   }
 
   /**
@@ -416,7 +536,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     }
 
     // Check KV first (fast path)
-    const kvSession = await this.kv.get<any>(`session:${payload.sessionId}`);
+    const kvSession = await this.kv.get<StoredSession>(`session:${payload.sessionId}`);
 
     if (kvSession) {
       const user = await this.getUserById(payload.userId);
@@ -427,8 +547,8 @@ export class DeviceAuthService implements IDeviceAuthService {
             sessionId: payload.sessionId,
             userId: user.id,
             deviceId: kvSession.deviceId,
-            ipAddress: kvSession.ipAddress,
-            userAgent: kvSession.userAgent,
+            ipAddress: kvSession.ipAddress ?? null,
+            userAgent: kvSession.userAgent ?? null,
             createdAt: kvSession.createdAt,
             expiresAt: kvSession.expiresAt,
             lastRefreshedAt: kvSession.lastRefreshedAt || kvSession.createdAt,
@@ -438,7 +558,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     }
 
     // Check D1 if not in KV
-    const dbSession = await this.d1.findOne<any>(
+    const dbSession = await this.d1.findOne<DbSessionRow>(
       `SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?`,
       [payload.sessionId, Date.now()]
     );
@@ -519,7 +639,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     );
 
     return {
-      user: result.user,
+      user: this.sanitizeUser(result.user),
       sessionToken: newToken,
       expiresAt,
     };
@@ -544,7 +664,7 @@ export class DeviceAuthService implements IDeviceAuthService {
    * Revoke all user sessions
    */
   async revokeAllUserSessions(userId: string): Promise<void> {
-    const sessions = await this.d1.query<any>(
+    const sessions = await this.d1.query<{ session_id: string }>(
       `SELECT session_id FROM user_sessions WHERE user_id = ?`,
       [userId]
     );
@@ -599,10 +719,17 @@ export class DeviceAuthService implements IDeviceAuthService {
       throw new Error('Insufficient credits');
     }
 
-    await this.d1.query(
-      `UPDATE users SET credits_remaining = credits_remaining - ? WHERE id = ?`,
-      [amount, userId]
+    // Atomic decrement: the `credits_remaining >= ?` guard makes the
+    // read-check above advisory only, so concurrent consumes cannot drive
+    // the balance negative.
+    const result = await this.d1.query(
+      `UPDATE users SET credits_remaining = credits_remaining - ? WHERE id = ? AND credits_remaining >= ?`,
+      [amount, userId, amount]
     );
+
+    if (!result.meta?.changes) {
+      throw new Error('Insufficient credits');
+    }
 
     return this.addCreditTransaction(userId, amount, 'consume', description, metadata);
   }
@@ -617,7 +744,7 @@ export class DeviceAuthService implements IDeviceAuthService {
       throw new Error('User not found');
     }
 
-    const stats = await this.d1.findOne<any>(
+    const stats = await this.d1.findOne<{ total_granted: number; total_consumed: number }>(
       `SELECT
         COALESCE(SUM(CASE WHEN type = 'grant' THEN amount ELSE 0 END), 0) as total_granted,
         COALESCE(SUM(CASE WHEN type = 'consume' THEN amount ELSE 0 END), 0) as total_consumed
@@ -638,7 +765,7 @@ export class DeviceAuthService implements IDeviceAuthService {
    * Get credit transaction history
    */
   async getCreditHistory(userId: string, limit: number = 50): Promise<CreditTransaction[]> {
-    const result = await this.d1.query<any>(
+    const result = await this.d1.query<DbCreditRow>(
       `SELECT * FROM credit_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
       [userId, limit]
     );
@@ -684,7 +811,7 @@ export class DeviceAuthService implements IDeviceAuthService {
    * Clean up expired sessions
    */
   async cleanupExpiredSessions(): Promise<number> {
-    const result = await this.d1.query<any>(
+    const result = await this.d1.query<{ session_id: string }>(
       `SELECT session_id FROM user_sessions WHERE expires_at < ?`,
       [Date.now()]
     );
@@ -706,14 +833,11 @@ export class DeviceAuthService implements IDeviceAuthService {
   // ============================================================
 
   private generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
+    // Crypto-secure UUID (user/session/transaction IDs must not be guessable)
+    return generateId();
   }
 
-  private mapDbUserToUser(db: any): User {
+  private mapDbUserToUser(db: DbUserRow): User {
     return {
       id: db.id,
       deviceId: db.device_id,
@@ -730,7 +854,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     };
   }
 
-  private mapDbCreditToCredit(db: any): CreditTransaction {
+  private mapDbCreditToCredit(db: DbCreditRow): CreditTransaction {
     return {
       id: db.id,
       userId: db.user_id,
@@ -744,12 +868,24 @@ export class DeviceAuthService implements IDeviceAuthService {
 }
 
 // Export singleton instance
-// The singleton is intentionally created with placeholder dependencies;
-// consumers should construct their own `DeviceAuthService` with real D1/KV
-// bindings bound via `d1.bindDatabase` / `kv.bindNamespace` before use.
+// The singleton is intentionally created with placeholder dependencies that
+// throw a descriptive error on first use; consumers should construct their
+// own `DeviceAuthService` with real D1/KV bindings.
+function unboundStub(name: string): never {
+  throw new Error(
+    `DeviceAuthService singleton has no ${name} bound. Construct your own instance: new DeviceAuthService(d1Service, kvService, { tokenSecret })`
+  );
+}
+
 export const deviceAuthService = new DeviceAuthService(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  null as any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  null as any
+  new Proxy({} as D1Service, {
+    get() {
+      unboundStub('D1');
+    },
+  }),
+  new Proxy({} as KVService, {
+    get() {
+      unboundStub('KV');
+    },
+  })
 );

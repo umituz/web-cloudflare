@@ -15,6 +15,7 @@ import type {
   ChatMessage,
 } from '../entities';
 import type { WorkersAIBinding } from '../../../config/types';
+import { generateId } from '../../../infrastructure/utils/helpers';
 
 // ============================================================
 // Model Registry
@@ -752,7 +753,8 @@ export class WorkersAIService implements IWorkersAIService {
    * Generate unique ID
    */
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
+    return generateId();
   }
 }
 

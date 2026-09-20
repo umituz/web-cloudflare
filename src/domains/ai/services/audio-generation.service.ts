@@ -6,6 +6,7 @@
 
 import type { IR2Service } from '../../r2/types/service.interface';
 import type { IKVService } from '../../kv/types/service.interface';
+import { generateId } from '../../../infrastructure/utils/helpers';
 
 // ============================================================
 // Types
@@ -49,6 +50,9 @@ export interface AudioProvider {
   models: string[];
   type: 'fal-ai' | 'replicate' | 'custom';
 }
+
+/** Provider metadata safe to expose (no credentials). */
+export type PublicAudioProvider = Omit<AudioProvider, 'apiKey'>;
 
 // ============================================================
 // Audio Generation Service
@@ -317,7 +321,8 @@ export class AudioGenerationService {
    * Generate unique ID
    */
   private generateId(): string {
-    return Math.random().toString(36).substring(2, 15);
+    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
+    return generateId();
   }
 
   /**

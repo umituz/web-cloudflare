@@ -3,7 +3,7 @@
  * @description File upload hook for R2 with progress tracking
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { APIClient } from '../utils/api-client';
 
 export interface UploadOptions {
@@ -43,7 +43,7 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
     metadata = {},
   } = options;
 
-  const client = new APIClient({ baseURL });
+  const client = useRef<APIClient>(new APIClient({ baseURL }));
 
   const [uploadState, setUploadState] = useState<UploadState>({
     file: null,
@@ -104,7 +104,7 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
     }));
 
     try {
-      const response = await client.uploadFile(
+      const response = await client.current.uploadFile(
         path,
         uploadState.file,
         (progress) => {
@@ -189,7 +189,7 @@ export function useMultipleFileUpload(options: UploadOptions = {}) {
     key: string | null;
   }>>([]);
 
-  const client = new APIClient({ baseURL: options.baseURL || '' });
+  const client = useRef<APIClient>(new APIClient({ baseURL: options.baseURL || '' }));
 
   /**
    * Select multiple files
@@ -222,7 +222,7 @@ export function useMultipleFileUpload(options: UploadOptions = {}) {
           )
         );
 
-        const response = await client.uploadFile(
+        const response = await client.current.uploadFile(
           options.path || '/api/upload',
           fileItem.file,
           (progress) => {

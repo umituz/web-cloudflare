@@ -3,7 +3,7 @@
  * @description AI operations hook for text generation and streaming
  */
 
-import { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { APIClient } from '../utils/api-client';
 
 export interface AIMessage {
@@ -49,6 +49,9 @@ export interface UseAIOptions {
 
 export interface UseAIReturn {
   aiState: AIState;
+  /** Low-level state setter. Exposed so companion hooks (e.g. useAIRAG) can
+   *  share the same state object. Prefer the stable action functions. */
+  setAIState: React.Dispatch<React.SetStateAction<AIState>>;
   generateText: (prompt: string, options?: AIRequestOptions) => Promise<AIResponse>;
   streamText: (prompt: string, onChunk: (chunk: string) => void, options?: AIRequestOptions) => Promise<void>;
   chat: (messages: AIMessage[], options?: AIRequestOptions) => Promise<AIResponse>;
@@ -238,6 +241,7 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
 
   return {
     aiState,
+    setAIState,
     generateText,
     streamText,
     chat,
@@ -326,8 +330,8 @@ export function useAIChat(options: UseAIOptions = {}) {
  */
 export function useAIRAG(options: UseAIOptions & { ragPath?: string }) {
   const { ragPath = '/api/ai/rag', ...aiOptions } = options;
-  const client = new APIClient({ baseURL: aiOptions.baseURL || '' });
-  const { aiState, resetState } = useAI(aiOptions);
+  const client = useRef<APIClient>(new APIClient({ baseURL: aiOptions.baseURL || '' }));
+  const { aiState, setAIState, resetState } = useAI(aiOptions);
 
   /**
    * Query with RAG
@@ -343,7 +347,7 @@ export function useAIRAG(options: UseAIOptions & { ragPath?: string }) {
     }));
 
     try {
-      const response = await client.post<{
+      const response = await client.current.post<{
         response: string;
         sources: Array<{ id: string; text: string; score: number }>;
       }>(ragPath, {

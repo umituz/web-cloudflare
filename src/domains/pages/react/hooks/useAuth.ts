@@ -48,6 +48,26 @@ export interface UseAuthReturn {
 }
 
 /**
+ * Parse an error response body into a message without throwing when the
+ * body is not JSON (proxies/edge errors often return HTML).
+ */
+async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const body: unknown = await response.json();
+    if (
+      typeof body === 'object' && body !== null &&
+      'message' in body && typeof (body as { message: unknown }).message === 'string' &&
+      (body as { message: string }).message
+    ) {
+      return (body as { message: string }).message;
+    }
+  } catch {
+    // Not JSON — fall through to the fallback message.
+  }
+  return fallback;
+}
+
+/**
  * Authentication hook for React apps
  */
 export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
@@ -116,10 +136,11 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
         throw new Error('Invalid session');
       }
 
-      const { user } = await response.json();
+      const body = (await response.json()) as { user?: User };
+      const { user } = body;
 
       setAuthState({
-        user,
+        user: user ?? null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -151,15 +172,19 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
+        throw new Error(await readErrorMessage(response, 'Login failed'));
       }
 
-      const { token, user } = await response.json();
+      const body = (await response.json()) as { token?: string; user?: User };
+      const { token, user } = body;
+
+      if (!token) {
+        throw new Error('Auth response did not include a token');
+      }
 
       setToken(token);
       setAuthState({
-        user,
+        user: user ?? null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -190,15 +215,19 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Signup failed');
+        throw new Error(await readErrorMessage(response, 'Signup failed'));
       }
 
-      const { token, user } = await response.json();
+      const body = (await response.json()) as { token?: string; user?: User };
+      const { token, user } = body;
+
+      if (!token) {
+        throw new Error('Auth response did not include a token');
+      }
 
       setToken(token);
       setAuthState({
-        user,
+        user: user ?? null,
         isAuthenticated: true,
         isLoading: false,
         error: null,
@@ -229,8 +258,8 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
           },
         });
       }
-    } catch (error) {
-      // Ignore logout errors
+    } catch {
+      // Logout failures on the server must not block local session teardown
     } finally {
       clearToken();
       setAuthState({
@@ -252,7 +281,7 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
   /**
    * Update user data
    */
-  const updateUser = useCallback(async (credentials: LoginCredentials) => {
+  const updateUser = useCallback(async (updates: Partial<User>) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -267,15 +296,15 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Update failed');
+        throw new Error(await readErrorMessage(response, 'Update failed'));
       }
 
-      const { user } = await response.json();
+      const body = (await response.json()) as { user?: User };
+      const { user } = body;
 
       setAuthState((prev) => ({
         ...prev,
-        user,
+        user: user ?? prev.user,
         isLoading: false,
         error: null,
       }));

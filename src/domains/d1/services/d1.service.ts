@@ -44,6 +44,37 @@ export interface D1TransactionOptions {
   readonly timeout?: number;
 }
 
+/**
+ * Validates a SQL identifier (table/column name) before it is interpolated
+ * into a statement. D1 parameter binding only covers VALUES — identifiers
+ * must be allow-listed to prevent injection through builder inputs.
+ */
+export function validateSqlIdentifier(
+  name: string,
+  kind: 'table' | 'column' | 'identifier' = 'identifier'
+): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new Error(
+      `Invalid SQL ${kind}: ${JSON.stringify(name.length > 100 ? `${name.slice(0, 100)}…` : name)}. ` +
+        'Identifiers must match /^[A-Za-z_][A-Za-z0-9_]*$/ — use parameterized query() for anything else.'
+    );
+  }
+  return name;
+}
+
+/**
+ * Statement collector for D1 "transactions".
+ *
+ * IMPORTANT — D1 has no interactive transactions. Statements passed to
+ * `query()` execute IMMEDIATELY (results are needed by the caller), so:
+ * - `commit()` only marks the unit complete; it does NOT re-execute
+ *   statements (the previous implementation replayed the batch without
+ *   bound parameters, double-applying every write).
+ * - `rollback()` cannot undo already-executed statements; it only fails
+ *   the unit and prevents further statements.
+ * For TRUE atomic multi-statement execution, collect statements yourself
+ * and use `D1Service.batch()` — D1 batches are executed atomically.
+ */
 export class D1TransactionWrapper {
   private database: D1Database;
   private binding: string;
@@ -61,10 +92,9 @@ export class D1TransactionWrapper {
       throw new Error('Transaction has already been committed or rolled back');
     }
 
-    // Collect statement for batch execution
+    // Record for auditing, then execute immediately (see class JSDoc).
     this.statements.push({ sql, params });
 
-    // Execute immediately
     const stmt = this.database.prepare(sql);
     const result = params ? await stmt.bind(...params).all() : await stmt.all();
 
@@ -84,17 +114,9 @@ export class D1TransactionWrapper {
       throw new Error('Transaction has already been committed or rolled back');
     }
 
-    if (this.statements.length === 0) {
-      this.committed = true;
-      return;
-    }
-
-    // Execute all statements as a batch
-    const preparedStatements = this.statements.map(s => this.database.prepare(s.sql));
-    await this.database.batch(preparedStatements);
-
+    // Statements already executed in query(); replaying them here would
+    // double-apply every write.
     this.committed = true;
-    this.statements = [];
   }
 
   async rollback(): Promise<void> {
@@ -103,11 +125,15 @@ export class D1TransactionWrapper {
     }
 
     this.rolledBack = true;
-    this.statements = [];
   }
 
   isComplete(): boolean {
     return this.committed || this.rolledBack;
+  }
+
+  /** Statements executed in this unit (for logging/auditing). */
+  getExecutedStatements(): ReadonlyArray<{ sql: string; params?: readonly unknown[] }> {
+    return this.statements;
   }
 }
 
@@ -127,11 +153,11 @@ export class D1QueryBuilder {
   private _groupBy?: string;
 
   constructor(table: string) {
-    this.table = table;
+    this.table = validateSqlIdentifier(table, 'table');
   }
 
   select(columns: string[]): D1QueryBuilder {
-    this._select = columns;
+    this._select = columns.map(c => validateSqlIdentifier(c, 'column'));
     return this;
   }
 
@@ -144,17 +170,19 @@ export class D1QueryBuilder {
   }
 
   join(table: string, on: string, type: 'INNER' | 'LEFT' | 'RIGHT' = 'INNER'): D1QueryBuilder {
-    this._join.push(`${type} JOIN ${table} ON ${on}`);
+    // `on` is caller-authored SQL (conditions like "users.id = orders.user_id");
+    // only the table name is validated — never pass user input as `on`.
+    this._join.push(`${type} JOIN ${validateSqlIdentifier(table, 'table')} ON ${on}`);
     return this;
   }
 
   orderBy(column: string, direction: 'ASC' | 'DESC' = 'ASC'): D1QueryBuilder {
-    this._orderBy.push(`${column} ${direction}`);
+    this._orderBy.push(`${validateSqlIdentifier(column, 'column')} ${direction}`);
     return this;
   }
 
   groupBy(column: string): D1QueryBuilder {
-    this._groupBy = column;
+    this._groupBy = validateSqlIdentifier(column, 'column');
     return this;
   }
 
@@ -277,7 +305,12 @@ export class D1Service implements ID1Service {
         grouped.set(bindingName, []);
       }
 
-      grouped.get(bindingName)!.push(database.prepare(stmt.sql));
+      // Bind params — prepare() without bind() drops them (D1 executes the
+      // statement with unbound `?` placeholders).
+      const prepared = stmt.params?.length
+        ? database.prepare(stmt.sql).bind(...stmt.params)
+        : database.prepare(stmt.sql);
+      grouped.get(bindingName)!.push(prepared);
     }
 
     // Note: D1 batch requires all statements to be from the same database
@@ -317,11 +350,11 @@ export class D1Service implements ID1Service {
     data: Record<string, unknown>,
     binding?: string
   ): Promise<D1QueryResult<T>> {
-    const columns = Object.keys(data);
+    const columns = Object.keys(data).map((c) => validateSqlIdentifier(c, "column"));
     const values = Object.values(data);
     const placeholders = values.map(() => "?").join(", ");
 
-    const sql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
+    const sql = `INSERT INTO ${validateSqlIdentifier(table, "table")} (${columns.join(", ")}) VALUES (${placeholders})`;
 
     return this.query<T>(sql, values, binding);
   }
@@ -333,18 +366,19 @@ export class D1Service implements ID1Service {
     whereParams: readonly unknown[] = [],
     binding?: string
   ): Promise<D1QueryResult<T>> {
-    const columns = Object.keys(data);
+    const columns = Object.keys(data).map((c) => validateSqlIdentifier(c, "column"));
     const values = Object.values(data);
     const setClause = columns.map((col) => `${col} = ?`).join(", ");
 
-    const sql = `UPDATE ${table} SET ${setClause} WHERE ${where}`;
+    // `where` is caller-authored SQL — pass user input via whereParams only.
+    const sql = `UPDATE ${validateSqlIdentifier(table, "table")} SET ${setClause} WHERE ${where}`;
     const params = [...values, ...whereParams];
 
     return this.query<T>(sql, params, binding);
   }
 
   async delete(table: string, where: string, params?: readonly unknown[], binding?: string): Promise<D1QueryResult> {
-    const sql = `DELETE FROM ${table} WHERE ${where}`;
+    const sql = `DELETE FROM ${validateSqlIdentifier(table, "table")} WHERE ${where}`;
 
     return this.query(sql, params, binding);
   }
@@ -357,17 +391,18 @@ export class D1Service implements ID1Service {
     columns: Record<string, string>,
     binding?: string
   ): Promise<void> {
+    // Column names validated; types are caller-authored SQL (e.g. "TEXT PRIMARY KEY").
     const columnDefs = Object.entries(columns)
-      .map(([name, type]) => `${name} ${type}`)
+      .map(([name, type]) => `${validateSqlIdentifier(name, "column")} ${type}`)
       .join(", ");
 
-    const sql = `CREATE TABLE IF NOT EXISTS ${table} (${columnDefs})`;
+    const sql = `CREATE TABLE IF NOT EXISTS ${validateSqlIdentifier(table, "table")} (${columnDefs})`;
 
     await this.query(sql, [], binding);
   }
 
   async dropTable(table: string, binding?: string): Promise<void> {
-    const sql = `DROP TABLE IF EXISTS ${table}`;
+    const sql = `DROP TABLE IF EXISTS ${validateSqlIdentifier(table, "table")}`;
 
     await this.query(sql, [], binding);
   }
@@ -385,6 +420,15 @@ export class D1Service implements ID1Service {
 
   /**
    * Transaction helpers
+   */
+  /**
+   * Run a unit of work against a D1TransactionWrapper.
+   *
+   * NOT ATOMIC: statements inside the callback execute immediately as they
+   * are issued (D1 has no interactive transactions) — a thrown error does
+   * NOT undo previously executed statements. For atomic multi-statement
+   * writes, build `{ sql, params }[]` and use `batch()` (D1 batches are
+   * transactional).
    */
   async runInTransaction<T>(
     callback: (txn: D1TransactionWrapper) => Promise<T>,
@@ -417,19 +461,19 @@ export class D1Service implements ID1Service {
   // ============================================================
 
   /**
-   * Create a new migration
+   * Create a new migration ID.
+   * The migration body itself is author-owned: write it to your repo or KV.
    */
-  async createMigration(name: string, binding?: string): Promise<string> {
-    const migrationId = `${Date.now()}_${name}`;
-    const sql = `-- Migration: ${name}\n-- Created: ${new Date().toISOString()}\n\n`;
-
-    // Store migration in KV or return ID for manual creation
-    // For now, return the ID
-    return migrationId;
+  async createMigration(name: string, _binding?: string): Promise<string> {
+    return `${Date.now()}_${name}`;
   }
 
   /**
-   * Run a migration
+   * Run a migration.
+   *
+   * NOTE: statements are split on top-level `;` — semicolons inside string
+   * literals will break the split. Keep migration SQL one-statement-per-
+   * semicolon, or call query()/batch() directly for anything trickier.
    */
   async runMigration(
     migrationSql: string,
@@ -440,7 +484,6 @@ export class D1Service implements ID1Service {
       .map(s => s.trim())
       .filter(s => s.length > 0 && !s.startsWith('--'));
 
-    // Execute all statements in a batch
     for (const sql of statements) {
       await this.query(sql, [], binding);
     }
@@ -501,7 +544,10 @@ export class D1Service implements ID1Service {
     const bindingName = binding || 'default';
     const database = this.getDatabase(bindingName);
 
-    const statements = queries.map(q => database.prepare(q.sql));
+    // Bind params — prepare() without bind() drops them.
+    const statements = queries.map(q =>
+      q.params?.length ? database.prepare(q.sql).bind(...q.params) : database.prepare(q.sql)
+    );
     const results = await database.batch(statements as D1PreparedStatement[]);
 
     return {
@@ -529,7 +575,7 @@ export class D1Service implements ID1Service {
     const warnings: Array<{ column: string; warning: string }> = [];
 
     // Get actual schema from SQLite
-    const sql = `PRAGMA table_info(${table})`;
+    const sql = `PRAGMA table_info(${validateSqlIdentifier(table, "table")})`;
     const result = await this.query<{ cid: number; name: string; type: string; notnull: number; pk: number }>(
       sql,
       [],
@@ -593,7 +639,7 @@ export class D1Service implements ID1Service {
    * Get table schema information
    */
   async getTableSchema(table: string, binding?: string): Promise<Record<string, string>> {
-    const sql = `PRAGMA table_info(${table})`;
+    const sql = `PRAGMA table_info(${validateSqlIdentifier(table, "table")})`;
     const result = await this.query<{ name: string; type: string }>(sql, [], binding);
 
     const schema: Record<string, string> = {};
@@ -617,7 +663,7 @@ export class D1Service implements ID1Service {
    * Truncate table (delete all rows)
    */
   async truncateTable(table: string, binding?: string): Promise<void> {
-    const sql = `DELETE FROM ${table}`;
+    const sql = `DELETE FROM ${validateSqlIdentifier(table, "table")}`;
     await this.query(sql, [], binding);
   }
 
@@ -625,7 +671,7 @@ export class D1Service implements ID1Service {
    * Get table row count
    */
   async getRowCount(table: string, binding?: string): Promise<number> {
-    const sql = `SELECT COUNT(*) as count FROM ${table}`;
+    const sql = `SELECT COUNT(*) as count FROM ${validateSqlIdentifier(table, "table")}`;
     const result = await this.findOne<{ count: number }>(sql, [], binding);
     return result?.count || 0;
   }
