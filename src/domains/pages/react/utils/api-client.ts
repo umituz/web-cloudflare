@@ -70,11 +70,13 @@ export class APIClient {
 
   /**
    * Create AbortController with timeout
+   * Returns the controller and a cleanup fn that clears the pending timer,
+   * so completed requests do not keep the isolate/event loop alive.
    */
-  private createTimeoutController(): AbortController {
+  private createTimeoutController(): { controller: AbortController; cleanup: () => void } {
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), this.timeout);
-    return controller;
+    const timer = setTimeout(() => controller.abort(), this.timeout);
+    return { controller, cleanup: () => clearTimeout(timer) };
   }
 
   /**
@@ -90,8 +92,10 @@ export class APIClient {
       };
 
       try {
-        const errorData = await response.json();
-        error = { ...error, ...errorData };
+        const errorData: unknown = await response.json();
+        if (typeof errorData === 'object' && errorData !== null) {
+          error = { ...error, ...(errorData as Partial<APIError>) };
+        }
       } catch {
         // Use default error
       }
@@ -104,8 +108,21 @@ export class APIClient {
       return { data: undefined as T, status: response.status, headers };
     }
 
-    const data = await response.json();
-    return { data, status: response.status, headers };
+    // Guard against empty bodies on other statuses so a 200 without a body
+    // does not surface as an opaque JSON parse error.
+    const content = await response.text();
+    if (!content) {
+      return { data: undefined as T, status: response.status, headers };
+    }
+
+    try {
+      return { data: JSON.parse(content) as T, status: response.status, headers };
+    } catch {
+      throw {
+        message: 'Response was not valid JSON',
+        status: response.status,
+      } satisfies APIError;
+    }
   }
 
   /**
@@ -117,21 +134,28 @@ export class APIClient {
     body?: unknown,
     options?: RequestInit
   ): Promise<APIResponse<T>> {
-    const controller = this.createTimeoutController();
+    // Caller-provided options must not silently disable the timeout controller
+    // or clobber the merged headers, so destructure them out before spreading.
+    const { headers: optionHeaders, signal: optionSignal, ...restOptions } = options ?? {};
+    const { controller, cleanup } = this.createTimeoutController();
 
-    const response = await fetch(this.buildURL(path), {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.defaultHeaders,
-        ...options?.headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-      ...options,
-    });
+    try {
+      const response = await fetch(this.buildURL(path), {
+        ...restOptions,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.defaultHeaders,
+          ...optionHeaders,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: optionSignal ?? controller.signal,
+      });
 
-    return this.handleResponse<T>(response);
+      return await this.handleResponse<T>(response);
+    } finally {
+      cleanup();
+    }
   }
 
   /**
@@ -175,44 +199,53 @@ export class APIClient {
   async stream(
     path: string,
     body?: unknown,
-    onChunk: (chunk: string) => void,
+    onChunk?: (chunk: string) => void,
     options?: RequestInit
   ): Promise<void> {
-    const controller = this.createTimeoutController();
+    const { headers: optionHeaders, signal: optionSignal, ...restOptions } = options ?? {};
+    const { controller, cleanup } = this.createTimeoutController();
 
-    const response = await fetch(this.buildURL(path), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.defaultHeaders,
-        ...options?.headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-      ...options,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Stream failed: ${response.statusText}`);
-    }
-
-    if (!response.body) {
-      throw new Error('Response body is null');
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     try {
+      const response = await fetch(this.buildURL(path), {
+        ...restOptions,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.defaultHeaders,
+          ...optionHeaders,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: optionSignal ?? controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Stream failed: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        onChunk(chunk);
+        onChunk?.(chunk);
       }
     } finally {
-      reader.releaseLock();
+      // Cancel the body so the connection is not left hanging when the
+      // consumer stops early or an error interrupts the loop.
+      try {
+        await reader?.cancel();
+      } catch {
+        // Reader already released/closed — nothing to do.
+      }
+      cleanup();
     }
   }
 
@@ -225,8 +258,6 @@ export class APIClient {
     onProgress?: (progress: number) => void,
     options?: RequestInit
   ): Promise<APIResponse<{ key: string; url: string }>> {
-    const controller = this.createTimeoutController();
-
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
@@ -243,17 +274,24 @@ export class APIClient {
       // Request completed
       xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText);
-          resolve({
-            data,
-            status: xhr.status,
-            headers: new Headers(),
-          });
+          try {
+            const data = JSON.parse(xhr.responseText);
+            resolve({
+              data,
+              status: xhr.status,
+              headers: new Headers(),
+            });
+          } catch {
+            reject({
+              message: 'Upload returned invalid JSON',
+              status: xhr.status,
+            } satisfies APIError);
+          }
         } else {
           reject({
             message: xhr.statusText || 'Upload failed',
             status: xhr.status,
-          });
+          } satisfies APIError);
         }
       });
 
@@ -262,15 +300,23 @@ export class APIClient {
         reject({
           message: 'Network error during upload',
           status: 0,
-        });
+        } satisfies APIError);
       });
 
-      // Request timeout
-      xhr.addEventListener('abort', () => {
+      // Request timed out (the 'timeout' event, not 'abort')
+      xhr.addEventListener('timeout', () => {
         reject({
           message: 'Upload timeout',
           status: 0,
-        });
+        } satisfies APIError);
+      });
+
+      // Request aborted
+      xhr.addEventListener('abort', () => {
+        reject({
+          message: 'Upload aborted',
+          status: 0,
+        } satisfies APIError);
       });
 
       // Open and send request

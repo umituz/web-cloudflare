@@ -10,10 +10,26 @@ import type { TokenPayload } from '../entities';
 // Token Service Implementation
 // ============================================================
 
+/**
+ * Sentinel secret retained for API compatibility. Signing or verifying with
+ * it throws: anyone can read this value from the published package, so
+ * tokens minted with it are forgeable by definition. Construct
+ * `TokenService` with a real secret (e.g. a Worker secret binding).
+ */
+export const INSECURE_DEFAULT_SECRET = 'default-secret-change-in-production';
+
+function assertRealSecret(secret: string): void {
+  if (secret === INSECURE_DEFAULT_SECRET) {
+    throw new Error(
+      'TokenService is using its insecure default secret. Pass a real secret, e.g. new TokenService(env.TOKEN_SECRET), before issuing or verifying tokens.',
+    );
+  }
+}
+
 export class TokenService implements ITokenService {
   private secret: string;
 
-  constructor(secret: string = 'default-secret-change-in-production') {
+  constructor(secret: string = INSECURE_DEFAULT_SECRET) {
     this.secret = secret;
   }
 
@@ -22,6 +38,7 @@ export class TokenService implements ITokenService {
    * Uses base64url encoding with HMAC-SHA256 signature
    */
   async generateToken(payload: Omit<TokenPayload, 'iat'> & { exp?: number }): Promise<string> {
+    assertRealSecret(this.secret);
     const now = Date.now();
     const fullPayload: TokenPayload = {
       ...payload,
@@ -44,6 +61,7 @@ export class TokenService implements ITokenService {
    * Verify and decode a token
    */
   async verifyToken(token: string): Promise<TokenPayload | null> {
+    assertRealSecret(this.secret);
     try {
       const [encodedPayload, encodedSignature] = token.split('.');
 
@@ -100,7 +118,15 @@ export class TokenService implements ITokenService {
   // ============================================================
 
   private base64UrlEncode(str: string): string {
-    const base64 = btoa(str);
+    // Byte-safe: btoa() throws on non-Latin1 characters, so encode via
+    // UTF-8 bytes first. Identical output to btoa(str) for ASCII payloads,
+    // so previously issued tokens still verify.
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    bytes.forEach((b) => {
+      binary += String.fromCharCode(b);
+    });
+    const base64 = btoa(binary);
     return base64
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
@@ -112,7 +138,12 @@ export class TokenService implements ITokenService {
     while (base64.length % 4) {
       base64 += '=';
     }
-    return atob(base64);
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
   }
 
   private async createSignature(data: string, secret: string): Promise<string> {

@@ -358,6 +358,23 @@ export async function hash(input: string): Promise<string> {
 }
 
 /**
+ * Constant-time string comparison for secrets (API keys, tokens, passwords).
+ * Avoids leaking the position/value of the first differing character through
+ * timing, unlike `===`. Length mismatch returns false immediately (length is
+ * considered public for this purpose).
+ */
+export function secureCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+/**
  * Parse cache control header
  */
 export function parseCacheControl(header: string): {
@@ -718,35 +735,64 @@ export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
 // ============================================================
 
 /**
- * Generate random string
+ * Generate cryptographically secure random string from [a-zA-Z0-9].
+ * Use this (not Math.random-based builders) for anything that guards
+ * access: session IDs, tokens, nonces.
  */
 export function randomString(length: number = 16): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
   let result = '';
   for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+    // 256 % 62 === 8, so values >= 248 would bias the distribution — resample.
+    let byte = bytes[i];
+    while (byte >= 248) {
+      const extra = new Uint8Array(1);
+      crypto.getRandomValues(extra);
+      byte = extra[0];
+    }
+    result += chars.charAt(byte % 62);
   }
   return result;
 }
 
 /**
- * Generate random ID
+ * Generate cryptographically secure random ID (timestamp-prefixed).
  */
 export function randomID(prefix: string = ''): string {
   const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 9);
+  const random = randomString(10).toLowerCase();
   return prefix ? `${prefix}_${timestamp}${random}` : `${timestamp}${random}`;
 }
 
 /**
- * Random item from array
+ * Generate a secure, opaque identifier suitable for user/session/tenant IDs.
+ * Uses the Web Crypto API (available in Workers, browsers, Node 16.7+).
+ */
+export function generateId(): string {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for runtimes without randomUUID
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  // Set RFC 4122 v4 bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * Random item from array (NOT for security purposes)
  */
 export function randomItem<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
 }
 
 /**
- * Random number in range
+ * Random number in range (NOT for security purposes)
  */
 export function randomInRange(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;

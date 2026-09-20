@@ -3,7 +3,7 @@
  * @description API client hook with typed methods, streaming, and AI support
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { APIClient, type APIResponse, type APIError } from '../utils/api-client';
 
 export interface UseAPIClientOptions {
@@ -118,17 +118,25 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
   }, [wrapRequest]);
 
   /**
-   * Stream request
+   * Stream request (stream returns void, not an APIResponse, so it applies
+   * the lifecycle hooks manually rather than going through wrapRequest)
    */
   const stream = useCallback(async (
     path: string,
     body?: unknown,
     onChunk?: (chunk: string) => void
   ): Promise<void> => {
-    return wrapRequest(() =>
-      clientRef.current.stream(path, body, onChunk ? onChunk : () => {})
-    );
-  }, [wrapRequest]);
+    try {
+      onRequestStart?.();
+      await clientRef.current.stream(path, body, onChunk);
+    } catch (error) {
+      const apiError = error as APIError;
+      onError?.(apiError);
+      throw apiError;
+    } finally {
+      onRequestEnd?.();
+    }
+  }, [onRequestStart, onRequestEnd, onError]);
 
   /**
    * Generate text (AI)
@@ -147,20 +155,28 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
   }, [wrapRequest]);
 
   /**
-   * Stream text (AI)
+   * Stream text (AI) — stream returns void, not an APIResponse, so it applies
+   * the lifecycle hooks manually rather than going through wrapRequest
    */
   const streamText = useCallback(async (
     prompt: string,
     onChunk: (chunk: string) => void,
     options: GenerateTextOptions = {}
   ): Promise<void> => {
-    await wrapRequest(() =>
-      clientRef.current.stream('/api/ai/stream', {
+    try {
+      onRequestStart?.();
+      await clientRef.current.stream('/api/ai/stream', {
         prompt,
         ...options,
-      }, onChunk)
-    );
-  }, [wrapRequest]);
+      }, onChunk);
+    } catch (error) {
+      const apiError = error as APIError;
+      onError?.(apiError);
+      throw apiError;
+    } finally {
+      onRequestEnd?.();
+    }
+  }, [onRequestStart, onRequestEnd, onError]);
 
   return {
     client: clientRef.current,
@@ -206,6 +222,40 @@ export function useFetch<T>(path: string, options: UseAPIClientOptions = {}) {
     }
   }, [get, path]);
 
+  // Generation counter guarding against out-of-order responses overwriting
+  // newer data when `path` changes rapidly.
+  const fetchGenerationRef = useRef(0);
+
+  // Fetch on mount and whenever `path` changes.
+  useEffect(() => {
+    let cancelled = false;
+    const generation = ++fetchGenerationRef.current;
+
+    get<T>(path)
+      .then((response) => {
+        if (!cancelled && generation === fetchGenerationRef.current) {
+          setState({
+            data: response.data,
+            isLoading: false,
+            error: null,
+          });
+        }
+      })
+      .catch((error: APIError) => {
+        if (!cancelled && generation === fetchGenerationRef.current) {
+          setState({
+            data: null,
+            isLoading: false,
+            error: error,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [get, path]);
+
   return {
     ...state,
     refetch,
@@ -219,6 +269,8 @@ export function useMutation<TData, TVariables = unknown>(
   mutationFn: (variables: TVariables) => Promise<APIResponse<TData>>,
   options: UseAPIClientOptions = {}
 ) {
+  const { onRequestStart, onRequestEnd, onError } = options;
+
   const [state, setState] = useState<APIRequestState<TData>>({
     data: null,
     isLoading: false,
@@ -229,14 +281,14 @@ export function useMutation<TData, TVariables = unknown>(
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      options.onRequestStart?.();
+      onRequestStart?.();
       const response = await mutationFn(variables);
       setState({
         data: response.data,
         isLoading: false,
         error: null,
       });
-      options.onRequestEnd?.();
+      onRequestEnd?.();
       return response.data;
     } catch (error) {
       const apiError = error as APIError;
@@ -245,11 +297,11 @@ export function useMutation<TData, TVariables = unknown>(
         isLoading: false,
         error: apiError,
       });
-      options.onError?.(apiError);
-      options.onRequestEnd?.();
+      onError?.(apiError);
+      onRequestEnd?.();
       throw apiError;
     }
-  }, [mutationFn, options]);
+  }, [mutationFn, onRequestStart, onRequestEnd, onError]);
 
   return {
     ...state,

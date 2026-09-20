@@ -94,10 +94,11 @@ export type {
   TenantResolutionResult,
 } from "./domains/multi-tenant";
 
-// Infrastructure - Router, Utils
+// Infrastructure - Router, Utils, Errors
 export * from "./infrastructure/router";
 export * from "./infrastructure/utils/helpers";
 export * from "./infrastructure/constants";
+export * from "./infrastructure/errors";
 
 // Config - Patterns and Types
 export * from "./config/patterns";

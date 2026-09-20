@@ -42,6 +42,19 @@ export class MultiTenantService implements IMultiTenantService {
     return MultiTenantService.instance;
   }
 
+  /**
+   * Create an independent registry instance.
+   *
+   * Prefer this over the shared singleton: a Workers isolate can interleave
+   * concurrent requests, and the `currentTenantId`-based context APIs
+   * (`withTenant`, `getCurrentTenantId`, `setCurrentTenantId`) are shared
+   * mutable state — two overlapping requests on one instance corrupt each
+   * other's tenant. Give each request (or request context) its own instance.
+   */
+  static create(): MultiTenantService {
+    return new MultiTenantService();
+  }
+
   // ============================================================
   // Tenant Management
   // ============================================================
@@ -329,6 +342,15 @@ export class MultiTenantService implements IMultiTenantService {
   // Tenant Isolation
   // ============================================================
 
+  /**
+   * Run an operation with a tenant context.
+   *
+   * WARNING: this mutates instance-level state. If two requests interleave
+   * on the SAME instance (possible within one Workers isolate),
+   * `getCurrentTenantId()` can return the wrong tenant. Either use
+   * `MultiTenantService.create()` per request, or pass the `context`
+   * argument explicitly and ignore the current-tenant APIs entirely.
+   */
   async withTenant<T>(
     tenantId: string,
     operation: (context: TenantContext) => Promise<T>
@@ -354,6 +376,11 @@ export class MultiTenantService implements IMultiTenantService {
     return this.currentTenantId;
   }
 
+  /**
+   * @deprecated Racy under concurrent requests on a shared instance — there
+   * is no restore point. Use `withTenant` (scoped) or a per-request instance
+   * from `MultiTenantService.create()`.
+   */
   setCurrentTenantId(tenantId: string): void {
     if (!this.tenants.has(tenantId)) {
       throw new Error(`Tenant not found: ${tenantId}`);
@@ -405,7 +432,11 @@ export class MultiTenantService implements IMultiTenantService {
   // ============================================================
 
   private generateTenantId(): string {
-    return `tenant_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    // Crypto-secure suffix (Math.random IDs are predictable)
+    const bytes = new Uint8Array(6);
+    crypto.getRandomValues(bytes);
+    const random = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `tenant_${Date.now()}_${random}`;
   }
 }
 

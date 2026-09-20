@@ -3,7 +3,7 @@
  * @description Workflow execution and monitoring hook
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { APIClient } from '../utils/api-client';
 
 export interface WorkflowStep {
@@ -175,7 +175,7 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
   /**
    * Poll execution manually
    */
-  const pollExecution = useCallback(async () => {
+  const pollExecution = useCallback(async (executionId: string) => {
     try {
       const response = await client.current.get<{ execution: WorkflowExecution }>(
         `/api/workflows/executions/${executionId}`
@@ -198,7 +198,7 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
   /**
    * Cancel execution
    */
-  const cancelExecution = useCallback(async () => {
+  const cancelExecution = useCallback(async (executionId: string) => {
     try {
       await client.current.post(`/api/workflows/executions/${executionId}/cancel`, {});
 
@@ -232,12 +232,13 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     });
   }, [stopPolling]);
 
-  // Cleanup on unmount
-  useState(() => {
+  // Cleanup on unmount — `useEffect` (a `useState` initializer never runs
+  // its returned function, so the interval would otherwise leak).
+  useEffect(() => {
     return () => {
       stopPolling();
     };
-  });
+  }, [stopPolling]);
 
   return {
     workflowState,
@@ -253,11 +254,13 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
  */
 export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
   options: UseWorkflowOptions & {
+    workflowId: string;
     batchSize?: number;
     concurrency?: number;
   }
 ) {
   const {
+    workflowId,
     batchSize = 10,
     concurrency = 3,
     ...workflowOptions
@@ -271,8 +274,8 @@ export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
     error?: string;
   }>>([]);
 
+  const [isProcessing, setIsProcessing] = useState(false);
   const { executeWorkflow } = useWorkflow(workflowOptions);
-  const processingRef = useRef(false);
 
   /**
    * Add items to batch
@@ -291,61 +294,69 @@ export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
    * Process batch
    */
   const processBatch = useCallback(async () => {
-    if (processingRef.current) return;
+    if (isProcessing) return;
 
-    processingRef.current = true;
+    setIsProcessing(true);
 
-    const pendingItems = items.filter((item) => item.status === 'pending');
-    const batches: typeof pendingItems[] = [];
+    try {
+      // `batchSize` caps how many pending items a single processBatch() call
+      // picks up; `concurrency` limits how many run in parallel.
+      const pendingItems = items
+        .filter((item) => item.status === 'pending')
+        .slice(0, batchSize);
 
-    for (let i = 0; i < pendingItems.length; i += batchSize) {
-      batches.push(pendingItems.slice(i, i + batchSize));
-    }
-
-    for (const batch of batches) {
-      const concurrencyLimit = Math.min(concurrency, batch.length);
-
-      await Promise.all(
-        batch.slice(0, concurrencyLimit).map(async (item) => {
-          setItems((prev) =>
-            prev.map((i) =>
-              i.id === item.id ? { ...i, status: 'processing' } : i
-            )
-          );
-
-          try {
-            const execution = await executeWorkflow(workflowId, item.input);
+      // Worker-pool: process every pending item with at most `concurrency`
+      // in flight (the previous implementation dropped items beyond the
+      // concurrency limit of each chunk).
+      let cursor = 0;
+      const workers = Array.from(
+        { length: Math.max(1, Math.min(concurrency, pendingItems.length)) },
+        async () => {
+          while (cursor < pendingItems.length) {
+            const item = pendingItems[cursor++];
 
             setItems((prev) =>
               prev.map((i) =>
-                i.id === item.id
-                  ? {
-                      ...i,
-                      status: 'completed',
-                      result: execution.result as TResult,
-                    }
-                  : i
+                i.id === item.id ? { ...i, status: 'processing' } : i
               )
             );
-          } catch (error) {
-            setItems((prev) =>
-              prev.map((i) =>
-                i.id === item.id
-                  ? {
-                      ...i,
-                      status: 'failed',
-                      error: error instanceof Error ? error.message : 'Processing failed',
-                    }
-                  : i
-              )
-            );
+
+            try {
+              const execution = await executeWorkflow(workflowId, item.input);
+
+              setItems((prev) =>
+                prev.map((i) =>
+                  i.id === item.id
+                    ? {
+                        ...i,
+                        status: 'completed',
+                        result: execution.result as TResult,
+                      }
+                    : i
+                )
+              );
+            } catch (error) {
+              setItems((prev) =>
+                prev.map((i) =>
+                  i.id === item.id
+                    ? {
+                        ...i,
+                        status: 'failed',
+                        error: error instanceof Error ? error.message : 'Processing failed',
+                      }
+                    : i
+                )
+              );
+            }
           }
-        })
+        }
       );
-    }
 
-    processingRef.current = false;
-  }, [items, batchSize, concurrency, executeWorkflow]);
+      await Promise.all(workers);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [items, isProcessing, batchSize, concurrency, workflowId, executeWorkflow]);
 
   /**
    * Clear completed items
@@ -367,6 +378,6 @@ export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
     processBatch,
     clearCompleted,
     resetItems,
-    isProcessing: processingRef.current,
+    isProcessing,
   };
 }

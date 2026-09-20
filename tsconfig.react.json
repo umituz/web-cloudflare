@@ -5,5 +5,6 @@
     "jsx": "react-jsx",
     "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["src/domains/pages/react/**/*"]
+  "include": ["src/domains/pages/react/**/*"],
+  "exclude": ["node_modules"]
 }

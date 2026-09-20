@@ -13,6 +13,7 @@ import type {
 } from '../entities';
 import type { AIGatewayCallEvent } from '../../shared/events';
 import type { WorkersAIBinding } from '../../../config/types';
+import { generateId } from '../../../infrastructure/utils/helpers';
 
 interface CircuitBreakerState {
   isOpen: boolean;
@@ -888,7 +889,8 @@ export class AIGatewayService implements IAIGatewayService {
    * Generate unique ID
    */
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
+    return generateId();
   }
 }
 

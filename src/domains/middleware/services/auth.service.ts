@@ -7,6 +7,7 @@ import type { MiddlewareAuthConfig } from '../entities';
 import type { AIQuotaConfig } from '../../ai/entities';
 import type { D1Service } from '../../d1/services/d1.service';
 import type { KVService } from '../../kv/services/kv.service';
+import { secureCompare, randomString } from '../../../infrastructure/utils/helpers';
 
 export type { MiddlewareAuthConfig };
 
@@ -188,10 +189,10 @@ export class SessionManager {
   }
 
   /**
-   * Generate session ID
+   * Generate session ID (crypto-secure; session IDs are bearer credentials)
    */
   private generateSessionId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}-${Math.random().toString(36).substring(2, 11)}`;
+    return `${Date.now().toString(36)}-${randomString(24).toLowerCase()}`;
   }
 }
 
@@ -200,7 +201,12 @@ export class SessionManager {
 // ============================================================
 
 /**
- * Enhanced require authentication with user validation and logging
+ * Enhanced require authentication with user validation and logging.
+ *
+ * SECURITY: A request that cannot be positively authenticated is ALWAYS
+ * rejected with 401. Previously a `bearer` config without `token` or
+ * `validateToken` fell through the switch and allowed the request, and the
+ * `custom` type was never handled at all.
  */
 export async function requireAuth(
   request: Request,
@@ -213,16 +219,16 @@ export async function requireAuth(
     return null;
   }
 
+  const unauthorized = (error: string): Response =>
+    new Response(JSON.stringify({ error }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
   const authHeader = request.headers.get('Authorization');
 
   if (!authHeader) {
-    return new Response(
-      JSON.stringify({ error: 'Missing authorization header' }),
-      {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return unauthorized('Missing authorization header');
   }
 
   let userId: string | null = null;
@@ -231,13 +237,7 @@ export async function requireAuth(
   switch (config.type) {
     case 'bearer': {
       if (!authHeader.startsWith('Bearer ')) {
-        return new Response(
-          JSON.stringify({ error: 'Invalid authorization type' }),
-          {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
+        return unauthorized('Invalid authorization type');
       }
       const token = authHeader.substring(7);
 
@@ -248,75 +248,88 @@ export async function requireAuth(
           if (config.logAccess) {
             await config.logAccess(token, false, request.url);
           }
-          return new Response(
-            JSON.stringify({ error: 'Invalid token' }),
-            {
-              status: 401,
-              headers: { 'Content-Type': 'application/json' },
-            }
-          );
+          return unauthorized('Invalid token');
         }
-        // Extract user ID from token validation
-        userId = token; // In production, decode JWT or lookup user
-        authenticated = true;
-      } else if (token === config.token) {
+        // No trusted identity claim is available from a boolean validator;
+        // the raw token is used as the identifier (hash it in `logAccess`
+        // sinks — it is a credential).
         userId = token;
         authenticated = true;
+      } else if (config.token && secureCompare(token, config.token)) {
+        userId = 'token-user';
+        authenticated = true;
+      } else {
+        // No validator and no static token configured: fail CLOSED.
+        return unauthorized('Invalid token');
       }
       break;
     }
 
     case 'apikey': {
       const apiKey = request.headers.get(config.apiKeyHeader || 'X-API-Key');
-      if (apiKey !== config.apiKeyValue) {
+      if (!config.apiKeyValue || !apiKey || !secureCompare(apiKey, config.apiKeyValue)) {
         if (config.logAccess) {
           await config.logAccess(apiKey || 'unknown', false, request.url);
         }
-        return new Response(
-          JSON.stringify({ error: 'Invalid API key' }),
-          {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
+        return unauthorized('Invalid API key');
       }
-      userId = apiKey;
+      userId = 'api-key-user';
       authenticated = true;
       break;
     }
 
     case 'basic': {
       if (!authHeader.startsWith('Basic ')) {
-        return new Response(
-          JSON.stringify({ error: 'Invalid authorization type' }),
-          {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
+        return unauthorized('Invalid authorization type');
       }
-      const credentials = atob(authHeader.substring(6));
-      const [username, password] = credentials.split(':');
-      if (username !== config.username || password !== config.password) {
+      let credentials: string;
+      try {
+        credentials = atob(authHeader.substring(6));
+      } catch {
+        return unauthorized('Invalid credentials');
+      }
+      // split with limit 2 so passwords containing ':' survive
+      const separatorIndex = credentials.indexOf(':');
+      const username = separatorIndex === -1 ? credentials : credentials.substring(0, separatorIndex);
+      const password = separatorIndex === -1 ? '' : credentials.substring(separatorIndex + 1);
+      if (
+        !config.username || !config.password ||
+        !secureCompare(username, config.username) || !secureCompare(password, config.password)
+      ) {
         if (config.logAccess) {
           await config.logAccess(username, false, request.url);
         }
-        return new Response(
-          JSON.stringify({ error: 'Invalid credentials' }),
-          {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
+        return unauthorized('Invalid credentials');
       }
       userId = username;
       authenticated = true;
       break;
     }
+
+    case 'custom': {
+      if (!config.validate) {
+        return unauthorized('Auth type "custom" requires a validate function');
+      }
+      const isValid = await config.validate(request);
+      if (!isValid) {
+        if (config.logAccess) {
+          await config.logAccess('unknown', false, request.url);
+        }
+        return unauthorized('Invalid credentials');
+      }
+      userId = request.headers.get('X-User-ID') || 'custom-auth-user';
+      authenticated = true;
+      break;
+    }
+  }
+
+  // Fail closed for any unhandled configuration
+  if (!authenticated || !userId) {
+    return unauthorized('Unauthorized');
   }
 
   // Additional user validation if provided
-  if (authenticated && userId && config.validateUser) {
+  if (config.validateUser) {
     const isValid = await config.validateUser(userId);
     if (!isValid) {
       if (config.logAccess) {
@@ -333,7 +346,7 @@ export async function requireAuth(
   }
 
   // Log successful access
-  if (authenticated && userId && config.logAccess) {
+  if (config.logAccess) {
     await config.logAccess(userId, true, request.url);
   }
 
@@ -342,6 +355,15 @@ export async function requireAuth(
 
 /**
  * Require AI quota (AI-specific rate limiting based on neuron usage)
+ *
+ * SECURITY NOTES:
+ * - `config.userId` is the TRUSTED identity source (set it from your
+ *   authenticated session). The `X-User-ID` header fallback is
+ * client-controlled and lets callers rotate identities to escape quotas —
+ * only rely on it behind an upstream proxy you control that overwrites it.
+ * - Quota accounting is eventually consistent (KV) and per-isolate; treat it
+ *   as a guard rail, not a hard limit.
+ * - Without `kv` configured this middleware allows every request.
  */
 export async function requireAIQuota(
   request: Request,
