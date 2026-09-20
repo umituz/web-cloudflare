@@ -152,6 +152,26 @@ interface UserQuotaEntry {
 const userQuotaStore = new Map<string, UserQuotaEntry>();
 
 /**
+ * In-memory fallback stores live for the isolate's lifetime and grow with
+ * every distinct user ID. Cap them: evict expired entries first, then the
+ * oldest-inserted, so a flood of unique IDs can't exhaust isolate memory.
+ */
+const MAX_QUOTA_STORE_ENTRIES = 10_000;
+
+function pruneQuotaStore<T extends { resetTime: number }>(store: Map<string, T>): void {
+  if (store.size <= MAX_QUOTA_STORE_ENTRIES) return;
+  const now = Date.now();
+  for (const [key, entry] of store) {
+    if (now > entry.resetTime) store.delete(key);
+  }
+  while (store.size > MAX_QUOTA_STORE_ENTRIES) {
+    const oldest = store.keys().next();
+    if (oldest.done) break;
+    store.delete(oldest.value);
+  }
+}
+
+/**
  * Check user quota (general purpose quota tracking)
  */
 export async function checkUserQuota(
@@ -180,6 +200,7 @@ export async function checkUserQuota(
   }
 
   // Fallback to in-memory store
+  pruneQuotaStore(userQuotaStore);
   const now = Date.now();
   const entry = userQuotaStore.get(userId);
 
@@ -260,6 +281,7 @@ export async function checkAIQuota(
   }
 
   // Fallback to in-memory store
+  pruneQuotaStore(aiQuotaStore);
   const now = Date.now();
   const entry = aiQuotaStore.get(userId);
 

@@ -110,8 +110,14 @@ export class AudioGenerationService {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
+        // 4xx (except 408/429) will fail identically on retry — abort early.
+        if (!this.isRetryable(error)) {
+          throw lastError;
+        }
+
         if (attempt < maxRetries - 1) {
-          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+          // Exponential backoff + jitter (avoids synchronized retry storms)
+          const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 500);
           options.progressCallback?.(0, `Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
@@ -119,6 +125,17 @@ export class AudioGenerationService {
     }
 
     throw lastError || new Error('Audio generation failed');
+  }
+
+  /**
+   * Retry only what the provider can plausibly recover from: network errors
+   * (no status), 408 request-timeout, 429 rate-limit, and 5xx. Other 4xx
+   * (bad payload, bad key) are deterministic failures.
+   */
+  private isRetryable(error: unknown): boolean {
+    const status = (error as { status?: number }).status;
+    if (status === undefined) return true;
+    return status === 408 || status === 429 || status >= 500;
   }
 
   /**
@@ -136,19 +153,39 @@ export class AudioGenerationService {
     const model = options.model || provider.models[0];
     const payload = this.buildPayload(request, model, provider);
 
-    // Call provider with timeout
-    const response = await Promise.race([
-      this.callProvider(provider, model, payload),
-      this.createTimeout(timeout)
-    ]);
+    // AbortSignal-based timeout: cancels the in-flight fetch AND the download,
+    // and always clears the timer (the previous Promise.race left it pending).
+    const timeoutController = new AbortController();
+    const timer = setTimeout(() => timeoutController.abort(), timeout);
 
-    // Extract audio URL from response
-    const audioUrl = this.extractAudioUrl(response);
+    try {
+      const response = await this.callProvider(provider, model, payload, timeoutController.signal);
 
-    // Download audio
-    options.progressCallback?.(50, 'Downloading audio...');
-    const audioBuffer = await this.downloadAudio(audioUrl);
+      // Extract audio URL from response
+      const audioUrl = this.extractAudioUrl(response);
 
+      // Download audio (shares the same timeout budget)
+      options.progressCallback?.(50, 'Downloading audio...');
+      const audioBuffer = await this.downloadAudio(audioUrl, timeoutController.signal);
+
+      return await this.finalizeResult(audioBuffer, audioUrl, request, options, startTime);
+    } catch (error) {
+      if (timeoutController.signal.aborted) {
+        throw new Error(`Audio generation timeout after ${timeout}ms`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async finalizeResult(
+    audioBuffer: ArrayBuffer,
+    audioUrl: string,
+    request: AudioGenerationRequest,
+    options: AudioGenerationOptions,
+    startTime: number
+  ): Promise<AudioGenerationResult> {
     // Upload to R2 if requested
     if (options.uploadToR2 && this.r2) {
       options.progressCallback?.(70, 'Uploading to R2...');
@@ -206,7 +243,8 @@ export class AudioGenerationService {
   private async callProvider(
     provider: AudioProvider,
     model: string,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<unknown> {
     const url = `${provider.baseURL}/${model}`;
 
@@ -217,11 +255,17 @@ export class AudioGenerationService {
         'Authorization': `Key ${provider.apiKey}`,
       },
       body: JSON.stringify(payload),
+      signal,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Provider error: ${response.status} ${errorText}`);
+      // Attach status so the retry loop can classify (4xx = don't retry).
+      const error = new Error(
+        `Provider error: ${response.status} ${errorText}`
+      ) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
     }
 
     return await response.json();
@@ -264,8 +308,8 @@ export class AudioGenerationService {
   /**
    * Download audio from URL
    */
-  private async downloadAudio(url: string): Promise<ArrayBuffer> {
-    const response = await fetch(url);
+  private async downloadAudio(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+    const response = await fetch(url, { signal });
 
     if (!response.ok) {
       throw new Error(`Failed to download audio: ${response.status}`);
@@ -309,15 +353,6 @@ export class AudioGenerationService {
   }
 
   /**
-   * Create timeout promise
-   */
-  private createTimeout(ms: number): Promise<never> {
-    return new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`Audio generation timeout after ${ms}ms`)), ms);
-    });
-  }
-
-  /**
    * Generate unique ID
    */
   private generateId(): string {
@@ -333,17 +368,22 @@ export class AudioGenerationService {
   }
 
   /**
-   * Get available providers
+   * Get available providers (credentials stripped — safe to log or send to clients)
    */
-  getAvailableProviders(): AudioProvider[] {
-    return Array.from(this.providers.values());
+  getAvailableProviders(): PublicAudioProvider[] {
+    return Array.from(this.providers.values()).map(
+      ({ apiKey: _apiKey, ...safe }) => safe
+    );
   }
 
   /**
-   * Get provider by ID
+   * Get provider by ID (credentials stripped — safe to log or send to clients)
    */
-  getProvider(providerId: string): AudioProvider | undefined {
-    return this.providers.get(providerId);
+  getProvider(providerId: string): PublicAudioProvider | undefined {
+    const provider = this.providers.get(providerId);
+    if (!provider) return undefined;
+    const { apiKey: _apiKey, ...safe } = provider;
+    return safe;
   }
 }
 

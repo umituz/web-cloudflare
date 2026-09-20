@@ -130,6 +130,12 @@ export class R2Service implements IR2Service {
 
   /**
    * Get public URL for an object
+   *
+   * Requires a custom domain (constructor option or per-call override).
+   * Cloudflare's managed `r2.dev` subdomain is account-specific
+   * (`https://pub-<account-hash>.r2.dev/`) and cannot be derived from a
+   * binding name, so there is no sensible default — we throw rather than
+   * guess a domain you don't own.
    */
   getPublicURL(
     key: string,
@@ -141,9 +147,11 @@ export class R2Service implements IR2Service {
       return `https://${domain}/${key}`;
     }
 
-    // Default R2 public URL pattern
-    const binding = options?.binding || 'default';
-    return `https://r2.fl.dev/${binding}/${key}`;
+    throw new Error(
+      'getPublicURL: no custom domain configured. Pass { customDomain: "cdn.example.com" } ' +
+      '(per call or via R2Service config) or enable the bucket\'s managed r2.dev domain ' +
+      'and build that URL yourself — it is account-specific.'
+    );
   }
 
   /**

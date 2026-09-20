@@ -314,10 +314,15 @@ export class AudioStreamingService {
     const reader = stream.getReader();
     const collected: Uint8Array[] = [];
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      collected.push(value);
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) collected.push(value);
+      }
+    } catch (error) {
+      try { await reader.cancel(); } catch { /* already closed */ }
+      throw error;
     }
 
     const totalLength = collected.reduce((sum, chunk) => sum + chunk.byteLength, 0);

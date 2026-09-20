@@ -135,11 +135,30 @@ export class AIGatewayService implements IAIGatewayService {
     }
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-      });
+      // Honor options.timeout: abort the in-flight fetch instead of letting
+      // it hang (previously the field was accepted but never used).
+      const timeoutController = options?.timeout
+        ? new AbortController()
+        : undefined;
+      const timer = options?.timeout
+        ? setTimeout(() => timeoutController!.abort(), options.timeout)
+        : undefined;
+
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+          signal: timeoutController?.signal,
+        });
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+
+      if (timeoutController?.signal.aborted) {
+        throw new Error(`Provider ${provider} timed out after ${options?.timeout}ms`);
+      }
 
       if (!response.ok) {
         throw new Error(`Provider error: ${response.status} ${response.statusText}`);

@@ -90,6 +90,7 @@ export class LLMStreamingService implements ILLMStreamingService {
 
     return new ReadableStream<LLMStreamChunk>({
       async start(controller) {
+        let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
         try {
           const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -110,7 +111,8 @@ export class LLMStreamingService implements ILLMStreamingService {
           }
 
           // Read SSE stream
-          const reader = response.body?.getReader();
+          const reader = response.body?.getReader() ?? null;
+          activeReader = reader;
           if (!reader) {
             throw new Error('No response body');
           }
@@ -159,6 +161,8 @@ export class LLMStreamingService implements ILLMStreamingService {
           controller.close();
 
         } catch (error) {
+          // Release the upstream connection when the stream is abandoned
+          try { await activeReader?.cancel(); } catch { /* already closed */ }
           controller.error(error);
         }
       },
@@ -181,6 +185,7 @@ export class LLMStreamingService implements ILLMStreamingService {
 
     return new ReadableStream<LLMStreamChunk>({
       async start(controller) {
+        let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
         try {
           const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -203,7 +208,8 @@ export class LLMStreamingService implements ILLMStreamingService {
           }
 
           // Read SSE stream
-          const reader = response.body?.getReader();
+          const reader = response.body?.getReader() ?? null;
+          activeReader = reader;
           if (!reader) {
             throw new Error('No response body');
           }
@@ -254,6 +260,8 @@ export class LLMStreamingService implements ILLMStreamingService {
           controller.close();
 
         } catch (error) {
+          // Release the upstream connection when the stream is abandoned
+          try { await activeReader?.cancel(); } catch { /* already closed */ }
           controller.error(error);
         }
       },
@@ -279,7 +287,9 @@ export class LLMStreamingService implements ILLMStreamingService {
         }
       }
     } finally {
-      reader.releaseLock();
+      // cancel() releases the lock AND propagates cancellation upstream when
+      // the consumer abandons the generator early (releaseLock alone hangs the source)
+      try { await reader.cancel(); } catch { /* already closed */ }
     }
   }
 
@@ -308,7 +318,7 @@ export class LLMStreamingService implements ILLMStreamingService {
         }
       }
     } finally {
-      reader.releaseLock();
+      try { await reader.cancel(); } catch { /* already closed */ }
     }
 
     return fullContent;
