@@ -46,7 +46,7 @@ export class URLValue extends ValueObject<URLProps> {
 
     try {
       new URL(normalized);
-    } catch (error) {
+    } catch {
       throw new Error('Invalid URL format');
     }
 

@@ -2,7 +2,6 @@ import type {
   R2Object,
   R2ListOptions,
   R2ListResult,
-  R2PutOptions,
   R2PresignedURL,
 } from '../entities';
 import type { IR2Service, R2ObjectMetadata, R2GetOptions } from '../types/service.interface';
@@ -537,7 +536,7 @@ export class R2Service implements IR2Service {
   /**
    * Upload helpers
    */
-  async uploadFile(file: File, key?: string, options?: R2UploadOptions, binding?: string): Promise<void> {
+  async uploadFile(file: File, key?: string, options?: R2UploadOptions, _binding?: string): Promise<void> {
     const objectKey = key || `uploads/${Date.now()}-${file.name}`;
 
     await this.put(objectKey, file.stream(), {

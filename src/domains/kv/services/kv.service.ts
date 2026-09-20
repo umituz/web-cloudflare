@@ -3,7 +3,7 @@
  * @description Cloudflare KV key-value storage operations with AI response caching and hierarchical L1/L2 caching
  */
 
-import type { KVEntry, KVListOptions, KVListResult } from "../entities";
+import type { KVListOptions, KVListResult } from "../entities";
 import type { IKVService } from "../types/service.interface";
 import type { AIResponse } from "../../ai/entities";
 import type { IKVValidator } from "../interfaces/kv-validator.interface";
@@ -422,7 +422,7 @@ export class KVService implements IKVService {
   /**
    * Get cache statistics
    */
-  async getCacheStats(binding?: string): Promise<{
+  async getCacheStats(_binding?: string): Promise<{
     l1Size: number;
     l1Hits: number;
     l1HitRate: number;

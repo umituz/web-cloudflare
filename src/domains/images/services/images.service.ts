@@ -6,7 +6,7 @@
 import type { ImageUploadResult, ImageUploadOptions, ImageTransformation, SignedURL } from "../entities";
 import type { IImageService } from "../types/service.interface";
 import { validationUtils, transformUtils } from "../../../infrastructure/utils";
-import { MAX_IMAGE_SIZE, ALLOWED_IMAGE_TYPES } from "../../../infrastructure/constants";
+import { MAX_IMAGE_SIZE } from "../../../infrastructure/constants";
 
 export interface ImagesClientOptions {
   readonly accountId: string;

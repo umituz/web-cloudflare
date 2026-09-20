@@ -3,7 +3,7 @@
  * @description Express-like router for Cloudflare Workers
  */
 
-import { json, notFound, badRequest } from '../utils/helpers';
+import { json, notFound } from '../utils/helpers';
 import type { WorkersAIBinding } from '../../config/types';
 
 // ============================================================

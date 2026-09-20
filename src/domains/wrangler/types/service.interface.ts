@@ -12,7 +12,6 @@ import type {
   D1DatabaseInfo,
   SecretInfo,
   WorkerVersionInfo,
-  WranglerAnalyticsData,
   PagesProjectInfo,
   PagesDeploymentInfo,
   PagesDeployOptions,

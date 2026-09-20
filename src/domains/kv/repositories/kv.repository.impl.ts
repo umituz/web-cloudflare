@@ -4,7 +4,7 @@
  */
 
 import type { IKVRepository } from './kv.repository.interface';
-import type { KVEntity, KVNamespaceConfig } from '../entities';
+import type { KVEntity } from '../entities';
 
 export class KVRepository implements IKVRepository {
   private namespaces: Map<string, KVNamespace> = new Map();

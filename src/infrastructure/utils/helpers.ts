@@ -65,7 +65,6 @@ export function getClientCountry(request: Request): string | null {
  * return the current time. The argument is kept for backward-compat callers
  * that pass through their request.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function getRequestTimestamp(_request: Request): number {
   return Date.now();
 }
