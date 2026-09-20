@@ -67,7 +67,7 @@ export interface IMultiTenantService {
   /**
    * Bind Queue for tenant
    */
-  bindQueue(tenantId: string, bindingName: string, binding: Queue<any>): void;
+  bindQueue(tenantId: string, bindingName: string, binding: Queue<unknown>): void;
 
   /**
    * Get tenant context with all bindings

@@ -26,11 +26,11 @@ describe('APIClient.request', () => {
     );
 
     const client = new APIClient({ baseURL: 'https://api.example.com' });
-    const response = await client.request<{ ok: boolean; value: number }>('/v1/thing', {
-      method: 'POST',
-      headers: { 'X-Custom': 'yes' },
-      body: JSON.stringify({ a: 1 }),
-    });
+    const response = await client.post<{ ok: boolean; value: number }>(
+      '/v1/thing',
+      { a: 1 },
+      { headers: { 'X-Custom': 'yes' } }
+    );
 
     expect(response.data.value).toBe(42);
     expect(response.status).toBe(200);
@@ -39,6 +39,7 @@ describe('APIClient.request', () => {
     expect(url).toBe('https://api.example.com/v1/thing');
     expect(new Headers(init.headers).get('X-Custom')).toBe('yes');
     expect(init.method).toBe('POST');
+    expect(init.body).toBe(JSON.stringify({ a: 1 }));
   });
 
   it('rejects with an APIError carrying status and server message on non-2xx JSON bodies', async () => {
@@ -51,7 +52,7 @@ describe('APIClient.request', () => {
     );
 
     const client = new APIClient();
-    const error: APIError = await client.request('/missing').catch((e: APIError) => e);
+    const error = (await client.get('/missing').catch((e) => e)) as APIError;
     expect(error.status).toBe(404);
     expect(error.message).toBe('not found here');
   });
@@ -60,7 +61,7 @@ describe('APIClient.request', () => {
     mockFetchWith(new Response('<html>gateway error</html>', { status: 502, statusText: 'Bad Gateway' }));
 
     const client = new APIClient();
-    const error: APIError = await client.request('/boom').catch((e: APIError) => e);
+    const error = (await client.get('/boom').catch((e) => e)) as APIError;
     expect(error.status).toBe(502);
     expect(typeof error.message).toBe('string');
   });
@@ -69,7 +70,7 @@ describe('APIClient.request', () => {
     mockFetchWith(new Response('', { status: 200 }));
 
     const client = new APIClient();
-    const response = await client.request('/empty');
+    const response = await client.get('/empty');
     expect(response.status).toBe(200);
     expect(response.data).toBeUndefined();
   });
@@ -78,7 +79,7 @@ describe('APIClient.request', () => {
     mockFetchWith(new Response('definitely-not-json{', { status: 200 }));
 
     const client = new APIClient();
-    const error: APIError = await client.request('/weird').catch((e: APIError) => e);
+    const error = (await client.get('/weird').catch((e) => e)) as APIError;
     expect(error.message).toMatch(/not valid JSON/);
     expect(error.status).toBe(200);
   });
@@ -94,17 +95,17 @@ describe('APIClient.request', () => {
     ) as unknown as typeof fetch;
 
     const client = new APIClient({ timeout: 30 });
-    await expect(client.request('/slow')).rejects.toThrow();
+    await expect(client.get('/slow')).rejects.toThrow();
   });
 
-  it('keeps a caller-provided signal and default headers separate from merged headers', async () => {
+  it('sends default headers (e.g. auth token) on every request', async () => {
     const fetchMock = mockFetchWith(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
     const client = new APIClient({
       baseURL: 'https://api.example.com',
       headers: { Authorization: 'Bearer token-1' },
     });
-    await client.request('/v1/x');
+    await client.get('/v1/x');
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer token-1');

@@ -77,7 +77,7 @@ function makeMockDatabase() {
   const executed: Array<{ sql: string; params?: readonly unknown[] }> = [];
   const database = {
     prepare(sql: string) {
-      const record = { sql };
+      const record: { sql: string; params?: readonly unknown[] } = { sql };
       const stmt = {
         bind(...params: unknown[]) {
           record.params = params;

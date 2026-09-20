@@ -75,6 +75,27 @@ export interface VoiceProfileCreateOptions {
 // Audio Project Management Service
 // ============================================================
 
+/** D1 audio_projects row (snake_case columns). */
+interface DbAudioProjectRow {
+  id: string;
+  name: string;
+  description: string | null;
+  user_id: string;
+  settings: string;
+  created_at: number;
+  updated_at: number;
+}
+
+/** D1 voice_profiles row (snake_case columns). */
+interface DbVoiceRow {
+  id: string;
+  name: string;
+  description: string | null;
+  type: string;
+  settings: string;
+  created_at: number;
+}
+
 export class AudioProjectService {
   private kv?: IKVService;
   private d1?: ID1Service;
@@ -477,13 +498,13 @@ export class AudioProjectService {
 
     if (!result.rows || result.rows.length === 0) return null;
 
-    const row = result.rows[0] as any;
+    const row = result.rows[0] as DbAudioProjectRow;
     const project: AudioProject = {
       id: row.id,
       name: row.name,
-      description: row.description,
+      description: row.description ?? undefined,
       userId: row.user_id,
-      settings: JSON.parse(row.settings),
+      settings: JSON.parse(row.settings) as AudioProject['settings'],
       voices: await this.loadVoicesFromD1(projectId),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -501,13 +522,13 @@ export class AudioProjectService {
 
     if (!result.rows || result.rows.length === 0) return [];
 
-    return result.rows.map((row: any) => ({
+    return result.rows.map((row: DbVoiceRow) => ({
       id: row.id,
       name: row.name,
-      description: row.description,
+      description: row.description ?? undefined,
       type: row.type,
       createdAt: row.created_at,
-      settings: JSON.parse(row.settings),
+      settings: JSON.parse(row.settings) as VoiceProfileSettings,
     }));
   }
 
@@ -527,7 +548,7 @@ export class AudioProjectService {
     if (!result.rows || result.rows.length === 0) return [];
 
     const projects: AudioProject[] = [];
-    for (const row of result.rows as any[]) {
+    for (const row of result.rows as Array<{ id: string }>) {
       const project = await this.loadProjectFromD1(row.id);
       if (project) projects.push(project);
     }

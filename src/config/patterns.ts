@@ -389,10 +389,10 @@ export const minimalConfig: Partial<WorkerConfig> = {
 /**
  * Deep merge configs
  */
-export function mergeConfigs<T extends Record<string, any>>(
+export function mergeConfigs<T extends Record<string, unknown>>(
   base: T,
-  ...overrides: Array<Partial<Record<string, any>>>
-): Record<string, any> {
+  ...overrides: Array<Partial<Record<string, unknown>>>
+): Record<string, unknown> {
   return overrides.reduce((acc, override) => {
     return deepMerge(acc, override);
   }, base);

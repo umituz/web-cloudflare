@@ -243,7 +243,7 @@ export class MultiTenantService implements IMultiTenantService {
     }
   }
 
-  bindQueue(tenantId: string, bindingName: string, binding: Queue<any>): void {
+  bindQueue(tenantId: string, bindingName: string, binding: Queue<unknown>): void {
     const context = this.contexts.get(tenantId);
 
     if (!context) {
