@@ -1187,9 +1187,67 @@ await wrangler.versionsRollback(versions[0].id);
 | D1 transaction | Variable | ACID compliant |
 | Memory usage | Stable | No leaks |
 
+## 🚨 Error Handling Convention
+
+All infrastructure-level errors derive from a single base class, exported from
+`@umituz/web-cloudflare/errors` (or the root entry):
+
+```typescript
+import { CloudflareError, isCloudflareError } from '@umituz/web-cloudflare';
+
+try {
+  await someService.doWork();
+} catch (error) {
+  if (isCloudflareError(error)) {
+    // error.code      — machine-readable (e.g. 'AUTH_FAILED', 'RATE_LIMITED', 'TIMEOUT')
+    // error.status    — HTTP status the error maps to (401, 429, ...)
+    // error.retryable — safe to retry? (network/408/429/5xx → true, deterministic 4xx → false)
+    // error.toJSON()  — serializable shape for API responses and logging
+  }
+}
+```
+
+Rules the codebase enforces:
+
+- **No swallowed errors** — catches either rethrow, or surface telemetry via `console.warn` with an explicit comment on why the flow continues.
+- **Fail-closed auth** — authentication and validation errors reject; they never degrade to "allow".
+- **Honest retries** — only network errors, 408, 429, and 5xx are retried, with exponential backoff + jitter. Deterministic 4xx failures fail fast.
+
+## 🧪 Development & Verification
+
+```bash
+npm run lint             # ESLint at error level (no-unused-vars / no-explicit-any are hard errors)
+npm run typecheck        # tsc --noEmit over src/ + tests/
+npm run typecheck:react  # tsc over the React (Pages) layer
+npm test                 # Vitest suite (53 tests across 7 files)
+```
+
+CI (`.github/workflows/ci.yml`) runs all four gates on every push and PR to
+`main`. All must pass before a release is published.
+
+## 🧱 Platform Boundaries
+
+This package is **shared infrastructure for many independent SaaS applications**.
+It deliberately contains:
+
+- Cloudflare service wrappers (KV, R2, D1, Workflows, Workers AI, AI Gateway, Vectorize)
+- Cross-cutting middleware (auth, CORS, rate limiting, routing)
+- React hooks/components for Cloudflare Pages
+- Configuration patterns and the `CloudflareError` convention
+
+It must **never** contain application-specific business logic, product naming,
+per-tenant rules, or cross-domain coupling. If a feature only serves one app, it
+belongs in that app, not here.
+
 ## 📝 Version Strategy
 
-**Important**: This package follows a **patch-only versioning strategy**. Only the patch version will increment (e.g., 1.5.0 → 1.5.1 → 1.5.2). Major version bumps (2.0.0) will never occur. This ensures stability and prevents breaking changes from version updates.
+**Important**: This package follows a **patch-only versioning strategy**. Every
+release increments the patch segment by exactly one (1.7.8 → 1.7.9 → 1.7.10),
+continuing from whatever the current version is. Major/minor bumps will never
+occur; public APIs only gain members, never lose them, so upgrades are always
+non-breaking.
+
+Releasing: run the gates above, commit, `npm version patch`, push, `npm publish`.
 
 ## 📄 License
 
@@ -1197,7 +1255,8 @@ MIT
 
 ## 🤝 Contributing
 
-Contributions are welcome!
+Contributions are welcome! Please ensure `lint`, `typecheck`, `typecheck:react`,
+and `test` all pass locally before opening a PR — CI enforces the same gates.
 
 ## 🔗 Links
 

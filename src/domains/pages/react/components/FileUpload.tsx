@@ -33,7 +33,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   children,
   ...uploadOptions
 }) => {
-  const { uploadState, selectFile, uploadFile, clearFile } = useFileUpload(uploadOptions);
+  const { uploadState, selectFile, uploadFile } = useFileUpload(uploadOptions);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
 

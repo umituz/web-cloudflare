@@ -9,7 +9,6 @@ import type {
 } from '../types';
 import type {
   User,
-  TokenPayload,
   DeviceAuthInput,
   SignUpInput,
   LoginInput,

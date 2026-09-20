@@ -344,7 +344,7 @@ export class WorkflowService {
   /**
    * List executions for a workflow
    */
-  async listExecutions(workflowId: string): Promise<WorkflowExecution[]> {
+  async listExecutions(_workflowId: string): Promise<WorkflowExecution[]> {
     // This would typically use D1 for proper querying
     // For now, return empty array
     return [];
@@ -403,9 +403,9 @@ export class WorkflowService {
    */
   private getHandler(name: string): ((inputs: Record<string, unknown>) => Promise<unknown>) | null {
     const handlers: Record<string, (inputs: Record<string, unknown>) => Promise<unknown>> = {
-      'media-process': async (inputs) => ({ processed: true, urls: [] }),
-      'ai-generate': async (inputs) => ({ result: 'generated text', tokens: 100 }),
-      'batch-operation': async (inputs) => ({ successful: 10, failed: 0 }),
+      'media-process': async (_inputs) => ({ processed: true, urls: [] }),
+      'ai-generate': async (_inputs) => ({ result: 'generated text', tokens: 100 }),
+      'batch-operation': async (_inputs) => ({ successful: 10, failed: 0 }),
     };
     return handlers[name] || null;
   }

@@ -10,7 +10,7 @@
  * `workersService.route(...)` and `workersService.use(...)`.
  */
 
-import type { WorkerRequest, WorkerResponse, CloudflareWorkerConfig } from "../entities";
+import type { WorkerRequest, WorkerResponse } from "../entities";
 import type { Env } from "../types";
 
 export interface WorkerFetchOptions {
@@ -87,7 +87,7 @@ class WorkersService {
    * Fetch handler
    * Optimized with route caching and early termination
    */
-  async fetch(request: WorkerRequest, env?: Env, ctx?: ExecutionContext): Promise<WorkerResponse> {
+  async fetch(request: WorkerRequest, env?: Env, _ctx?: ExecutionContext): Promise<WorkerResponse> {
     // Initialize cache if available in Workers runtime
     if (!this.cache && env && typeof caches !== 'undefined') {
       // Handle caches.default which may not be in the type definition

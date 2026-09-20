@@ -6,7 +6,6 @@
 
 import { AIGatewayService, R2Service } from '../src/domains/ai';
 import { ConfigBuilder } from '../src/config';
-import type { WorkersAIBinding } from '../src/config/types';
 
 // ============================================================
 // Environment Types

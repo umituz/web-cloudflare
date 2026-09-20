@@ -255,7 +255,7 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
  */
 export function useAIChat(options: UseAIOptions = {}) {
   const [messages, setMessages] = useState<AIMessage[]>([]);
-  const { aiState, generateText, streamText, resetState, clearError } = useAI(options);
+  const { aiState, generateText, streamText, resetState } = useAI(options);
 
   /**
    * Send message

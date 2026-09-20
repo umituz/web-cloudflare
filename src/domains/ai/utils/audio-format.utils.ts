@@ -407,7 +407,6 @@ export class AudioFormatUtils {
 
   private static extractMP3Metadata(buffer: ArrayBuffer): Partial<AudioMetadata> {
     const metadata: Partial<AudioMetadata> = {};
-    const view = new DataView(buffer);
 
     // Try to find ID3 tag
     if (this.isMP3(new Uint8Array(buffer, 0, 3))) {

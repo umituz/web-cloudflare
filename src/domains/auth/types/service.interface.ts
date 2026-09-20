@@ -3,15 +3,12 @@
  * @description Interface for device-based authentication service
  */
 
-import type { D1Service } from '../../d1/services/d1.service';
-import type { KVService } from '../../kv/services/kv.service';
 import type {
   User,
   DeviceAuthInput,
   SignUpInput,
   LoginInput,
   AuthResponse,
-  CreateUserInput,
   UpdateUserInput,
   UserSession,
   CreditTransaction,

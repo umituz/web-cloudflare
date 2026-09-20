@@ -6,8 +6,6 @@
  * (see the usage block at the bottom). All handlers are typed end-to-end.
  */
 
-import { D1Service } from '../../d1/services/d1.service';
-import { KVService } from '../../kv/services/kv.service';
 import { DeviceAuthService } from '../services/device-auth.service';
 import { json } from '../../../infrastructure/utils/helpers';
 import {
