@@ -170,76 +170,85 @@ export class WorkflowService {
           }
         }
 
-        try {
-          // Get step state from cache first (faster than KV)
-          const cacheKey = `${execution.id}:${step.id}`;
-          let state = this.stepStateCache.get(cacheKey);
+        // Get step state from cache first (faster than KV)
+        const cacheKey = `${execution.id}:${step.id}`;
+        let state = this.stepStateCache.get(cacheKey);
 
-          if (!state && this.kv) {
-            state = await this.getStepState(execution.id, step.id);
-            if (state) {
-              this.stepStateCache.set(cacheKey, state);
-            }
+        if (!state && this.kv) {
+          state = await this.getStepState(execution.id, step.id);
+          if (state) {
+            this.stepStateCache.set(cacheKey, state);
           }
+        }
 
-          const stepInputs = state?.data || { ...results, ...step.inputs };
+        const stepInputs = state?.data || { ...results, ...step.inputs };
 
-          // Execute step
-          const stepResult = await this.executeStep(step, stepInputs);
+        // Retry the SAME step until attempts are exhausted. The previous
+        // implementation `continue`d the outer steps-loop on retry, which
+        // SKIPPED the failed step and moved on to the next one.
+        const retryPolicy = step.retryPolicy || workflow.retryConfig;
+        const maxAttempts = retryPolicy
+          ? ((step.retryPolicy?.maxAttempts ?? workflow.retryConfig?.maxRetries ?? this.defaultRetries) + 1)
+          : 1;
 
-          // Store result
-          results[step.id] = stepResult;
-          stepStatus[step.id] = 'completed';
-          execution.completedSteps.push(step.id);
+        let stepResult: unknown;
+        let stepError: unknown = null;
 
-          // Queue step state for batch save (faster than individual saves)
-          stepStatesToSave.push({
-            executionId: execution.id,
-            stepId: step.id,
-            data: { result: stepResult } as Record<string, unknown>
-          });
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            stepResult = await this.executeStep(step, stepInputs);
+            stepError = null;
+            break;
+          } catch (error) {
+            stepError = error;
+            if (attempt >= maxAttempts) break;
 
-          // Update cache
-          this.stepStateCache.set(cacheKey, {
-            data: { result: stepResult },
-            status: 'completed',
-            completedAt: Date.now()
-          });
-
-        } catch (error) {
-          stepStatus[step.id] = 'failed';
-          execution.failedSteps.push(step.id);
-          execution.error = error instanceof Error ? error.message : String(error);
-
-          // Check retry policy
-          const retryPolicy = step.retryPolicy || workflow.retryConfig;
-          if (retryPolicy && execution.retryCount < this.defaultRetries) {
             execution.retryCount++;
             execution.status = 'retrying';
             await this.saveExecution(execution);
 
             // Exponential backoff with defaults
-            const initialDelay = retryPolicy.initialDelay ?? 1000;
-            const backoffMultiplier = retryPolicy.backoffMultiplier ?? 2;
-            const maxDelay = retryPolicy.maxDelay ?? 30000;
+            const initialDelay = retryPolicy?.initialDelay ?? 1000;
+            const backoffMultiplier = retryPolicy?.backoffMultiplier ?? 2;
+            const maxDelay = retryPolicy?.maxDelay ?? 30000;
             const delay = Math.min(
               initialDelay * Math.pow(backoffMultiplier, execution.retryCount),
               maxDelay
             );
 
-            // Use optimized sleep
             await new Promise(resolve => setTimeout(resolve, delay));
-
-            // Retry this step
-            continue;
           }
+        }
 
+        if (stepError !== null) {
           // Max retries exceeded, mark as failed
+          stepStatus[step.id] = 'failed';
+          execution.failedSteps.push(step.id);
+          execution.error = stepError instanceof Error ? stepError.message : String(stepError);
           execution.status = 'failed';
           execution.completedAt = Date.now();
           await this.saveExecution(execution);
-          throw error;
+          throw stepError;
         }
+
+        // Store result
+        results[step.id] = stepResult;
+        stepStatus[step.id] = 'completed';
+        execution.completedSteps.push(step.id);
+
+        // Queue step state for batch save (faster than individual saves)
+        stepStatesToSave.push({
+          executionId: execution.id,
+          stepId: step.id,
+          data: { result: stepResult } as Record<string, unknown>
+        });
+
+        // Update cache
+        this.stepStateCache.set(cacheKey, {
+          data: { result: stepResult },
+          status: 'completed',
+          completedAt: Date.now()
+        });
       }
 
       // Batch save all step states at once (much faster than individual saves)

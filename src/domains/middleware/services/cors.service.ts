@@ -110,7 +110,12 @@ export async function cors(
     headers.set('Access-Control-Allow-Headers', config.allowedHeaders.join(', '));
 
     if (config.allowCredentials || config.credentials) {
-      if (allowedOrigin !== '*') {
+      // `*` + credentials is always rejected by browsers — treat it as a
+      // misconfiguration and refuse to send the wildcard (consistent with
+      // addCorsHeaders).
+      if (allowedOrigin === '*') {
+        headers.delete('Access-Control-Allow-Origin');
+      } else {
         headers.set('Access-Control-Allow-Credentials', 'true');
       }
     }
