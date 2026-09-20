@@ -191,7 +191,7 @@ export class AudioProjectService {
 
     // Fallback to KV list (if supported) or cache
     const projects: AudioProject[] = [];
-    for (const [id, project] of this.cache) {
+    for (const [_id, project] of this.cache) {
       if (project.userId === userId) {
         projects.push(project);
       }
@@ -522,11 +522,11 @@ export class AudioProjectService {
 
     if (!result.rows || result.rows.length === 0) return [];
 
-    return result.rows.map((row: DbVoiceRow) => ({
+    return (result.rows as DbVoiceRow[]).map((row) => ({
       id: row.id,
       name: row.name,
       description: row.description ?? undefined,
-      type: row.type,
+      type: row.type as VoiceProfile['type'],
       createdAt: row.created_at,
       settings: JSON.parse(row.settings) as VoiceProfileSettings,
     }));

@@ -48,7 +48,7 @@ export interface IWranglerService {
   ): Promise<WranglerResult<KVNamespaceInfo>>;
   kvNamespaceList(
     options?: WranglerCommandOptions
-  ): Promise<WranglerResult<KVNamespaceInfo[]>>;
+  ): Promise<WranglerResult<Array<Pick<KVNamespaceInfo, 'title'>>>>;
   kvKeyPut(
     namespaceId: string,
     key: string,
@@ -94,7 +94,7 @@ export interface IWranglerService {
     databaseName: string,
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<D1DatabaseInfo>>;
-  d1List(options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo[]>>;
+  d1List(options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<D1DatabaseInfo, 'name'>>>>;
   d1Execute(
     databaseName: string,
     command: string,
@@ -122,7 +122,7 @@ export interface IWranglerService {
   // Versions
   versionsList(
     options?: WranglerCommandOptions
-  ): Promise<WranglerResult<WorkerVersionInfo[]>>;
+  ): Promise<WranglerResult<Array<Pick<WorkerVersionInfo, 'id'>>>>;
   versionsRollback(
     versionId: string,
     options?: WranglerCommandOptions

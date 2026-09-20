@@ -11,7 +11,6 @@ import type {
   ProviderCallOptions,
   ProviderCallResult,
 } from '../entities';
-import type { AIGatewayCallEvent } from '../../shared/events';
 import type { WorkersAIBinding } from '../../../config/types';
 import { generateId } from '../../../infrastructure/utils/helpers';
 
@@ -399,7 +398,6 @@ export class AIGatewayService implements IAIGatewayService {
    * Route AI request to appropriate provider
    */
   async route(request: AIRequest): Promise<AIResponse> {
-    const startTime = Date.now();
 
     // Check cache first
     if (this.config.cacheEnabled && request.cacheKey) {
@@ -610,7 +608,7 @@ export class AIGatewayService implements IAIGatewayService {
       } catch (error) {
         // Cost tracking is auxiliary; surface to console but never break
         // the caller's flow because telemetry write failed.
-        // eslint-disable-next-line no-console
+         
         console.warn('[AIGateway] Failed to persist cost history:', error);
       }
     }
@@ -619,7 +617,7 @@ export class AIGatewayService implements IAIGatewayService {
   /**
    * Get cost summary
    */
-  async getCostSummary(period: 'hour' | 'day' | 'week' | 'month' = 'day'): Promise<AICostSummary> {
+  async getCostSummary(_period: 'hour' | 'day' | 'week' | 'month' = 'day'): Promise<AICostSummary> {
     const totalCost = Array.from(this.costTracker.values()).reduce((a, b) => a + b, 0);
     const totalNeurons = this.costHistory.reduce((sum, r) => sum + r.neurons, 0);
 
@@ -668,7 +666,7 @@ export class AIGatewayService implements IAIGatewayService {
     } catch (error) {
       // A cache miss is recoverable; corruption is reported so operators
       // can investigate, but the caller still receives a "not cached" answer.
-      // eslint-disable-next-line no-console
+       
       console.warn('[AIGateway] Cache read failed:', error);
       return null;
     }
@@ -705,7 +703,7 @@ export class AIGatewayService implements IAIGatewayService {
       return null;
 
     } catch (error) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[AIGateway] Semantic cache lookup failed:', error);
       return null;
     }
@@ -725,7 +723,7 @@ export class AIGatewayService implements IAIGatewayService {
         { expirationTtl: this.config.cacheTTL }
       );
     } catch (error) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[AIGateway] Cache write failed:', error);
     }
   }
@@ -822,7 +820,7 @@ export class AIGatewayService implements IAIGatewayService {
   /**
    * Get recent cache keys
    */
-  private async getRecentCacheKeys(limit: number): Promise<string[]> {
+  private async getRecentCacheKeys(_limit: number): Promise<string[]> {
     // This would require KV list support
     // For now, return empty array
     return [];

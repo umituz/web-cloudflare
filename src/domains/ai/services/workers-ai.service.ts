@@ -5,14 +5,12 @@
 
 import type {
   IWorkersAIService,
-  IEmbeddingService,
 } from '../types';
 import type {
   LLMRequest,
   LLMResponse,
   LLMStreamChunk,
   ModelRequirements,
-  ChatMessage,
 } from '../entities';
 import type { WorkersAIBinding } from '../../../config/types';
 import { generateId } from '../../../infrastructure/utils/helpers';
@@ -173,7 +171,6 @@ export class WorkersAIService implements IWorkersAIService {
       throw new Error('Workers AI binding not configured');
     }
 
-    const startTime = Date.now();
     const modelInfo = MODELS[model];
 
     if (!modelInfo) {
@@ -324,7 +321,6 @@ export class WorkersAIService implements IWorkersAIService {
 
     // Sort by speed preference
     if (requirements.speed) {
-      const speedOrder = { 'fast': 0, 'balanced': 1, 'quality': 2 };
       sorted.sort((a, b) => {
         const costA = a[1].costPer1KNeurons;
         const costB = b[1].costPer1KNeurons;

@@ -455,7 +455,7 @@ export class R2Service implements IR2Service {
     const expires = Date.now() + expiresIn * 1000;
     const url = this.getPublicURL(key, { binding: options?.binding });
 
-    // eslint-disable-next-line no-console
+     
     console.warn(
       '[R2Service.getPresignedURL] returning public URL — supply R2 access keys and SigV4 for private bucket access.'
     );

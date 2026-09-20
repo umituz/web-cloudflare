@@ -114,10 +114,12 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  async kvNamespaceList(_options?: WranglerCommandOptions): Promise<WranglerResult<KVNamespaceInfo[]>> {
+  async kvNamespaceList(_options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<KVNamespaceInfo, 'title'>>>> {
     const result = this.executeWrangler(['kv:namespace', 'list']);
     if (result.success) {
-      const namespaces = this.parseTableOutput(result.stdout);
+      // Table output only carries the namespace title — use the JSON command
+      // if you need ids (wrangler kv:namespace list --json is not table-parsed).
+      const namespaces = this.parseTableOutput(result.stdout).map((n) => ({ title: n.name }));
       return { success: true, data: namespaces };
     }
     return { success: false, error: result.stderr };
@@ -216,9 +218,11 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  async d1DatabaseList(_options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo[]>> {
+  async d1DatabaseList(_options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<D1DatabaseInfo, 'name'>>>> {
     const result = this.executeWrangler(['d1:list']);
     if (result.success) {
+      // Table output only carries the database name — use `wrangler d1 list
+      // --json` output paths if you need uuid/created_at.
       const databases = this.parseTableOutput(result.stdout);
       return { success: true, data: databases };
     }
@@ -229,7 +233,7 @@ export class WranglerService implements IWranglerService {
     return this.d1DatabaseCreate(databaseName, _options);
   }
 
-  async d1List(_options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo[]>> {
+  async d1List(_options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<D1DatabaseInfo, 'name'>>>> {
     return this.d1DatabaseList(_options);
   }
 
@@ -287,10 +291,11 @@ export class WranglerService implements IWranglerService {
   }
 
   // Versions
-  async versionsList(_options?: WranglerCommandOptions): Promise<WranglerResult<WorkerVersionInfo[]>> {
+  async versionsList(_options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<WorkerVersionInfo, 'id'>>>> {
     const result = this.executeWrangler(['versions', 'list']);
     if (result.success) {
-      const versions = this.parseTableOutput(result.stdout);
+      // Table output carries only the version id column.
+      const versions = this.parseTableOutput(result.stdout).map((v) => ({ id: v.name }));
       return { success: true, data: versions };
     }
     return { success: false, error: result.stderr };
@@ -374,7 +379,7 @@ export class WranglerService implements IWranglerService {
     const result = this.executeWrangler(['workers', 'list']);
     if (result.success) {
       const workers = this.parseTableOutput(result.stdout);
-      return { success: true, data: workers.map((w: any) => w.name || w) };
+      return { success: true, data: workers.map((w) => w.name) };
     }
     return { success: false, error: result.stderr };
   }
@@ -427,8 +432,8 @@ export class WranglerService implements IWranglerService {
   /**
    * Parse table output from wrangler
    */
-  private parseTableOutput(stdout: string): any[] {
-    const items: any[] = [];
+  private parseTableOutput(stdout: string): Array<{ name: string }> {
+    const items: Array<{ name: string }> = [];
     const lines = stdout.split('\n');
     for (const line of lines) {
       if (line.includes('│')) {
