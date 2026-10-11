@@ -1,8 +1,12 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { parseArgs, renderWranglerConfig, resolveWranglerBin } from '../bin/cf-ship.mjs';
+
+const binFile = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'cf-ship.mjs');
 
 describe('renderWranglerConfig', () => {
   it('renders an assets-only SPA Worker config', () => {
@@ -57,5 +61,17 @@ describe('resolveWranglerBin', () => {
     // the intent is clear even if the assertion ever flakes on an odd machine.
     writeFileSync(join(emptyRoot, 'marker'), 'no wrangler expected above this dir');
     expect(resolveWranglerBin(emptyRoot)).toBeNull();
+  });
+});
+
+describe('CLI entry via symlink (npm node_modules/.bin shim)', () => {
+  it('runs main when invoked through a symlinked path', () => {
+    const shimDir = mkdtempSync(join(tmpdir(), 'cf-ship-shim-'));
+    const shim = join(shimDir, 'cf-ship');
+    symlinkSync(binFile, shim);
+
+    const result = spawnSync(process.execPath, [shim, 'help'], { encoding: 'utf8' });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Usage:');
   });
 });

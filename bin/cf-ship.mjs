@@ -14,9 +14,9 @@
 // No project installs or pins wrangler itself — the shared package owns it.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -187,8 +187,16 @@ export function main(argv = process.argv.slice(2)) {
   }
 }
 
-const invokedDirectly =
-  process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+// Run only when executed as a script (not when imported by tests). Compare
+// real paths: npm/yarn/pnpm expose this file through node_modules/.bin
+// symlinks, so process.argv[1] differs lexically from import.meta.url.
+const invokedDirectly = (() => {
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
 if (invokedDirectly) {
   process.exitCode = main();
 }
