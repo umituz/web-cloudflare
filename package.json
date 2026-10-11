@@ -1,6 +1,6 @@
 {
   "name": "@umituz/web-cloudflare",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Comprehensive Cloudflare Workers & Pages integration with config-based patterns, middleware, router, workflows, AI (with audio/music generation, TTS, ASR), React hooks, multi-tenant support, and the cf-ship deploy CLI",
   "bin": {
     "cf-ship": "./bin/cf-ship.mjs"
