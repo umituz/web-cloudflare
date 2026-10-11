@@ -32,5 +32,17 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-explicit-any": "error",
     },
+  },
+  {
+    // Plain-Node CLI scripts (no TS, no bundler) — same Node globals as above.
+    files: ["bin/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+      },
+    },
   }
 );

@@ -25,6 +25,30 @@ Comprehensive Cloudflare Workers & Pages integration with config-based patterns,
 npm install @umituz/web-cloudflare
 ```
 
+> Since v1.8.0 the package also ships the **wrangler CLI** as a dependency,
+> plus a `cf-ship` deploy helper — see the next section.
+
+## ⚡ Deploy CLI: `cf-ship`
+
+One-command deploys for static SPAs — no per-project wrangler install, no
+hand-written wrangler config:
+
+```bash
+npm install -D @umituz/web-cloudflare   # wrangler arrives with it
+
+npx cf-ship init      # generates wrangler.jsonc: assets-only SPA Worker
+                      # (SPA fallback keeps client-side routing alive on refresh/deep links;
+                      #  existing wrangler.jsonc/json/toml is left untouched)
+npx cf-ship deploy    # npm run build + wrangler deploy (--skip-build to reuse dist/)
+npx cf-ship login     # one-time interactive auth (or set CLOUDFLARE_API_TOKEN)
+npx cf-ship tail      # stream live logs — any other wrangler command passes through
+```
+
+Recommended `package.json` script: `"deploy": "cf-ship deploy"`.
+
+The generated Worker is assets-only (no worker script). When a backend lands,
+add `"main"` + API routes to the same Worker — same origin, no CORS.
+
 ## 🎯 Quick Start
 
 ### AI-Ready Worker (Recommended for AI Applications)
@@ -1076,6 +1100,11 @@ export default {
 - **Environment Isolation**: Dev/Staging/Prod separation
 
 ## 🔧 Wrangler CLI Integration
+
+For common deploy flows prefer the `cf-ship` CLI (see above) — it uses the
+wrangler shipped with this package so projects never install wrangler
+themselves. The programmatic service below wraps the same CLI for everything
+else:
 
 ```typescript
 import { WranglerService } from '@umituz/web-cloudflare/wrangler';
