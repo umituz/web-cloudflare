@@ -23,5 +23,16 @@ export function parseArgs(argv: readonly string[]): {
  */
 export function resolveWranglerBin(fromDir?: string): string | null;
 
+/** Git-derived deploy marker `<project>-<hash>[-dirty]-<UTC yyyymmddhhmm>`;
+ *  returns null outside a git repository. */
+export function buildMarker(cwd?: string): string | null;
+
+/** True when argv already carries a `__BUILD_MARKER__` --define of its own. */
+export function hasMarkerDefine(argv: readonly string[]): boolean;
+
+/** Final `wrangler deploy` args: everything except cf-ship's own
+ *  --skip-build, plus the marker define when the caller did not supply one. */
+export function deployWranglerArgs(argv: readonly string[], marker: string | null): string[];
+
 /** CLI entry point. Returns the process exit code. */
 export function main(argv?: readonly string[]): number;

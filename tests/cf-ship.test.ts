@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { parseArgs, renderWranglerConfig, resolveWranglerBin } from '../bin/cf-ship.mjs';
+import { buildMarker, deployWranglerArgs, parseArgs, renderWranglerConfig, resolveWranglerBin } from '../bin/cf-ship.mjs';
 
 const binFile = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'cf-ship.mjs');
 
@@ -73,5 +73,64 @@ describe('CLI entry via symlink (npm node_modules/.bin shim)', () => {
     const result = spawnSync(process.execPath, [shim, 'help'], { encoding: 'utf8' });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Usage:');
+  });
+});
+
+function makeGitProject(name: string) {
+  const dir = mkdtempSync(join(tmpdir(), 'cf-ship-git-'));
+  const git = (args: string[]) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  git(['init', '--quiet']);
+  git(['config', 'user.email', 'test@example.com']);
+  git(['config', 'user.name', 'test']);
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: `@scope/${name}` }));
+  git(['add', '.']);
+  git(['commit', '--quiet', '--no-gpg-sign', '-m', 'init']);
+  return dir;
+}
+
+describe('buildMarker', () => {
+  it('derives <project>-<hash>-<stamp> from a clean git repo', () => {
+    const marker = buildMarker(makeGitProject('marker-app'));
+    expect(marker).toMatch(/^marker-app-[0-9a-f]{7,}-\d{12}$/);
+  });
+
+  it('marks uncommitted changes with -dirty', () => {
+    const dir = makeGitProject('marker-app');
+    writeFileSync(join(dir, 'uncommitted.txt'), 'work in progress');
+    const marker = buildMarker(dir);
+    expect(marker).toMatch(/^marker-app-[0-9a-f]{7,}-dirty-\d{12}$/);
+  });
+
+  it('returns null outside a git repo', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cf-ship-nogit-'));
+    writeFileSync(join(dir, 'marker'), 'no git expected above this dir');
+    expect(buildMarker(dir)).toBeNull();
+  });
+});
+
+describe('deployWranglerArgs', () => {
+  it('forwards flags verbatim and drops only --skip-build', () => {
+    expect(deployWranglerArgs(['--skip-build', '--dry-run'], null)).toEqual(['deploy', '--dry-run']);
+  });
+
+  it('keeps positionals and order, injecting the marker at the end', () => {
+    expect(deployWranglerArgs(['extra', '--keep-vars'], 'app-abc1234-202610291200')).toEqual([
+      'deploy',
+      'extra',
+      '--keep-vars',
+      '--define',
+      `__BUILD_MARKER__:'"app-abc1234-202610291200"'`,
+    ]);
+  });
+
+  it('never overrides an explicit marker define', () => {
+    expect(deployWranglerArgs(['--define', `__BUILD_MARKER__:'"mine"'`], 'auto-marker')).toEqual([
+      'deploy',
+      '--define',
+      `__BUILD_MARKER__:'"mine"'`,
+    ]);
+    expect(
+      deployWranglerArgs([`--define=__BUILD_MARKER__:'"mine"'`], 'auto-marker'),
+    ).toEqual(['deploy', `--define=__BUILD_MARKER__:'"mine"'`]);
   });
 });

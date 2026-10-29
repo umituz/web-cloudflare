@@ -27,8 +27,12 @@ Usage:
       Generate wrangler.jsonc for an assets-only SPA Worker (skips if one exists).
       --name       Worker name (default: package.json name without scope)
       --assets-dir Build output directory (default: ./dist, or ./build if only it exists)
-  cf-ship deploy [--skip-build] [...wrangler args]
-      Run the project's build script, then \`wrangler deploy\`.
+  cf-ship deploy [--skip-build] [...wrangler deploy flags]
+      Run the project's build script, then \`wrangler deploy\`. Extra flags
+      (e.g. --dry-run) are forwarded to wrangler verbatim. Unless a
+      __BUILD_MARKER__ define is passed, one is injected from git
+      (<project>-<hash>[-dirty]-<UTC stamp>) so deployed code can report
+      what commit it was built from.
   cf-ship login | logout | whoami | dev | tail
       Pass through to the bundled wrangler CLI.
   cf-ship <anything else>
@@ -146,7 +150,48 @@ function cmdInit({ options }, cwd = process.cwd()) {
   return 0;
 }
 
-function cmdDeploy({ flags, positionals }) {
+/** Git-derived deploy marker: <project>-<hash>[-dirty]-<UTC yyyymmddhhmm>. */
+export function buildMarker(cwd = process.cwd()) {
+  const git = (args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const rev = git(['rev-parse', '--short', 'HEAD']);
+  if (rev.status !== 0 || !rev.stdout.trim()) return null;
+  const hash = rev.stdout.trim();
+  const status = git(['status', '--porcelain']);
+  const dirty = status.status === 0 && status.stdout.trim().length > 0 ? '-dirty' : '';
+  const now = new Date();
+  const stamp = [
+    now.getUTCFullYear(),
+    String(now.getUTCMonth() + 1).padStart(2, '0'),
+    String(now.getUTCDate()).padStart(2, '0'),
+    String(now.getUTCHours()).padStart(2, '0'),
+    String(now.getUTCMinutes()).padStart(2, '0'),
+  ].join('');
+  return `${readProjectName(cwd)}-${hash}${dirty}-${stamp}`;
+}
+
+/** True when argv already carries a __BUILD_MARKER__ --define of its own. */
+export function hasMarkerDefine(argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--define') {
+      if ((argv[i + 1] ?? '').split(':', 1)[0] === '__BUILD_MARKER__') return true;
+    } else if (arg.startsWith('--define=')) {
+      if (arg.slice('--define='.length).split(':', 1)[0] === '__BUILD_MARKER__') return true;
+    }
+  }
+  return false;
+}
+
+/** Final `wrangler deploy` args: everything except cf-ship's own --skip-build,
+ *  plus the marker define when the caller did not supply one. */
+export function deployWranglerArgs(argv, marker) {
+  const forward = argv.filter((arg) => arg !== '--skip-build');
+  if (!marker || hasMarkerDefine(forward)) return ['deploy', ...forward];
+  return ['deploy', ...forward, '--define', `__BUILD_MARKER__:'"${marker}"'`];
+}
+
+function cmdDeploy(argv) {
+  const { flags } = parseArgs(argv);
   if (!flags.has('skip-build')) {
     try {
       const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -163,7 +208,9 @@ function cmdDeploy({ flags, positionals }) {
       console.warn('No package.json found — skipping build step.');
     }
   }
-  return runWrangler(['deploy', ...positionals]);
+  const marker = buildMarker();
+  if (marker) console.log(`Build marker: ${marker}`);
+  return runWrangler(deployWranglerArgs(argv, marker));
 }
 
 export function main(argv = process.argv.slice(2)) {
@@ -180,7 +227,7 @@ export function main(argv = process.argv.slice(2)) {
     case 'init':
       return cmdInit(args);
     case 'deploy':
-      return cmdDeploy(args);
+      return cmdDeploy(rest);
     default:
       // Escape hatch: forward everything (kv, r2, d1, secret, versions, ...).
       return runWrangler(argv);
