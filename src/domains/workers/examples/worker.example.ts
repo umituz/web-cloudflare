@@ -1,13 +1,8 @@
-/**
- * Cloudflare Worker Example
- * @description Example worker using @umituz/web-cloudflare package
- */
 
 import { workersService, kvService } from "@umituz/web-cloudflare";
 import type { Env } from "../types/env.types";
 import type { WorkerRequest } from "../entities";
 
-// Configure routes
 workersService.route("/", async () => {
   return workersService.json({ message: "Hello from edge!" });
 });
@@ -37,7 +32,6 @@ workersService.route("/api/cache/:key", async (request, env?: Env) => {
   return workersService.error("Method not allowed", 405);
 });
 
-// Export for Cloudflare Workers
 export default {
   fetch: (request: Request, env?: Env, ctx?: ExecutionContext) =>
     workersService.fetch(request as unknown as WorkerRequest, env, ctx),

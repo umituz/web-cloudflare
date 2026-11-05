@@ -1,7 +1,3 @@
-/**
- * Images Service Interface
- * @description Abstract interface for Images operations
- */
 
 import type { ImageUploadResult, ImageUploadOptions, SignedURL, ImageTransformation } from '../entities';
 

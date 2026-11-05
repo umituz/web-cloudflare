@@ -1,7 +1,3 @@
-/**
- * Auth Service
- * @description Authentication middleware for Cloudflare Workers with AI quota support and session management
- */
 
 import type { MiddlewareAuthConfig } from '../entities';
 import type { AIQuotaConfig } from '../../ai/entities';
@@ -11,9 +7,6 @@ import { secureCompare, randomString } from '../../../infrastructure/utils/helpe
 
 export type { MiddlewareAuthConfig };
 
-// ============================================================
-// Session Types
-// ============================================================
 
 export interface SessionData {
   sessionId: string;
@@ -28,9 +21,6 @@ export interface SessionOptions {
   data?: Record<string, unknown>;
 }
 
-// ============================================================
-// Session Manager
-// ============================================================
 
 export class SessionManager {
   private kv: KVService;
@@ -43,16 +33,13 @@ export class SessionManager {
     this.tableName = tableName;
   }
 
-  /**
-   * Create a new session
-   */
   async createSession(
     userId: string,
     options?: SessionOptions
   ): Promise<string> {
     const sessionId = this.generateSessionId();
     const now = Date.now();
-    const ttl = options?.ttl || 86400; // 24 hours default
+    const ttl = options?.ttl || 86400;
 
     const sessionData: SessionData = {
       sessionId,
@@ -62,10 +49,8 @@ export class SessionManager {
       data: options?.data,
     };
 
-    // Store in KV for fast access
     await this.kv.put(`session:${sessionId}`, sessionData, { ttl });
 
-    // Store in D1 for persistence and querying
     await this.d1.insert(this.tableName, {
       session_id: sessionId,
       user_id: userId,
@@ -77,22 +62,16 @@ export class SessionManager {
     return sessionId;
   }
 
-  /**
-   * Validate session and return session data
-   */
   async validateSession(token: string): Promise<SessionData | null> {
-    // Check KV first (fast path)
     const session = await this.kv.get<SessionData>(`session:${token}`);
 
     if (!session) {
-      // Check D1 if not in KV (might have been evicted)
       const result = await this.d1.findOne<SessionData>(
         `SELECT * FROM ${this.tableName} WHERE session_id = ? AND expires_at > ?`,
         [token, Date.now()]
       );
 
       if (result) {
-        // Restore to KV
         const ttl = Math.floor((result.expiresAt - Date.now()) / 1000);
         if (ttl > 0) {
           await this.kv.put(`session:${token}`, result, { ttl });
@@ -103,7 +82,6 @@ export class SessionManager {
       return null;
     }
 
-    // Check expiration
     if (Date.now() > session.expiresAt) {
       await this.destroySession(token);
       return null;
@@ -112,9 +90,6 @@ export class SessionManager {
     return session;
   }
 
-  /**
-   * Refresh session (extend expiration)
-   */
   async refreshSession(token: string, ttl?: number): Promise<string> {
     const session = await this.validateSession(token);
 
@@ -127,10 +102,8 @@ export class SessionManager {
 
     session.expiresAt = now + newTTL * 1000;
 
-    // Update KV
     await this.kv.put(`session:${token}`, session, { ttl: newTTL });
 
-    // Update D1
     await this.d1.query(
       `UPDATE ${this.tableName} SET expires_at = ? WHERE session_id = ?`,
       [session.expiresAt, token]
@@ -139,9 +112,6 @@ export class SessionManager {
     return token;
   }
 
-  /**
-   * Destroy a specific session
-   */
   async destroySession(token: string): Promise<void> {
     await this.kv.delete(`session:${token}`);
     await this.d1.query(
@@ -150,25 +120,17 @@ export class SessionManager {
     );
   }
 
-  /**
-   * Destroy all sessions for a user
-   */
   async destroyUserSessions(userId: string): Promise<void> {
-    // Get all sessions for user from D1
     const result = await this.d1.query<{ session_id: string }>(
       `SELECT session_id FROM ${this.tableName} WHERE user_id = ?`,
       [userId]
     );
 
-    // Delete each session
     for (const row of result.rows) {
       await this.destroySession(row.session_id);
     }
   }
 
-  /**
-   * Clean up expired sessions
-   */
   async cleanupExpiredSessions(): Promise<number> {
     const result = await this.d1.query<{ session_id: string }>(
       `SELECT session_id FROM ${this.tableName} WHERE expires_at < ?`,
@@ -179,7 +141,6 @@ export class SessionManager {
       await this.kv.delete(`session:${row.session_id}`);
     }
 
-    // Delete from D1
     await this.d1.query(
       `DELETE FROM ${this.tableName} WHERE expires_at < ?`,
       [Date.now()]
@@ -188,26 +149,12 @@ export class SessionManager {
     return result.rows.length || 0;
   }
 
-  /**
-   * Generate session ID (crypto-secure; session IDs are bearer credentials)
-   */
   private generateSessionId(): string {
     return `${Date.now().toString(36)}-${randomString(24).toLowerCase()}`;
   }
 }
 
-// ============================================================
-// Enhanced Auth Middleware
-// ============================================================
 
-/**
- * Enhanced require authentication with user validation and logging.
- *
- * SECURITY: A request that cannot be positively authenticated is ALWAYS
- * rejected with 401. Previously a `bearer` config without `token` or
- * `validateToken` fell through the switch and allowed the request, and the
- * `custom` type was never handled at all.
- */
 export async function requireAuth(
   request: Request,
   config: MiddlewareAuthConfig & {
@@ -241,7 +188,6 @@ export async function requireAuth(
       }
       const token = authHeader.substring(7);
 
-      // Custom token validation
       if (config.validateToken) {
         const isValid = await config.validateToken(token);
         if (!isValid) {
@@ -250,16 +196,12 @@ export async function requireAuth(
           }
           return unauthorized('Invalid token');
         }
-        // No trusted identity claim is available from a boolean validator;
-        // the raw token is used as the identifier (hash it in `logAccess`
-        // sinks — it is a credential).
         userId = token;
         authenticated = true;
       } else if (config.token && secureCompare(token, config.token)) {
         userId = 'token-user';
         authenticated = true;
       } else {
-        // No validator and no static token configured: fail CLOSED.
         return unauthorized('Invalid token');
       }
       break;
@@ -288,7 +230,6 @@ export async function requireAuth(
       } catch {
         return unauthorized('Invalid credentials');
       }
-      // split with limit 2 so passwords containing ':' survive
       const separatorIndex = credentials.indexOf(':');
       const username = separatorIndex === -1 ? credentials : credentials.substring(0, separatorIndex);
       const password = separatorIndex === -1 ? '' : credentials.substring(separatorIndex + 1);
@@ -323,12 +264,10 @@ export async function requireAuth(
     }
   }
 
-  // Fail closed for any unhandled configuration
   if (!authenticated || !userId) {
     return unauthorized('Unauthorized');
   }
 
-  // Additional user validation if provided
   if (config.validateUser) {
     const isValid = await config.validateUser(userId);
     if (!isValid) {
@@ -345,7 +284,6 @@ export async function requireAuth(
     }
   }
 
-  // Log successful access
   if (config.logAccess) {
     await config.logAccess(userId, true, request.url);
   }
@@ -353,18 +291,6 @@ export async function requireAuth(
   return null;
 }
 
-/**
- * Require AI quota (AI-specific rate limiting based on neuron usage)
- *
- * SECURITY NOTES:
- * - `config.userId` is the TRUSTED identity source (set it from your
- *   authenticated session). The `X-User-ID` header fallback is
- * client-controlled and lets callers rotate identities to escape quotas —
- * only rely on it behind an upstream proxy you control that overwrites it.
- * - Quota accounting is eventually consistent (KV) and per-isolate; treat it
- *   as a guard rail, not a hard limit.
- * - Without `kv` configured this middleware allows every request.
- */
 export async function requireAIQuota(
   request: Request,
   config: AIQuotaConfig & {
@@ -378,7 +304,6 @@ export async function requireAIQuota(
 
   const userId = config.userId || request.headers.get('X-User-ID') || 'anonymous';
 
-  // Check quota from KV
   if (config.kv) {
     const periodKey = `ai_quota:${userId}:${Math.floor(Date.now() / (config.period * 1000))}`;
     const currentUsage = await config.kv.get(periodKey, 'json');
@@ -386,7 +311,6 @@ export async function requireAIQuota(
     const usage = (currentUsage as { neurons: number })?.neurons || 0;
 
     if (usage >= config.quota) {
-      // Log quota exceeded
       if (config.logExceeded) {
         await config.logExceeded(userId, config.quota, usage);
       }
@@ -411,13 +335,9 @@ export async function requireAIQuota(
     return null;
   }
 
-  // No KV configured, allow request
   return null;
 }
 
-/**
- * Add user context to request (enhanced)
- */
 export function addUserContext(request: Request, user: {
   id: string;
   [key: string]: unknown;

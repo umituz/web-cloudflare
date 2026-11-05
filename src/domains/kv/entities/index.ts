@@ -1,6 +1,3 @@
-/**
- * KV Domain Entities
- */
 
 export type {
   KVEntity,

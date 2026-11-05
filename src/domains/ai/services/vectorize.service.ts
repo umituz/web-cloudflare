@@ -1,7 +1,3 @@
-/**
- * Vectorize Service
- * @description Vector index management and semantic search
- */
 
 import type { IVectorizeService } from '../types';
 import type {
@@ -11,9 +7,6 @@ import type {
   RAGResult,
 } from '../entities';
 
-// ============================================================
-// Vectorize Service Implementation
-// ============================================================
 
 export class VectorizeService implements IVectorizeService {
   private indexes: Map<string, VectorizeIndex> = new Map();
@@ -23,23 +16,14 @@ export class VectorizeService implements IVectorizeService {
     this.kv = kv;
   }
 
-  /**
-   * Bind a Vectorize index
-   */
   bindIndex(name: string, index: VectorizeIndex): void {
     this.indexes.set(name, index);
   }
 
-  /**
-   * Get bound index
-   */
   getIndex(name: string): VectorizeIndex | undefined {
     return this.indexes.get(name);
   }
 
-  /**
-   * Get default or specified index
-   */
   private resolveIndex(binding?: string): VectorizeIndex {
     if (binding) {
       const index = this.indexes.get(binding);
@@ -49,7 +33,6 @@ export class VectorizeService implements IVectorizeService {
       return index;
     }
 
-    // Return first available index
     const firstIndex = this.indexes.values().next().value;
     if (!firstIndex) {
       throw new Error('No Vectorize indexes bound');
@@ -58,9 +41,6 @@ export class VectorizeService implements IVectorizeService {
     return firstIndex;
   }
 
-  /**
-   * Upsert vectors to index
-   */
   async upsert(
     vectors: Vector[],
     binding?: string
@@ -68,7 +48,6 @@ export class VectorizeService implements IVectorizeService {
     const index = this.resolveIndex(binding);
 
     try {
-      // Vectorize supports upsert operation
       await index.upsert(vectors as VectorizeVector[]);
 
     } catch (error) {
@@ -78,9 +57,6 @@ export class VectorizeService implements IVectorizeService {
     }
   }
 
-  /**
-   * Query vector index
-   */
   async query(
     vector: number[],
     options?: {
@@ -93,7 +69,6 @@ export class VectorizeService implements IVectorizeService {
     const topK = options?.topK || 10;
 
     try {
-      // Vectorize query with optional filter
       const queryOptions: VectorizeQueryOptions = {
         topK,
         returnValues: false,
@@ -106,7 +81,6 @@ export class VectorizeService implements IVectorizeService {
 
       const matches = await index.query(vector, queryOptions);
 
-      // Transform to VectorizeQueryResult format
       if (!Array.isArray(matches)) {
         return [];
       }
@@ -125,17 +99,10 @@ export class VectorizeService implements IVectorizeService {
     }
   }
 
-  /**
-   * Delete vectors by ID
-   */
   async delete(ids: string[], binding?: string): Promise<void> {
-    // Validate the binding resolves (throws for unknown bindings)
     this.resolveIndex(binding);
 
     try {
-      // Vectorize does not have a delete method yet
-      // As a workaround, we can upsert with null values or ignore
-      // For now, this is a no-op
       console.warn(`Vectorize delete not yet supported for IDs: ${ids.join(', ')}`);
 
     } catch (error) {
@@ -145,11 +112,7 @@ export class VectorizeService implements IVectorizeService {
     }
   }
 
-  /**
-   * Get vector by ID (via KV cache if available)
-   */
   async get(id: string, binding?: string): Promise<Vector | null> {
-    // Try KV cache first
     if (this.kv) {
       try {
         const cached = await this.kv.get(`vectorize:${binding || 'default'}:${id}`, 'json');
@@ -157,17 +120,12 @@ export class VectorizeService implements IVectorizeService {
           return cached as Vector;
         }
       } catch {
-        // KV read failed, continue
       }
     }
 
-    // Vectorize doesn't support direct get, return null
     return null;
   }
 
-  /**
-   * Perform RAG query
-   */
   async ragQuery(
     queryVector: number[],
     contextDocuments: Array<{
@@ -180,26 +138,22 @@ export class VectorizeService implements IVectorizeService {
       binding?: string;
     }
   ): Promise<RAGResult> {
-    // First, ensure context documents are in the index
     const vectors: Vector[] = contextDocuments.map(doc => ({
       id: doc.id,
-      values: queryVector, // Would use actual embeddings in production
+      values: queryVector,
       metadata: {
         ...doc.metadata,
         text: doc.text,
       },
     }));
 
-    // Upsert context documents
     await this.upsert(vectors, options?.binding);
 
-    // Query for similar documents
     const matches = await this.query(queryVector, {
       topK: options?.topK || 5,
       binding: options?.binding,
     });
 
-    // Build context from matched documents
     const contextTexts: string[] = [];
     const enrichedMatches: Array<{
       id: string;
@@ -221,7 +175,6 @@ export class VectorizeService implements IVectorizeService {
       }
     }
 
-    // Combine contexts
     const context = contextTexts.join('\n\n');
 
     return {
@@ -231,24 +184,17 @@ export class VectorizeService implements IVectorizeService {
     };
   }
 
-  /**
-   * Get index statistics
-   */
   async getStats(binding?: string): Promise<{
     count: number;
     dimension: number;
   }> {
-    // Validate the binding resolves (throws for unknown bindings)
     this.resolveIndex(binding);
 
     try {
-      // Note: Vectorize doesn't have a direct stats API
-      // In production, you'd track this separately
-      // This is a placeholder implementation
 
       return {
         count: 0,
-        dimension: 512, // CLIP default
+        dimension: 512,
       };
 
     } catch (error) {
@@ -259,8 +205,5 @@ export class VectorizeService implements IVectorizeService {
   }
 }
 
-// ============================================================
-// Singleton Instance
-// ============================================================
 
 export const vectorizeService = new VectorizeService();

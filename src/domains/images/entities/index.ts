@@ -1,6 +1,3 @@
-/**
- * Images Domain Entities
- */
 
 export type {
   ImageUploadResult,

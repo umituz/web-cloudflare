@@ -1,11 +1,4 @@
-/**
- * Pages Domain Entities
- * Defines entities for Cloudflare Pages operations
- */
 
-/**
- * Pages project info
- */
 export interface PagesProject {
   name: string;
   production_branch?: string;
@@ -22,9 +15,6 @@ export interface PagesProject {
   };
 }
 
-/**
- * Pages deployment info
- */
 export interface PagesDeployment {
   id: string;
   project: string;
@@ -44,24 +34,18 @@ export interface PagesDeployment {
   }[];
 }
 
-/**
- * Pages deploy options
- */
 export interface PagesDeployOptions {
   projectName: string;
-  directory?: string; // Build output directory (default: dist)
+  directory?: string;
   branch?: string;
   preview?: boolean;
   environment?: 'preview' | 'production';
   compatibilityDate?: string;
   compatibilityFlags?: string[];
   vars?: Record<string, string>;
-  functions?: boolean; // Deploy with functions
+  functions?: boolean;
 }
 
-/**
- * Pages function info
- */
 export interface PagesFunction {
   name: string;
   scriptPath?: string;
@@ -69,9 +53,6 @@ export interface PagesFunction {
   compatibilityFlags?: string[];
 }
 
-/**
- * Pages deployment result
- */
 export interface PagesDeploymentResult {
   deployment: PagesDeployment;
   url?: string;

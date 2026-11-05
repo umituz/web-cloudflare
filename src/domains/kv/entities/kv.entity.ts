@@ -1,7 +1,3 @@
-/**
- * KV Entity
- * @description Basic KV entity placeholder
- */
 
 export interface KVEntity {
   namespaceId: string;

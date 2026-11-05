@@ -1,16 +1,5 @@
-/**
- * Cloudflare Utility Functions
- * @description Helper functions for Cloudflare Workers
- */
 
-// ============================================================
-// Request Utilities
-// ============================================================
 
-/**
- * Parse request body
- * Optimized to reduce memory allocations and improve performance
- */
 export async function parseBody<T = unknown>(request: Request): Promise<T> {
   const contentType = request.headers.get('Content-Type') || '';
 
@@ -23,7 +12,6 @@ export async function parseBody<T = unknown>(request: Request): Promise<T> {
     const result: Record<string, unknown> = {};
     const seenKeys = new Set<string>();
 
-    // Use Set instead of array for O(1) lookup
     formData.forEach((value, key) => {
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
@@ -41,9 +29,6 @@ export async function parseBody<T = unknown>(request: Request): Promise<T> {
   throw new Error(`Unsupported content type: ${contentType}`);
 }
 
-/**
- * Get client IP
- */
 export function getClientIP(request: Request): string {
   return (
     request.headers.get('CF-Connecting-IP') ||
@@ -52,49 +37,28 @@ export function getClientIP(request: Request): string {
   );
 }
 
-/**
- * Get client country
- */
 export function getClientCountry(request: Request): string | null {
   return request.headers.get('CF-IPCountry');
 }
 
-/**
- * Get request timestamp.
- * CF-Ray is a Cloudflare request ID, not a timestamp source, so we always
- * return the current time. The argument is kept for backward-compat callers
- * that pass through their request.
- */
 export function getRequestTimestamp(_request: Request): number {
   return Date.now();
 }
 
-/**
- * Check if request is HTTPS
- */
 export function isHTTPS(request: Request): boolean {
   const url = new URL(request.url);
   return url.protocol === 'https:';
 }
 
-/**
- * Check if request is from specific origin
- */
 export function isFromOrigin(request: Request, origin: string): boolean {
   const requestOrigin = request.headers.get('Origin');
   return requestOrigin === origin;
 }
 
-/**
- * Get user agent
- */
 export function getUserAgent(request: Request): string {
   return request.headers.get('User-Agent') || 'unknown';
 }
 
-/**
- * Parse accept language
- */
 export function parseAcceptLanguage(request: Request): string[] {
   const acceptLanguage = request.headers.get('Accept-Language') || '';
   return acceptLanguage
@@ -102,20 +66,11 @@ export function parseAcceptLanguage(request: Request): string[] {
     .map((lang) => lang.split(';')[0].trim());
 }
 
-// ============================================================
-// Response Utilities
-// ============================================================
 
-/**
- * Create JSON response
- */
 export function json<T>(data: T, status: number = 200): Response {
   return Response.json(data, { status });
 }
 
-/**
- * Create error response
- */
 export function error(
   message: string,
   status: number = 500,
@@ -131,51 +86,30 @@ export function error(
   );
 }
 
-/**
- * Create not found response
- */
 export function notFound(message: string = 'Not Found'): Response {
   return error(message, 404);
 }
 
-/**
- * Create unauthorized response
- */
 export function unauthorized(message: string = 'Unauthorized'): Response {
   return error(message, 401);
 }
 
-/**
- * Create forbidden response
- */
 export function forbidden(message: string = 'Forbidden'): Response {
   return error(message, 403);
 }
 
-/**
- * Create bad request response
- */
 export function badRequest(message: string = 'Bad Request', details?: Record<string, unknown>): Response {
   return error(message, 400, details);
 }
 
-/**
- * Create redirect response
- */
 export function redirect(url: string, status: number = 302): Response {
   return Response.redirect(url, status);
 }
 
-/**
- * Create no-content response
- */
 export function noContent(): Response {
   return new Response(null, { status: 204 });
 }
 
-/**
- * Create HTML response
- */
 export function html(content: string, status: number = 200): Response {
   return new Response(content, {
     status,
@@ -183,9 +117,6 @@ export function html(content: string, status: number = 200): Response {
   });
 }
 
-/**
- * Create text response
- */
 export function text(content: string, status: number = 200): Response {
   return new Response(content, {
     status,
@@ -193,9 +124,6 @@ export function text(content: string, status: number = 200): Response {
   });
 }
 
-/**
- * Create file response
- */
 export function file(
   content: ArrayBuffer,
   contentType: string,
@@ -210,9 +138,6 @@ export function file(
   return new Response(content, { headers });
 }
 
-/**
- * Stream response
- */
 export function stream(
   readableStream: ReadableStream,
   contentType: string = 'application/octet-stream'
@@ -222,16 +147,8 @@ export function stream(
   });
 }
 
-// ============================================================
-// Validation Utilities
-// ============================================================
 
-/**
- * Validate email
- * Optimized with early return and simplified regex
- */
 export function isValidEmail(email: string): boolean {
-  // Early return for empty or obviously invalid emails
   if (!email || email.length < 3 || email.length > 254) return false;
   if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) return false;
 
@@ -239,12 +156,7 @@ export function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-/**
- * Validate URL
- * Optimized with early return
- */
 export function isValidURL(url: string): boolean {
-  // Early return for empty or obviously invalid URLs
   if (!url || url.length < 3) return false;
 
   try {
@@ -255,12 +167,7 @@ export function isValidURL(url: string): boolean {
   }
 }
 
-/**
- * Validate UUID
- * Optimized with early return
- */
 export function isValidUUID(uuid: string): boolean {
-  // Early return for empty or wrong length UUIDs
   if (!uuid || uuid.length !== 36) return false;
 
   const uuidRegex =
@@ -268,21 +175,13 @@ export function isValidUUID(uuid: string): boolean {
   return uuidRegex.test(uuid);
 }
 
-/**
- * Validate phone number (basic)
- * Optimized with early return
- */
 export function isValidPhone(phone: string): boolean {
-  // Early return for obviously invalid phone numbers
   if (!phone || phone.length < 10) return false;
 
   const phoneRegex = /^\+?[\d\s\-()]+$/;
   return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 10;
 }
 
-/**
- * Sanitize string input
- */
 export function sanitize(input: string): string {
   return input
     .replace(/</g, '&lt;')
@@ -292,17 +191,11 @@ export function sanitize(input: string): string {
     .replace(/\//g, '&#x2F;');
 }
 
-/**
- * Truncate text
- */
 export function truncate(text: string, length: number, suffix: string = '...'): string {
   if (text.length <= length) return text;
   return text.substring(0, length - suffix.length) + suffix;
 }
 
-/**
- * Slugify text
- */
 export function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -312,19 +205,11 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-// ============================================================
-// Cache Utilities
-// ============================================================
 
-/**
- * Generate cache key
- * Optimized to reduce string operations and improve performance
- */
 export function generateCacheKey(request: Request, prefix?: string): string {
   const url = new URL(request.url);
   const parts = [prefix || 'cache', url.pathname];
 
-  // Add query params (sorted for consistency)
   if (url.search) {
     const params: string[] = [];
     url.searchParams.forEach((value, key) => {
@@ -336,18 +221,14 @@ export function generateCacheKey(request: Request, prefix?: string): string {
     }
   }
 
-  // Add auth header if present (for user-specific caching)
   const auth = request.headers.get('Authorization');
   if (auth) {
-    parts.push(auth.substring(0, 20)); // First 20 chars of auth
+    parts.push(auth.substring(0, 20));
   }
 
   return parts.join(':');
 }
 
-/**
- * Generate hash
- */
 export async function hash(input: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(input);
@@ -356,12 +237,6 @@ export async function hash(input: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Constant-time string comparison for secrets (API keys, tokens, passwords).
- * Avoids leaking the position/value of the first differing character through
- * timing, unlike `===`. Length mismatch returns false immediately (length is
- * considered public for this purpose).
- */
 export function secureCompare(a: string, b: string): boolean {
   if (a.length !== b.length) {
     return false;
@@ -373,9 +248,6 @@ export function secureCompare(a: string, b: string): boolean {
   return mismatch === 0;
 }
 
-/**
- * Parse cache control header
- */
 export function parseCacheControl(header: string): {
   maxAge?: number;
   noCache?: boolean;
@@ -416,13 +288,7 @@ export function parseCacheControl(header: string): {
   return result;
 }
 
-// ============================================================
-// Time Utilities
-// ============================================================
 
-/**
- * Parse duration string to seconds
- */
 export function parseDuration(duration: string): number {
   const match = duration.match(/^(\d+)(s|m|h|d)$/);
 
@@ -447,9 +313,6 @@ export function parseDuration(duration: string): number {
   }
 }
 
-/**
- * Format duration
- */
 export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
@@ -458,16 +321,10 @@ export function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 }
 
-/**
- * Sleep utility
- */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Retry with exponential backoff
- */
 export async function retry<T>(
   fn: () => Promise<T>,
   options: {
@@ -505,13 +362,7 @@ export async function retry<T>(
   throw lastError;
 }
 
-// ============================================================
-// URL Utilities
-// ============================================================
 
-/**
- * Build URL with query params
- */
 export function buildURL(base: string, params: Record<string, string | number | boolean | undefined>): string {
   const url = new URL(base);
   Object.entries(params).forEach(([key, value]) => {
@@ -522,22 +373,15 @@ export function buildURL(base: string, params: Record<string, string | number | 
   return url.toString();
 }
 
-/**
- * Parse query params
- */
 export function parseQueryParams(url: string): Record<string, string> {
   const params = new URL(url).searchParams;
   const result: Record<string, string> = {};
-  // URLSearchParams.keys() is not available in Workers runtime
   params.forEach((value, key) => {
     result[key] = value;
   });
   return result;
 }
 
-/**
- * Join URL paths
- */
 export function joinPath(...parts: string[]): string {
   return parts
     .map((part) => part.replace(/^\/+|\/+$/g, ''))
@@ -545,27 +389,15 @@ export function joinPath(...parts: string[]): string {
     .join('/');
 }
 
-// ============================================================
-// Encoding Utilities
-// ============================================================
 
-/**
- * Base64 encode
- */
 export function base64Encode(input: string): string {
   return btoa(input);
 }
 
-/**
- * Base64 decode
- */
 export function base64Decode(input: string): string {
   return atob(input);
 }
 
-/**
- * Base64 URL encode
- */
 export function base64URLEncode(input: string): string {
   return base64Encode(input)
     .replace(/\+/g, '-')
@@ -573,9 +405,6 @@ export function base64URLEncode(input: string): string {
     .replace(/=/g, '');
 }
 
-/**
- * Base64 URL decode
- */
 export function base64URLDecode(input: string): string {
   let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
 
@@ -586,27 +415,15 @@ export function base64URLDecode(input: string): string {
   return base64Decode(base64);
 }
 
-/**
- * URL safe encode
- */
 export function urlSafeEncode(input: string): string {
   return encodeURIComponent(input);
 }
 
-/**
- * URL safe decode
- */
 export function urlSafeDecode(input: string): string {
   return decodeURIComponent(input);
 }
 
-// ============================================================
-// Array Utilities
-// ============================================================
 
-/**
- * Chunk array
- */
 export function chunk<T>(array: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < array.length; i += size) {
@@ -615,9 +432,6 @@ export function chunk<T>(array: T[], size: number): T[][] {
   return chunks;
 }
 
-/**
- * Shuffle array
- */
 export function shuffle<T>(array: T[]): T[] {
   const result = [...array];
   for (let i = result.length - 1; i > 0; i--) {
@@ -627,16 +441,10 @@ export function shuffle<T>(array: T[]): T[] {
   return result;
 }
 
-/**
- * Unique array
- */
 export function unique<T>(array: T[]): T[] {
   return Array.from(new Set(array));
 }
 
-/**
- * Group array by key
- */
 export function groupBy<T>(
   array: T[],
   key: keyof T
@@ -649,18 +457,11 @@ export function groupBy<T>(
   return result;
 }
 
-// ============================================================
-// Object Utilities
-// ============================================================
 
 function isObject(item: unknown): item is Record<string, unknown> {
   return Boolean(item && typeof item === 'object' && !Array.isArray(item));
 }
 
-/**
- * Deep clone object
- * Uses structuredClone when available for better performance and security
- */
 export function deepClone<T>(obj: T): T {
   if (typeof structuredClone !== 'undefined') {
     return structuredClone(obj);
@@ -668,13 +469,8 @@ export function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
-// `clone` and `deepClone` share identical semantics. Alias the deep clone
-// implementation so the two helpers cannot drift out of sync.
 export const clone = deepClone;
 
-/**
- * Deep merge objects (immutable: returns a new object, never mutates the target)
- */
 export function deepMerge<T extends Record<string, unknown>>(
   target: T,
   ...sources: Array<Partial<Record<string, unknown>>>
@@ -705,9 +501,6 @@ export function deepMerge<T extends Record<string, unknown>>(
   return deepMerge(output as T, ...remaining) as T;
 }
 
-/**
- * Pick properties from object
- */
 export function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {
   const result = {} as Pick<T, K>;
   keys.forEach((key) => {
@@ -718,9 +511,6 @@ export function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pi
   return result;
 }
 
-/**
- * Omit properties from object
- */
 export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   const result = { ...obj };
   keys.forEach((key) => {
@@ -729,22 +519,13 @@ export function omit<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   return result as Omit<T, K>;
 }
 
-// ============================================================
-// Random Utilities
-// ============================================================
 
-/**
- * Generate cryptographically secure random string from [a-zA-Z0-9].
- * Use this (not Math.random-based builders) for anything that guards
- * access: session IDs, tokens, nonces.
- */
 export function randomString(length: number = 16): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
   let result = '';
   for (let i = 0; i < length; i++) {
-    // 256 % 62 === 8, so values >= 248 would bias the distribution — resample.
     let byte = bytes[i];
     while (byte >= 248) {
       const extra = new Uint8Array(1);
@@ -756,61 +537,37 @@ export function randomString(length: number = 16): string {
   return result;
 }
 
-/**
- * Generate cryptographically secure random ID (timestamp-prefixed).
- */
 export function randomID(prefix: string = ''): string {
   const timestamp = Date.now().toString(36);
   const random = randomString(10).toLowerCase();
   return prefix ? `${prefix}_${timestamp}${random}` : `${timestamp}${random}`;
 }
 
-/**
- * Generate a secure, opaque identifier suitable for user/session/tenant IDs.
- * Uses the Web Crypto API (available in Workers, browsers, Node 16.7+).
- */
 export function generateId(): string {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  // Fallback for runtimes without randomUUID
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
-  // Set RFC 4122 v4 bits
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/**
- * Random item from array (NOT for security purposes)
- */
 export function randomItem<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-/**
- * Random number in range (NOT for security purposes)
- */
 export function randomInRange(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// ============================================================
-// Type Guards
-// ============================================================
 
-/**
- * Check if value is defined
- */
 export function isDefined<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
 
-/**
- * Check if value is empty
- */
 export function isEmpty(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string') return value.trim().length === 0;
@@ -819,9 +576,6 @@ export function isEmpty(value: unknown): boolean {
   return false;
 }
 
-/**
- * Check if value is a plain object
- */
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return (
     typeof value === 'object' &&

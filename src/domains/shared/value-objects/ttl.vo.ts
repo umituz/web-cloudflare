@@ -1,7 +1,3 @@
-/**
- * TTL Value Object
- * @description Immutable Time-To-Live value object with validation
- */
 
 import { ValueObject } from './base.value-object';
 
@@ -10,8 +6,8 @@ interface TTLProps {
 }
 
 export class TTL extends ValueObject<TTLProps> {
-  private static readonly MIN_TTL = 0; // 0 means no expiration
-  private static readonly MAX_TTL = 31536000; // 365 days in seconds
+  private static readonly MIN_TTL = 0;
+  private static readonly MAX_TTL = 31536000;
 
   private constructor(props: TTLProps) {
     super(props);
@@ -33,9 +29,6 @@ export class TTL extends ValueObject<TTLProps> {
     return Math.floor(this.props.seconds / 86400);
   }
 
-  /**
-   * Create TTL with validation
-   */
   public static create(seconds: number): TTL {
     if (!Number.isInteger(seconds)) {
       throw new Error('TTL must be an integer');
@@ -52,30 +45,18 @@ export class TTL extends ValueObject<TTLProps> {
     return new TTL({ seconds });
   }
 
-  /**
-   * Create from minutes
-   */
   public static fromMinutes(minutes: number): TTL {
     return this.create(minutes * 60);
   }
 
-  /**
-   * Create from hours
-   */
   public static fromHours(hours: number): TTL {
     return this.create(hours * 3600);
   }
 
-  /**
-   * Create from days
-   */
   public static fromDays(days: number): TTL {
     return this.create(days * 86400);
   }
 
-  /**
-   * Common presets
-   */
   public static readonly ONE_MINUTE = TTL.fromMinutes(1);
   public static readonly FIVE_MINUTES = TTL.fromMinutes(5);
   public static readonly FIFTEEN_MINUTES = TTL.fromMinutes(15);
@@ -85,16 +66,10 @@ export class TTL extends ValueObject<TTLProps> {
   public static readonly ONE_WEEK = TTL.fromDays(7);
   public static readonly THIRTY_DAYS = TTL.fromDays(30);
 
-  /**
-   * No expiration
-   */
   public static readonly NONE = TTL.create(0);
 
-  /**
-   * Check if expired
-   */
   isExpired(createdAt: number): boolean {
-    if (this.props.seconds === 0) return false; // Never expires
+    if (this.props.seconds === 0) return false;
     return Date.now() - createdAt > this.props.seconds * 1000;
   }
 }

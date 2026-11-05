@@ -1,7 +1,3 @@
-/**
- * Cloudflare Infrastructure Errors
- * Shared error convention for all domains.
- */
 
 export {
   CloudflareError,

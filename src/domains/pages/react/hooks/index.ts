@@ -1,7 +1,3 @@
-/**
- * React Hooks
- * @description Barrel export for all React hooks
- */
 
 export { useAuth } from './useAuth';
 export type {

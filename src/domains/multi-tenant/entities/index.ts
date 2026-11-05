@@ -1,11 +1,4 @@
-/**
- * Multi-Tenant Entities
- * @description Core entity definitions for multi-tenant support
- */
 
-// ============================================================
-// Tenant Configuration
-// ============================================================
 
 export interface Tenant {
   id: string;
@@ -26,9 +19,6 @@ export interface TenantConfig {
   customDomains?: string[];
 }
 
-// ============================================================
-// Tenant Context
-// ============================================================
 
 export interface TenantContext {
   tenant: Tenant;
@@ -39,9 +29,6 @@ export interface TenantContext {
   queues?: Map<string, Queue<unknown>>;
 }
 
-// ============================================================
-// Tenant Routing
-// ============================================================
 
 export interface TenantRoute {
   hostname?: string;
@@ -55,9 +42,6 @@ export interface TenantResolutionResult {
   route: TenantRoute;
 }
 
-// ============================================================
-// Binding Metadata
-// ============================================================
 
 export interface BindingMetadata {
   tenantId: string;
@@ -67,9 +51,6 @@ export interface BindingMetadata {
   isDefault?: boolean;
 }
 
-// ============================================================
-// Tenant Isolation
-// ============================================================
 
 export interface TenantIsolationLevel {
   level: 'strict' | 'moderate' | 'shared';

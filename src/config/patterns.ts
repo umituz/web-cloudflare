@@ -1,26 +1,16 @@
-/**
- * Cloudflare Config Patterns
- * @description Reusable configuration patterns for different use cases
- */
 
 import type { WorkerConfig } from './types';
 import { deepMerge } from '../infrastructure/utils/helpers';
 
-// ============================================================
-// Pre-built Configurations
-// ============================================================
 
-/**
- * Social Media App Configuration
- */
 export const socialMediaConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: true,
-    defaultTTL: 300, // 5 minutes
+    defaultTTL: 300,
     paths: {
-      '/api/posts': 3600,      // 1 hour
-      '/api/feed': 1800,       // 30 minutes
-      '/api/trending': 600,    // 10 minutes
+      '/api/posts': 3600,
+      '/api/feed': 1800,
+      '/api/trending': 600,
     },
   },
   rateLimit: {
@@ -54,17 +44,14 @@ export const socialMediaConfig: Partial<WorkerConfig> = {
   },
 };
 
-/**
- * E-commerce App Configuration
- */
 export const ecommerceConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: true,
-    defaultTTL: 60, // 1 minute
+    defaultTTL: 60,
     paths: {
-      '/api/products': 300,     // 5 minutes
-      '/api/categories': 3600,  // 1 hour
-      '/api/cart': 0,           // No cache
+      '/api/products': 300,
+      '/api/categories': 3600,
+      '/api/cart': 0,
     },
   },
   rateLimit: {
@@ -82,9 +69,6 @@ export const ecommerceConfig: Partial<WorkerConfig> = {
   },
 };
 
-/**
- * SaaS App Configuration
- */
 export const saasConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: true,
@@ -110,9 +94,6 @@ export const saasConfig: Partial<WorkerConfig> = {
   },
 };
 
-/**
- * API Gateway Configuration
- */
 export const apiGatewayConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: true,
@@ -135,13 +116,10 @@ export const apiGatewayConfig: Partial<WorkerConfig> = {
   },
 };
 
-/**
- * CDN Configuration
- */
 export const cdnConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: true,
-    defaultTTL: 86400, // 24 hours
+    defaultTTL: 86400,
     paths: {
       '/static/*': 86400,
       '/assets/*': 86400,
@@ -164,9 +142,6 @@ export const cdnConfig: Partial<WorkerConfig> = {
   },
 };
 
-/**
- * AI-First App Configuration
- */
 export const aiFirstConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: true,
@@ -202,7 +177,7 @@ export const aiFirstConfig: Partial<WorkerConfig> = {
         },
       ],
       cacheEnabled: true,
-      cacheTTL: 7200, // 2 hours
+      cacheTTL: 7200,
       rateLimiting: true,
       analytics: true,
     },
@@ -214,27 +189,22 @@ export const aiFirstConfig: Partial<WorkerConfig> = {
   },
 };
 
-/**
- * AI-Ready Configuration (Production-ready for AI applications)
- * @description Optimized configuration for AI-heavy applications with Vectorize support
- * Enhanced v1.6.5 with Hugging Face integration
- */
 export const aiReadyConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: true,
-    defaultTTL: 3600, // 1 hour for AI responses
+    defaultTTL: 3600,
     paths: {
-      '/api/ai/*': 7200,      // 2 hours for AI responses
-      '/api/embeddings/*': 86400, // 1 day for embeddings
-      '/api/vectors/*': 86400, // 1 day for vector data
-      '/api/huggingface/*': 7200, // 2 hours for HF models
+      '/api/ai/*': 7200,
+      '/api/embeddings/*': 86400,
+      '/api/vectors/*': 86400,
+      '/api/huggingface/*': 7200,
     },
   },
   rateLimit: {
     enabled: true,
     maxRequests: 100,
     window: 60,
-    by: 'user', // User-based rate limiting
+    by: 'user',
   },
   ai: {
     enabled: true,
@@ -251,7 +221,7 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
             '@cf/meta/llama-3.3-70b-instruct',
             '@cf/mistral/mistral-7b-instruct',
           ],
-          weight: 3, // Prefer Workers AI
+          weight: 3,
           pricing: {
             '@cf/meta/llama-3.1-8b-instruct': {
               inputCostPer1KTokens: 0.00015,
@@ -311,18 +281,18 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
         },
       ],
       cacheEnabled: true,
-      cacheTTL: 7200, // 2 hours
+      cacheTTL: 7200,
       rateLimiting: true,
       analytics: true,
       budget: {
-        monthlyLimit: 100, // $100/month default
-        alertThreshold: 80, // Alert at 80%
+        monthlyLimit: 100,
+        alertThreshold: 80,
       },
     },
     huggingface: {
       enabled: true,
-      accountId: '{account_id}', // Replace with actual Cloudflare account ID
-      defaultGatewayId: '{gateway_id}', // Replace with actual AI Gateway ID
+      accountId: '{account_id}',
+      defaultGatewayId: '{gateway_id}',
       models: [
         'meta-llama/Llama-3.1-8B',
         'meta-llama/Llama-3.3-70B',
@@ -337,8 +307,8 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
     },
     neuronQuota: {
       enabled: true,
-      quota: 10000000, // 10M neurons per period
-      period: 86400, // Daily quota
+      quota: 10000000,
+      period: 86400,
     },
   },
   vectorize: {
@@ -359,9 +329,6 @@ export const aiReadyConfig: Partial<WorkerConfig> = {
   },
 };
 
-/**
- * Minimal Configuration (development)
- */
 export const minimalConfig: Partial<WorkerConfig> = {
   cache: {
     enabled: false,
@@ -380,13 +347,7 @@ export const minimalConfig: Partial<WorkerConfig> = {
   },
 };
 
-// ============================================================
-// Config Mergers
-// ============================================================
 
-/**
- * Deep merge configs
- */
 export function mergeConfigs<T extends Record<string, unknown>>(
   base: T,
   ...overrides: Array<Partial<Record<string, unknown>>>
@@ -396,35 +357,25 @@ export function mergeConfigs<T extends Record<string, unknown>>(
   }, base);
 }
 
-// ============================================================
-// Config Validators
-// ============================================================
 
-/**
- * Validate worker config
- */
 export function validateConfig(config: WorkerConfig): {
   valid: boolean;
   errors: string[];
 } {
   const errors: string[] = [];
 
-  // Validate cache
   if (config.cache?.enabled && config.cache.defaultTTL < 0) {
     errors.push('Cache defaultTTL must be >= 0');
   }
 
-  // Validate rate limit
   if (config.rateLimit?.enabled && config.rateLimit.maxRequests < 1) {
     errors.push('Rate limit maxRequests must be >= 1');
   }
 
-  // Validate AI
   if (config.ai?.enabled && (!config.ai.gateway || config.ai.gateway.providers.length === 0)) {
     errors.push('AI gateway must have at least one provider when enabled');
   }
 
-  // Validate workflows
   if (config.workflows?.enabled && config.workflows.maxExecutionTime < 1) {
     errors.push('Workflow maxExecutionTime must be >= 1');
   }
@@ -435,9 +386,6 @@ export function validateConfig(config: WorkerConfig): {
   };
 }
 
-// ============================================================
-// Config Builders (Fluent API)
-// ============================================================
 
 export class ConfigBuilder {
   private config: Partial<WorkerConfig> = {};
@@ -496,13 +444,7 @@ export class ConfigBuilder {
     return this;
   }
 
-  // ============================================================
-  // AI-Specific Configuration Methods
-  // ============================================================
 
-  /**
-   * Configure AI Gateway providers and settings
-   */
   withAIGateway(config: Partial<NonNullable<WorkerConfig['ai']>['gateway']>): ConfigBuilder {
     if (!this.config.ai) {
       this.config.ai = { enabled: true };
@@ -511,9 +453,6 @@ export class ConfigBuilder {
     return this;
   }
 
-  /**
-   * Set available AI models
-   */
   withAIModels(models: string[]): ConfigBuilder {
     if (!this.config.ai) {
       this.config.ai = { enabled: true };
@@ -521,7 +460,6 @@ export class ConfigBuilder {
     if (!this.config.ai.gateway) {
       this.config.ai.gateway = { providers: [] };
     }
-    // Add models to first provider or create default
     if (this.config.ai.gateway.providers.length === 0) {
       this.config.ai.gateway.providers.push({
         id: 'default',
@@ -538,9 +476,6 @@ export class ConfigBuilder {
     return this;
   }
 
-  /**
-   * Configure AI caching settings
-   */
   withAICaching(enabled: boolean, ttl?: number): ConfigBuilder {
     if (!this.config.ai) {
       this.config.ai = { enabled: true };
@@ -555,9 +490,6 @@ export class ConfigBuilder {
     return this;
   }
 
-  /**
-   * Set AI neuron quota (rate limiting based on usage)
-   */
   withAIQuota(quota: number, period: number): ConfigBuilder {
     if (!this.config.ai) {
       this.config.ai = { enabled: true };
@@ -570,9 +502,6 @@ export class ConfigBuilder {
     return this;
   }
 
-  /**
-   * Enable and configure Vectorize (vector database)
-   */
   withVectorize(enabled: boolean, indexes?: string[]): ConfigBuilder {
     this.config.vectorize = {
       enabled,
@@ -583,9 +512,6 @@ export class ConfigBuilder {
     return this;
   }
 
-  /**
-   * Configure AI cost tracking and budget
-   */
   withCostTracking(monthlyLimit: number, alertThreshold?: number): ConfigBuilder {
     if (!this.config.ai) {
       this.config.ai = { enabled: true };
@@ -611,16 +537,13 @@ export class ConfigBuilder {
     }
     this.config.ai.huggingface = config;
 
-    // Automatically add Hugging Face provider to gateway if enabled
     if (config.enabled && config.accountId && config.defaultGatewayId) {
       if (!this.config.ai.gateway) {
         this.config.ai.gateway = { providers: [] };
       }
 
-      // Build Hugging Face gateway URL
       const hfURL = `https://gateway.ai.cloudflare.com/v1/${config.accountId}/${config.defaultGatewayId}/huggingface`;
 
-      // Check if Hugging Face provider already exists
       const existingHFProvider = this.config.ai.gateway.providers.find(
         p => p.baseURL.includes('/huggingface')
       );
@@ -631,7 +554,7 @@ export class ConfigBuilder {
           name: 'Hugging Face',
           type: 'custom',
           baseURL: hfURL,
-          apiKey: '', // AI Gateway handles auth
+          apiKey: '',
           models: config.models || [],
           weight: 2,
         });
@@ -641,9 +564,6 @@ export class ConfigBuilder {
     return this;
   }
 
-  /**
-   * Configure multi-tenant / multi-app support
-   */
   withMultiTenant(config: {
     enabled: boolean;
     d1Bindings?: string[];
@@ -659,24 +579,17 @@ export class ConfigBuilder {
   }
 }
 
-// ============================================================
-// Environment-based Config Loader
-// ============================================================
 
 export interface EnvironmentConfig {
   environment: 'development' | 'staging' | 'production';
   envVars: Record<string, string>;
 }
 
-/**
- * Load config from environment variables
- */
 export function loadConfigFromEnv(
   env: Record<string, string | undefined>
 ): Partial<WorkerConfig> {
   const config: Partial<WorkerConfig> = {};
 
-  // Cache
   if (env.CF_CACHE_ENABLED === 'true') {
     config.cache = {
       enabled: true,
@@ -684,7 +597,6 @@ export function loadConfigFromEnv(
     };
   }
 
-  // Rate Limit
   if (env.CF_RATE_LIMIT_ENABLED === 'true') {
     config.rateLimit = {
       enabled: true,
@@ -693,7 +605,6 @@ export function loadConfigFromEnv(
     };
   }
 
-  // AI
   if (env.CF_AI_ENABLED === 'true') {
     config.ai = {
       enabled: true,
@@ -706,7 +617,6 @@ export function loadConfigFromEnv(
     };
   }
 
-  // Workflows
   if (env.CF_WORKFLOWS_ENABLED === 'true') {
     config.workflows = {
       enabled: true,
@@ -715,7 +625,6 @@ export function loadConfigFromEnv(
     };
   }
 
-  // CORS
   if (env.CF_CORS_ENABLED === 'true') {
     config.cors = {
       enabled: true,
@@ -729,9 +638,6 @@ export function loadConfigFromEnv(
   return config;
 }
 
-/**
- * Get environment-specific config
- */
 export function getEnvironmentConfig(
   environment: 'development' | 'staging' | 'production'
 ): Partial<WorkerConfig> {

@@ -1,7 +1,3 @@
-/**
- * Image Entity
- * @description Basic Image entity placeholder
- */
 
 export interface ImageEntity {
   id: string;

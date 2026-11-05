@@ -1,20 +1,3 @@
-/**
- * Shared error convention for @umituz/web-cloudflare.
- *
- * Services in this package throw plain `Error` in many places for backwards
- * compatibility. New code should throw `CloudflareError` (or a subclass) so
- * callers can branch on `code` / `retryable` without string-matching messages.
- *
- * ```ts
- * try {
- *   await d1Service.query(...);
- * } catch (error) {
- *   if (error instanceof CloudflareError && error.retryable) {
- *     // safe to retry with backoff
- *   }
- * }
- * ```
- */
 
 export type CloudflareErrorCode =
   | 'AUTH_FAILED'
@@ -31,13 +14,9 @@ export type CloudflareErrorCode =
   | 'INTERNAL_ERROR';
 
 export interface CloudflareErrorOptions {
-  /** Machine-readable, stable error code (never localized, never changed). */
   readonly code: CloudflareErrorCode;
-  /** HTTP status this error maps to (defaults per code; override when needed). */
   readonly status?: number;
-  /** Whether a caller may sensibly retry the same operation. */
   readonly retryable?: boolean;
-  /** The underlying cause (e.g. a fetch TypeError). */
   readonly cause?: unknown;
 }
 
@@ -70,7 +49,6 @@ export class CloudflareError extends Error {
     if (options.cause !== undefined) {
       this.cause = options.cause;
     }
-    // Maintains a proper prototype chain when targeting ES5 output.
     Object.setPrototypeOf(this, CloudflareError.prototype);
   }
 
@@ -85,7 +63,6 @@ export class CloudflareError extends Error {
   }
 }
 
-/** Narrow an unknown thrown value to a CloudflareError. */
 export function isCloudflareError(error: unknown): error is CloudflareError {
   return error instanceof CloudflareError;
 }

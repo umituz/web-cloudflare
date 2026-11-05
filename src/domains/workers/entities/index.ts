@@ -1,6 +1,3 @@
-/**
- * Workers Domain Entities
- */
 
 export type {
   WorkerEntity,

@@ -7,7 +7,7 @@ describe('checkRateLimit (in-memory fallback)', () => {
     const config = {
       enabled: true,
       maxRequests: 3,
-      window: 60, // seconds
+      window: 60,
       keyGenerator: () => key,
     };
 

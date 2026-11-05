@@ -1,7 +1,3 @@
-/**
- * useFileUpload Hook
- * @description File upload hook for R2 with progress tracking
- */
 
 import { useState, useCallback, useRef } from 'react';
 import { APIClient } from '../utils/api-client';
@@ -9,7 +5,7 @@ import { APIClient } from '../utils/api-client';
 export interface UploadOptions {
   baseURL?: string;
   path?: string;
-  maxSize?: number; // in bytes
+  maxSize?: number;
   allowedTypes?: string[];
   metadata?: Record<string, string>;
 }
@@ -31,14 +27,11 @@ export interface UseFileUploadReturn {
   resetState: () => void;
 }
 
-/**
- * File upload hook for R2
- */
 export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn {
   const {
     baseURL = '',
     path = '/api/upload',
-    maxSize = 100 * 1024 * 1024, // 100MB default
+    maxSize = 100 * 1024 * 1024,
     allowedTypes = [],
     metadata = {},
   } = options;
@@ -54,17 +47,12 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
     key: null,
   });
 
-  /**
-   * Validate file
-   */
   const validateFile = useCallback((file: File): string | null => {
-    // Check file size
     if (file.size > maxSize) {
       const maxSizeMB = Math.round(maxSize / (1024 * 1024));
       return `File size exceeds ${maxSizeMB}MB limit`;
     }
 
-    // Check file type
     if (allowedTypes.length > 0 && !allowedTypes.includes(file.type)) {
       return `File type ${file.type} is not allowed`;
     }
@@ -72,9 +60,6 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
     return null;
   }, [maxSize, allowedTypes]);
 
-  /**
-   * Select file
-   */
   const selectFile = useCallback((file: File): void => {
     const error = validateFile(file);
 
@@ -88,9 +73,6 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
     });
   }, [validateFile]);
 
-  /**
-   * Upload file
-   */
   const uploadFile = useCallback(async () => {
     if (!uploadState.file || uploadState.error) {
       return;
@@ -138,9 +120,6 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
     }
   }, [uploadState.file, uploadState.error, path, metadata, client]);
 
-  /**
-   * Clear selected file
-   */
   const clearFile = useCallback((): void => {
     setUploadState({
       file: null,
@@ -152,9 +131,6 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
     });
   }, []);
 
-  /**
-   * Reset state
-   */
   const resetState = useCallback((): void => {
     setUploadState({
       file: null,
@@ -175,9 +151,6 @@ export function useFileUpload(options: UploadOptions = {}): UseFileUploadReturn 
   };
 }
 
-/**
- * Multiple file upload hook
- */
 export function useMultipleFileUpload(options: UploadOptions = {}) {
   const [files, setFiles] = useState<Array<{
     id: string;
@@ -191,9 +164,6 @@ export function useMultipleFileUpload(options: UploadOptions = {}) {
 
   const client = useRef<APIClient>(new APIClient({ baseURL: options.baseURL || '' }));
 
-  /**
-   * Select multiple files
-   */
   const selectFiles = useCallback((fileList: FileList): void => {
     const newFiles = Array.from(fileList).map((file) => ({
       id: `${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -208,9 +178,6 @@ export function useMultipleFileUpload(options: UploadOptions = {}) {
     setFiles((prev) => [...prev, ...newFiles]);
   }, []);
 
-  /**
-   * Upload all files
-   */
   const uploadAll = useCallback(async () => {
     const uploadPromises = files.map(async (fileItem) => {
       try {
@@ -267,16 +234,10 @@ export function useMultipleFileUpload(options: UploadOptions = {}) {
     await Promise.all(uploadPromises);
   }, [files, client, options.path]);
 
-  /**
-   * Remove file
-   */
   const removeFile = useCallback((id: string): void => {
     setFiles((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  /**
-   * Clear all files
-   */
   const clearAll = useCallback((): void => {
     setFiles([]);
   }, []);

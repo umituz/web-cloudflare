@@ -1,11 +1,6 @@
-/**
- * Domain Events Index
- * @description Export all domain events
- */
 
 export { DomainEvent } from './domain-event.base';
 
-// KV Events
 export {
   KVEntryCreatedEvent,
   KVEntryUpdatedEvent,
@@ -14,7 +9,6 @@ export {
   KVCacheMissEvent
 } from './kv-events';
 
-// AI Events
 export {
   AIResponseCachedEvent,
   AICacheInvalidatedEvent,

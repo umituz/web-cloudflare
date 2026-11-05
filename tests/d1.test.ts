@@ -69,10 +69,6 @@ describe('D1QueryBuilder', () => {
   });
 });
 
-/**
- * Minimal D1Database mock: records prepared statements and lets each test
- * control execution results.
- */
 function makeMockDatabase() {
   const executed: Array<{ sql: string; params?: readonly unknown[] }> = [];
   const database = {

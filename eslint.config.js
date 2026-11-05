@@ -18,9 +18,7 @@ export default tseslint.config(
       },
     },
     rules: {
-      // Error-level: underscore-prefixed identifiers are the established
-      // convention for intentionally-unused params (interface conformance),
-      // so they are exempted rather than suppressed per-line.
+      "no-empty": ["error", { allowEmptyCatch: true }],
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -34,7 +32,6 @@ export default tseslint.config(
     },
   },
   {
-    // Plain-Node CLI scripts (no TS, no bundler) — same Node globals as above.
     files: ["bin/**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2022,

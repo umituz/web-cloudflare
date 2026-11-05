@@ -1,12 +1,4 @@
-/**
- * Audio Format Utilities
- * @description Utilities for audio format conversion, quality optimization,
- * and metadata extraction. Supports both browser and Workers runtime.
- */
 
-// ============================================================
-// Types
-// ============================================================
 
 export interface AudioFormatInfo {
   format: AudioFormat;
@@ -22,12 +14,12 @@ export type AudioFormat = 'mp3' | 'wav' | 'ogg' | 'flac' | 'aac' | 'm4a' | 'webm
 
 export interface AudioMetadata {
   format: AudioFormat;
-  duration?: number; // seconds
-  bitrate?: number; // kbps
-  sampleRate?: number; // Hz
+  duration?: number;
+  bitrate?: number;
+  sampleRate?: number;
   channels?: number;
   codec?: string;
-  size: number; // bytes
+  size: number;
   title?: string;
   artist?: string;
   album?: string;
@@ -38,12 +30,12 @@ export interface AudioMetadata {
 export interface AudioConversionOptions {
   targetFormat: AudioFormat;
   quality?: 'low' | 'medium' | 'high';
-  bitrate?: number; // kbps
-  sampleRate?: number; // Hz
-  channels?: number; // 1 for mono, 2 for stereo
+  bitrate?: number;
+  sampleRate?: number;
+  channels?: number;
   normalize?: boolean;
-  trimStart?: number; // seconds
-  trimEnd?: number; // seconds
+  trimStart?: number;
+  trimEnd?: number;
 }
 
 export interface AudioConversionResult {
@@ -54,9 +46,6 @@ export interface AudioConversionResult {
   duration?: number;
 }
 
-// ============================================================
-// Audio Format Constants
-// ============================================================
 
 export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
   mp3: {
@@ -124,44 +113,28 @@ export const AUDIO_FORMATS: Record<AudioFormat, AudioFormatInfo> = {
   },
 };
 
-// ============================================================
-// Audio Format Utilities Class
-// ============================================================
 
 export class AudioFormatUtils {
-  /**
-   * Detect audio format from ArrayBuffer
-   */
   static detectFormat(buffer: ArrayBuffer): AudioFormat | null {
     const header = new Uint8Array(buffer, 0, 12);
 
-    // MP3: ID3 tag or sync bytes
     if (this.isMP3(header)) return 'mp3';
 
-    // WAV: RIFF header
     if (this.isWAV(header)) return 'wav';
 
-    // OGG: OggS header
     if (this.isOGG(header)) return 'ogg';
 
-    // FLAC: fLaC marker
     if (this.isFLAC(header)) return 'flac';
 
-    // AAC: ADTS header
     if (this.isAAC(header)) return 'aac';
 
-    // M4A: ftyp header
     if (this.isM4A(header)) return 'm4a';
 
-    // WebM: EBML header
     if (this.isWebM(header)) return 'webm';
 
     return null;
   }
 
-  /**
-   * Extract metadata from audio buffer
-   */
   static extractMetadata(buffer: ArrayBuffer): AudioMetadata {
     const format = this.detectFormat(buffer);
     const metadata: AudioMetadata = {
@@ -169,7 +142,6 @@ export class AudioFormatUtils {
       size: buffer.byteLength,
     };
 
-    // Try to extract more metadata based on format
     if (format === 'mp3') {
       Object.assign(metadata, this.extractMP3Metadata(buffer));
     } else if (format === 'wav') {
@@ -181,10 +153,6 @@ export class AudioFormatUtils {
     return metadata;
   }
 
-  /**
-   * Convert audio format (simplified - actual conversion requires external library)
-   * @note In Workers runtime, use external services like FAL AI or Replicate
-   */
   static async convertFormat(
     buffer: ArrayBuffer,
     options: AudioConversionOptions
@@ -196,7 +164,6 @@ export class AudioFormatUtils {
     }
 
     if (currentFormat === options.targetFormat) {
-      // No conversion needed, just apply transformations
       const metadata = this.extractMetadata(buffer);
       return {
         data: buffer,
@@ -207,31 +174,23 @@ export class AudioFormatUtils {
       };
     }
 
-    // In a real implementation, this would use audio processing libraries
-    // For Workers, we recommend using external services
     throw new Error(
       `Audio conversion from ${currentFormat} to ${options.targetFormat} requires external service. ` +
       'Use AudioGenerationService with FAL AI or Replicate for conversion.'
     );
   }
 
-  /**
-   * Optimize audio for web streaming
-   */
   static async optimizeForWeb(buffer: ArrayBuffer): Promise<ArrayBuffer> {
     const format = this.detectFormat(buffer);
 
     if (format === 'mp3') {
-      // MP3 is already web-optimized, check bitrate
       const metadata = this.extractMetadata(buffer);
       if (metadata.bitrate && metadata.bitrate > 128) {
-        // Recommend re-encoding at lower bitrate
         throw new Error('Bitrate too high for web streaming. Use external service to re-encode.');
       }
       return buffer;
     }
 
-    // Convert to MP3 for web optimization
     const result = await this.convertFormat(buffer, {
       targetFormat: 'mp3',
       quality: 'medium',
@@ -241,35 +200,24 @@ export class AudioFormatUtils {
     return result.data;
   }
 
-  /**
-   * Normalize audio volume
-   */
   static async normalizeVolume(_buffer: ArrayBuffer): Promise<ArrayBuffer> {
-    // Requires audio processing library
     throw new Error(
       'Audio normalization requires external service. ' +
       'Use AudioGenerationService with audio processing provider.'
     );
   }
 
-  /**
-   * Trim audio file
-   */
   static async trimAudio(
     _buffer: ArrayBuffer,
     _startSeconds: number,
     _endSeconds?: number
   ): Promise<ArrayBuffer> {
-    // Requires audio processing library
     throw new Error(
       'Audio trimming requires external service. ' +
       'Use AudioGenerationService with audio processing provider.'
     );
   }
 
-  /**
-   * Get audio duration from buffer
-   */
   static getDuration(buffer: ArrayBuffer): number | null {
     const format = this.detectFormat(buffer);
 
@@ -284,11 +232,7 @@ export class AudioFormatUtils {
     return null;
   }
 
-  /**
-   * Generate waveform data for visualization
-   */
   static generateWaveform(buffer: ArrayBuffer, samples: number = 1000): number[] {
-    // Simplified waveform generation
     const data = new Int16Array(buffer);
     const waveform: number[] = [];
     const step = Math.floor(data.length / samples);
@@ -302,15 +246,12 @@ export class AudioFormatUtils {
         max = Math.max(max, Math.abs(data[j]));
       }
 
-      waveform.push(max / 32768); // Normalize to 0-1
+      waveform.push(max / 32768);
     }
 
     return waveform;
   }
 
-  /**
-   * Validate audio file
-   */
   static validateAudio(buffer: ArrayBuffer): { valid: boolean; error?: string } {
     const format = this.detectFormat(buffer);
 
@@ -331,16 +272,11 @@ export class AudioFormatUtils {
     return { valid: true };
   }
 
-  // ============================================================
-  // Format Detection Helpers
-  // ============================================================
 
   private static isMP3(header: Uint8Array): boolean {
-    // Check for ID3 tag
     if (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) {
       return true;
     }
-    // Check for MPEG sync bytes
     if (header[0] === 0xFF && (header[1] & 0xE0) === 0xE0) {
       return true;
     }
@@ -349,46 +285,45 @@ export class AudioFormatUtils {
 
   private static isWAV(header: Uint8Array): boolean {
     return (
-      header[0] === 0x52 && // R
-      header[1] === 0x49 && // I
-      header[2] === 0x46 && // F
-      header[3] === 0x46 && // F
-      header[8] === 0x57 && // W
-      header[9] === 0x41 && // A
-      header[10] === 0x56 && // V
-      header[11] === 0x45 // E
+      header[0] === 0x52 &&
+      header[1] === 0x49 &&
+      header[2] === 0x46 &&
+      header[3] === 0x46 &&
+      header[8] === 0x57 &&
+      header[9] === 0x41 &&
+      header[10] === 0x56 &&
+      header[11] === 0x45
     );
   }
 
   private static isOGG(header: Uint8Array): boolean {
     return (
-      header[0] === 0x4F && // O
-      header[1] === 0x67 && // g
-      header[2] === 0x67 && // g
-      header[3] === 0x53 // S
+      header[0] === 0x4F &&
+      header[1] === 0x67 &&
+      header[2] === 0x67 &&
+      header[3] === 0x53
     );
   }
 
   private static isFLAC(header: Uint8Array): boolean {
     return (
-      header[0] === 0x66 && // f
-      header[1] === 0x4C && // L
-      header[2] === 0x61 && // a
-      header[3] === 0x43 // C
+      header[0] === 0x66 &&
+      header[1] === 0x4C &&
+      header[2] === 0x61 &&
+      header[3] === 0x43
     );
   }
 
   private static isAAC(header: Uint8Array): boolean {
-    // ADTS sync word
     return (header[0] === 0xFF && (header[1] & 0xF0) === 0xF0);
   }
 
   private static isM4A(header: Uint8Array): boolean {
     return (
-      header[4] === 0x66 && // f
-      header[5] === 0x74 && // t
-      header[6] === 0x79 && // y
-      header[7] === 0x70 // p
+      header[4] === 0x66 &&
+      header[5] === 0x74 &&
+      header[6] === 0x79 &&
+      header[7] === 0x70
     );
   }
 
@@ -401,20 +336,10 @@ export class AudioFormatUtils {
     );
   }
 
-  // ============================================================
-  // Metadata Extraction
-  // ============================================================
 
   private static extractMP3Metadata(buffer: ArrayBuffer): Partial<AudioMetadata> {
     const metadata: Partial<AudioMetadata> = {};
 
-    // Try to find ID3 tag
-    if (this.isMP3(new Uint8Array(buffer, 0, 3))) {
-      // ID3v2 header
-      // Parse ID3 tags here if needed (header size = getUint32(6) + 10)
-    }
-
-    // Get duration from MP3 frame headers (simplified)
     metadata.duration = this.getMP3Duration(buffer) ?? undefined;
 
     return metadata;
@@ -424,10 +349,8 @@ export class AudioFormatUtils {
     const metadata: Partial<AudioMetadata> = {};
     const view = new DataView(buffer);
 
-    // Skip RIFF header
     let offset = 12;
 
-    // Find fmt chunk
     while (offset < buffer.byteLength - 8) {
       const chunkId = String.fromCharCode(
         view.getUint8(offset),
@@ -450,7 +373,6 @@ export class AudioFormatUtils {
       offset += 8 + chunkSize;
     }
 
-    // Calculate duration
     if (metadata.bitrate && metadata.bitrate > 0) {
       metadata.duration = (buffer.byteLength * 8) / (metadata.bitrate * 1000);
     }
@@ -461,19 +383,13 @@ export class AudioFormatUtils {
   private static extractFLACMetadata(buffer: ArrayBuffer): Partial<AudioMetadata> {
     const metadata: Partial<AudioMetadata> = {};
 
-    // FLAC metadata parsing (simplified)
     metadata.duration = this.getFLACDuration(buffer) ?? undefined;
 
     return metadata;
   }
 
-  // ============================================================
-  // Duration Calculation
-  // ============================================================
 
   private static getMP3Duration(buffer: ArrayBuffer): number | null {
-    // Simplified MP3 duration calculation
-    // In production, use a proper MP3 parser
     const view = new DataView(buffer);
     let offset = 0;
     let frameCount = 0;
@@ -482,26 +398,22 @@ export class AudioFormatUtils {
     while (offset < buffer.byteLength - 4) {
       if ((view.getUint8(offset) & 0xFF) === 0xFF &&
           ((view.getUint8(offset + 1) & 0xE0) >> 5) === 0x07) {
-        // Found MPEG frame
         const bitrateIndex = (view.getUint8(offset + 2) & 0xF0) >> 4;
         const sampleRateIndex = (view.getUint8(offset + 2) & 0x0C) >> 2;
 
-        // Layer III bitrate table
         const bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
-        // Sample-rate table per MPEG version: [44100, 48000, 32000] (v1) etc.
 
         if (bitrateIndex > 0 && bitrateIndex < 16 && sampleRateIndex < 3) {
           bitrateSum += bitrates[bitrateIndex];
           frameCount++;
         }
 
-        // Skip to next frame (rough estimate)
         offset += 1000;
       } else {
         offset++;
       }
 
-      if (frameCount >= 100) break; // Sample 100 frames
+      if (frameCount >= 100) break;
     }
 
     if (frameCount > 0) {
@@ -521,18 +433,10 @@ export class AudioFormatUtils {
   }
 
   private static getFLACDuration(_buffer: ArrayBuffer): number | null {
-    // FLAC duration calculation requires parsing metadata blocks
-    // This is a simplified version
     return null;
   }
 
-  // ============================================================
-  // Utility Functions
-  // ============================================================
 
-  /**
-   * Convert audio buffer to base64
-   */
   static toBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';
@@ -542,9 +446,6 @@ export class AudioFormatUtils {
     return btoa(binary);
   }
 
-  /**
-   * Convert base64 to audio buffer
-   */
   static fromBase64(base64: string): ArrayBuffer {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -554,23 +455,14 @@ export class AudioFormatUtils {
     return bytes.buffer;
   }
 
-  /**
-   * Get MIME type for format
-   */
   static getMimeType(format: AudioFormat): string {
     return AUDIO_FORMATS[format]?.mimeType || 'audio/mpeg';
   }
 
-  /**
-   * Get file extension for format
-   */
   static getExtension(format: AudioFormat): string {
     return AUDIO_FORMATS[format]?.extension || 'mp3';
   }
 
-  /**
-   * Get recommended bitrate for quality
-   */
   static getRecommendedBitrate(format: AudioFormat, quality: 'low' | 'medium' | 'high'): number {
     const formatInfo = AUDIO_FORMATS[format];
 
@@ -584,9 +476,6 @@ export class AudioFormatUtils {
   }
 }
 
-// ============================================================
-// Export Helper Functions
-// ============================================================
 
 export const detectAudioFormat = AudioFormatUtils.detectFormat.bind(AudioFormatUtils);
 export const extractAudioMetadata = AudioFormatUtils.extractMetadata.bind(AudioFormatUtils);

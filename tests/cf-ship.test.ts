@@ -15,7 +15,6 @@ describe('renderWranglerConfig', () => {
     expect(config).toContain('"name": "foodora"');
     expect(config).toContain('"directory": "./dist"');
     expect(config).toContain('"not_found_handling": "single-page-application"');
-    // Pure SPA: no worker script entry.
     expect(config).not.toMatch(/^\s*"main":/m);
   });
 
@@ -57,8 +56,6 @@ describe('resolveWranglerBin', () => {
 
   it('returns null when nothing is installed above fromDir', () => {
     const emptyRoot = mkdtempSync(join(tmpdir(), 'cf-ship-empty-'));
-    // tmpdir parents usually contain no wrangler install; keep a marker file so
-    // the intent is clear even if the assertion ever flakes on an odd machine.
     writeFileSync(join(emptyRoot, 'marker'), 'no wrangler expected above this dir');
     expect(resolveWranglerBin(emptyRoot)).toBeNull();
   });

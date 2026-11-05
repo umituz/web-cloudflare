@@ -1,6 +1,3 @@
-/**
- * Middleware Domain Entities
- */
 
 export type {
   MiddlewareCORSConfig,

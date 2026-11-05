@@ -1,16 +1,8 @@
-/**
- * Audio Project Management Service
- * @description Manages multiple voice/audio projects dynamically with CRUD operations,
- * voice profiles, TTS configurations, and metadata persistence.
- */
 
 import type { IKVService } from '../../kv/types/service.interface';
 import type { ID1Service } from '../../d1/types/service.interface';
 import { generateId } from '../../../infrastructure/utils/helpers';
 
-// ============================================================
-// Types
-// ============================================================
 
 export interface AudioProject {
   id: string;
@@ -29,7 +21,7 @@ export interface AudioProjectSettings {
   audioQuality: 'low' | 'medium' | 'high';
   outputFormat: 'mp3' | 'wav' | 'ogg';
   enableEmotionControl: boolean;
-  maxDuration: number; // seconds
+  maxDuration: number;
 }
 
 export interface VoiceProfile {
@@ -71,11 +63,7 @@ export interface VoiceProfileCreateOptions {
   settings?: VoiceProfileSettings;
 }
 
-// ============================================================
-// Audio Project Management Service
-// ============================================================
 
-/** D1 audio_projects row (snake_case columns). */
 interface DbAudioProjectRow {
   id: string;
   name: string;
@@ -86,7 +74,6 @@ interface DbAudioProjectRow {
   updated_at: number;
 }
 
-/** D1 voice_profiles row (snake_case columns). */
 interface DbVoiceRow {
   id: string;
   name: string;
@@ -110,13 +97,7 @@ export class AudioProjectService {
     this.maxCacheSize = options?.maxCacheSize ?? 100;
   }
 
-  // ============================================================
-  // Project CRUD Operations
-  // ============================================================
 
-  /**
-   * Create a new audio project
-   */
   async createProject(options: AudioProjectCreateOptions): Promise<AudioProject> {
     const project: AudioProject = {
       id: this.generateId(),
@@ -129,17 +110,14 @@ export class AudioProjectService {
       updatedAt: Date.now(),
     };
 
-    // Save to KV
     if (this.kv) {
       await this.kv.put(`audio_project:${project.id}`, JSON.stringify(project));
     }
 
-    // Save to D1 if available
     if (this.d1) {
       await this.saveProjectToD1(project);
     }
 
-    // Cache in memory
     if (this.cacheEnabled) {
       this.cache.set(project.id, project);
       this.cleanupCache();
@@ -148,16 +126,11 @@ export class AudioProjectService {
     return project;
   }
 
-  /**
-   * Get project by ID
-   */
   async getProject(projectId: string): Promise<AudioProject | null> {
-    // Check cache first
     if (this.cacheEnabled && this.cache.has(projectId)) {
       return this.cache.get(projectId)!;
     }
 
-    // Load from KV
     if (this.kv) {
       const data = await this.kv.get<string>(`audio_project:${projectId}`);
       if (data) {
@@ -169,7 +142,6 @@ export class AudioProjectService {
       }
     }
 
-    // Load from D1
     if (this.d1) {
       const project = await this.loadProjectFromD1(projectId);
       if (project && this.cacheEnabled) {
@@ -181,15 +153,11 @@ export class AudioProjectService {
     return null;
   }
 
-  /**
-   * List projects by user
-   */
   async listProjects(userId: string, options?: { limit?: number; offset?: number }): Promise<AudioProject[]> {
     if (this.d1) {
       return this.listProjectsFromD1(userId, options);
     }
 
-    // Fallback to KV list (if supported) or cache
     const projects: AudioProject[] = [];
     for (const [_id, project] of this.cache) {
       if (project.userId === userId) {
@@ -199,16 +167,12 @@ export class AudioProjectService {
     return projects;
   }
 
-  /**
-   * Update project
-   */
   async updateProject(projectId: string, options: AudioProjectUpdateOptions): Promise<AudioProject> {
     const project = await this.getProject(projectId);
     if (!project) {
       throw new Error(`Project ${projectId} not found`);
     }
 
-    // Update fields
     if (options.name) project.name = options.name;
     if (options.description !== undefined) project.description = options.description;
     if (options.settings) {
@@ -216,37 +180,24 @@ export class AudioProjectService {
     }
     project.updatedAt = Date.now();
 
-    // Save changes
     await this.saveProject(project);
 
     return project;
   }
 
-  /**
-   * Delete project
-   */
   async deleteProject(projectId: string): Promise<void> {
-    // Remove from cache
     this.cache.delete(projectId);
 
-    // Remove from KV
     if (this.kv) {
       await this.kv.delete(`audio_project:${projectId}`);
     }
 
-    // Remove from D1
     if (this.d1) {
       await this.deleteProjectFromD1(projectId);
     }
   }
 
-  // ============================================================
-  // Voice Profile Management
-  // ============================================================
 
-  /**
-   * Add voice profile to project
-   */
   async addVoiceProfile(projectId: string, options: VoiceProfileCreateOptions): Promise<VoiceProfile> {
     const project = await this.getProject(projectId);
     if (!project) {
@@ -270,9 +221,6 @@ export class AudioProjectService {
     return voice;
   }
 
-  /**
-   * Get voice profile from project
-   */
   async getVoiceProfile(projectId: string, voiceId: string): Promise<VoiceProfile | null> {
     const project = await this.getProject(projectId);
     if (!project) return null;
@@ -280,17 +228,11 @@ export class AudioProjectService {
     return project.voices.find(v => v.id === voiceId) || null;
   }
 
-  /**
-   * List voice profiles in project
-   */
   async listVoiceProfiles(projectId: string): Promise<VoiceProfile[]> {
     const project = await this.getProject(projectId);
     return project?.voices || [];
   }
 
-  /**
-   * Update voice profile
-   */
   async updateVoiceProfile(projectId: string, voiceId: string, settings: Partial<VoiceProfileSettings>): Promise<VoiceProfile> {
     const project = await this.getProject(projectId);
     if (!project) {
@@ -310,9 +252,6 @@ export class AudioProjectService {
     return voice;
   }
 
-  /**
-   * Delete voice profile
-   */
   async deleteVoiceProfile(projectId: string, voiceId: string): Promise<void> {
     const project = await this.getProject(projectId);
     if (!project) return;
@@ -323,9 +262,6 @@ export class AudioProjectService {
     await this.saveProject(project);
   }
 
-  /**
-   * Set default voice for project
-   */
   async setDefaultVoice(projectId: string, voiceId: string): Promise<void> {
     const project = await this.getProject(projectId);
     if (!project) {
@@ -337,20 +273,13 @@ export class AudioProjectService {
       throw new Error(`Voice profile ${voiceId} not found`);
     }
 
-    // Add a defaultVoiceId field to settings
     project.settings.defaultTTSModel = voiceId;
     project.updatedAt = Date.now();
 
     await this.saveProject(project);
   }
 
-  // ============================================================
-  // Query & Search
-  // ============================================================
 
-  /**
-   * Search projects by name or description
-   */
   async searchProjects(userId: string, query: string): Promise<AudioProject[]> {
     const projects = await this.listProjects(userId);
     const lowerQuery = query.toLowerCase();
@@ -361,9 +290,6 @@ export class AudioProjectService {
     );
   }
 
-  /**
-   * Get projects by voice type
-   */
   async getProjectsByVoiceType(userId: string, voiceType: 'cloned' | 'preset' | 'custom'): Promise<AudioProject[]> {
     const projects = await this.listProjects(userId);
     return projects.filter(p =>
@@ -371,13 +297,7 @@ export class AudioProjectService {
     );
   }
 
-  // ============================================================
-  // Statistics & Analytics
-  // ============================================================
 
-  /**
-   * Get project statistics
-   */
   async getProjectStats(projectId: string): Promise<{
     voiceCount: number;
     clonedVoices: number;
@@ -399,9 +319,6 @@ export class AudioProjectService {
     };
   }
 
-  /**
-   * Get user statistics
-   */
   async getUserStats(userId: string): Promise<{
     totalProjects: number;
     totalVoices: number;
@@ -421,9 +338,6 @@ export class AudioProjectService {
     };
   }
 
-  // ============================================================
-  // Private Helpers
-  // ============================================================
 
   private mergeDefaultSettings(settings?: Partial<AudioProjectSettings>): AudioProjectSettings {
     return {
@@ -437,17 +351,14 @@ export class AudioProjectService {
   }
 
   private async saveProject(project: AudioProject): Promise<void> {
-    // Update cache
     if (this.cacheEnabled) {
       this.cache.set(project.id, project);
     }
 
-    // Save to KV
     if (this.kv) {
       await this.kv.put(`audio_project:${project.id}`, JSON.stringify(project));
     }
 
-    // Save to D1
     if (this.d1) {
       await this.saveProjectToD1(project);
     }
@@ -464,13 +375,9 @@ export class AudioProjectService {
   }
 
   private generateId(): string {
-    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
     return generateId();
   }
 
-  // ============================================================
-  // D1 Operations
-  // ============================================================
 
   private async saveProjectToD1(project: AudioProject): Promise<void> {
     if (!this.d1) return;
@@ -559,17 +466,12 @@ export class AudioProjectService {
   private async deleteProjectFromD1(projectId: string): Promise<void> {
     if (!this.d1) return;
 
-    // Delete voice profiles first
     await this.d1.query(`DELETE FROM voice_profiles WHERE project_id = ?`, [projectId]);
 
-    // Delete project
     await this.d1.query(`DELETE FROM audio_projects WHERE id = ?`, [projectId]);
   }
 }
 
-// ============================================================
-// Factory Function
-// ============================================================
 
 export function createAudioProjectService(
   kv?: IKVService,
@@ -579,7 +481,4 @@ export function createAudioProjectService(
   return new AudioProjectService(kv, d1, options);
 }
 
-/**
- * Default instance (without storage)
- */
 export const audioProjectService = new AudioProjectService();

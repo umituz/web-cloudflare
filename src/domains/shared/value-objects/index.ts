@@ -1,7 +1,3 @@
-/**
- * Value Objects Index
- * @description Export all value objects
- */
 
 export { ValueObject } from './base.value-object';
 export { CacheKey } from './cache-key.vo';

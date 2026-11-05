@@ -1,14 +1,7 @@
-/**
- * Embedding Service
- * @description Text and image embedding generation with similarity calculation
- */
 
 import type { IEmbeddingService } from '../types';
 import type { WorkersAIBinding } from '../../../config/types';
 
-// ============================================================
-// Embedding Service Implementation
-// ============================================================
 
 export class EmbeddingService implements IEmbeddingService {
   private env: {
@@ -22,16 +15,10 @@ export class EmbeddingService implements IEmbeddingService {
     this.env = env;
   }
 
-  /**
-   * Get Workers AI binding
-   */
   private getAI(): WorkersAIBinding | null {
     return this.env.bindings?.AI || this.env.AI || null;
   }
 
-  /**
-   * Generate text embedding
-   */
   async generateTextEmbedding(
     text: string | string[],
     model: string = '@cf/openai/clip-vit-base-patch32'
@@ -42,7 +29,6 @@ export class EmbeddingService implements IEmbeddingService {
       throw new Error('Workers AI binding not configured');
     }
 
-    // Handle batch of texts
     if (Array.isArray(text)) {
       const embeddings = await Promise.all(
         text.map(t => this.generateSingleTextEmbedding(t, model, ai))
@@ -50,13 +36,9 @@ export class EmbeddingService implements IEmbeddingService {
       return embeddings;
     }
 
-    // Single text
     return this.generateSingleTextEmbedding(text, model, ai);
   }
 
-  /**
-   * Generate single text embedding
-   */
   private async generateSingleTextEmbedding(
     text: string,
     model: string,
@@ -71,7 +53,6 @@ export class EmbeddingService implements IEmbeddingService {
 
       const r = response as Record<string, unknown>;
 
-      // Extract embedding array
       const embedding = r.embedding as number[] | undefined ||
                        r.data as number[] | undefined ||
                        (r.output as { embedding?: number[] })?.embedding;
@@ -89,9 +70,6 @@ export class EmbeddingService implements IEmbeddingService {
     }
   }
 
-  /**
-   * Generate image embedding
-   */
   async generateImageEmbedding(
     image: ArrayBuffer | string,
     model: string = '@cf/openai/clip-vit-base-patch32'
@@ -106,10 +84,8 @@ export class EmbeddingService implements IEmbeddingService {
       let input: unknown;
 
       if (typeof image === 'string') {
-        // Image URL or base64
         input = { image };
       } else {
-        // ArrayBuffer (will be converted to base64)
         const base64 = this.arrayBufferToBase64(image);
         input = { image: base64 };
       }
@@ -122,7 +98,6 @@ export class EmbeddingService implements IEmbeddingService {
 
       const r = response as Record<string, unknown>;
 
-      // Extract embedding array
       const embedding = r.embedding as number[] | undefined ||
                        r.data as number[] | undefined ||
                        (r.output as { embedding?: number[] })?.embedding;
@@ -140,9 +115,6 @@ export class EmbeddingService implements IEmbeddingService {
     }
   }
 
-  /**
-   * Generate embeddings in batch
-   */
   async batchEmbeddings(
     inputs: string[],
     options: {
@@ -156,7 +128,6 @@ export class EmbeddingService implements IEmbeddingService {
       return [];
     }
 
-    // Process in batches
     const results: number[][] = [];
 
     for (let i = 0; i < inputs.length; i += batchSize) {
@@ -170,9 +141,6 @@ export class EmbeddingService implements IEmbeddingService {
     return results;
   }
 
-  /**
-   * Calculate cosine similarity between embeddings
-   */
   calculateSimilarity(
     embedding1: number[],
     embedding2: number[]
@@ -200,9 +168,6 @@ export class EmbeddingService implements IEmbeddingService {
     return dotProduct / denominator;
   }
 
-  /**
-   * Find most similar embedding from candidates
-   */
   findMostSimilar(
     query: number[],
     candidates: number[][]
@@ -225,13 +190,7 @@ export class EmbeddingService implements IEmbeddingService {
     return { index: maxIndex, score: maxScore };
   }
 
-  // ============================================================
-  // Private Helpers
-  // ============================================================
 
-  /**
-   * Convert ArrayBuffer to base64
-   */
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = '';
@@ -242,8 +201,5 @@ export class EmbeddingService implements IEmbeddingService {
   }
 }
 
-// ============================================================
-// Singleton Instance
-// ============================================================
 
 export const embeddingService = new EmbeddingService({});

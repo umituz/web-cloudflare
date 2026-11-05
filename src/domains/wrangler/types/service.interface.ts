@@ -1,7 +1,3 @@
-/**
- * Wrangler Service Interface
- * Defines the contract for Wrangler CLI operations
- */
 
 import type {
   WranglerResult,
@@ -18,12 +14,10 @@ import type {
 } from '../entities';
 
 export interface IWranglerService {
-  // Authentication
   login(options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>>;
   logout(options?: WranglerCommandOptions): Promise<WranglerResult<void>>;
   whoami(options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>>;
 
-  // Project management
   init(
     projectName: string,
     template?: string,
@@ -40,7 +34,6 @@ export interface IWranglerService {
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
 
-  // KV operations
   kvNamespaceCreate(
     title: string,
     options?: WranglerCommandOptions
@@ -69,7 +62,6 @@ export interface IWranglerService {
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
 
-  // R2 operations
   r2BucketCreate(
     bucketName: string,
     options?: WranglerCommandOptions
@@ -88,7 +80,6 @@ export interface IWranglerService {
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
 
-  // D1 operations
   d1Create(
     databaseName: string,
     options?: WranglerCommandOptions
@@ -101,7 +92,6 @@ export interface IWranglerService {
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<unknown[]>>;
 
-  // Secrets
   secretPut(
     secretName: string,
     value: string,
@@ -113,12 +103,10 @@ export interface IWranglerService {
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
 
-  // Monitoring
   tail(
     options?: WranglerCommandOptions & { format?: 'pretty' | 'json' }
   ): Promise<WranglerResult<void>>;
 
-  // Versions
   versionsList(
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<Array<Pick<WorkerVersionInfo, 'id'>>>>;
@@ -127,14 +115,12 @@ export interface IWranglerService {
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
 
-  // Generic command execution
   executeCommand(
     command: string,
     args: string[],
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<string>>;
 
-  // Pages operations
   pagesProjectCreate(
     projectName: string,
     options?: WranglerCommandOptions & { productionBranch?: string }
@@ -155,7 +141,6 @@ export interface IWranglerService {
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<void>>;
 
-  // Workers operations
   workersList(
     options?: WranglerCommandOptions
   ): Promise<WranglerResult<string[]>>;

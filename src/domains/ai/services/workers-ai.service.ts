@@ -1,7 +1,3 @@
-/**
- * Workers AI Service
- * @description Generic LLM calls with streaming, neuron tracking, and cost estimation
- */
 
 import type {
   IWorkersAIService,
@@ -15,9 +11,6 @@ import type {
 import type { WorkersAIBinding } from '../../../config/types';
 import { generateId } from '../../../infrastructure/utils/helpers';
 
-// ============================================================
-// Model Registry
-// ============================================================
 
 interface ModelInfo {
   name: string;
@@ -28,7 +21,6 @@ interface ModelInfo {
 }
 
 const MODELS: Record<string, ModelInfo> = {
-  // Text Generation Models
   '@cf/meta/llama-3.1-8b-instruct': {
     name: 'Llama 3.1 8B Instruct',
     contextLength: 131072,
@@ -65,7 +57,6 @@ const MODELS: Record<string, ModelInfo> = {
     capabilities: ['completion', 'code'],
   },
 
-  // Image Generation Models
   '@cf/stabilityai/stable-diffusion-xl-base-1.0': {
     name: 'Stable Diffusion XL',
     contextLength: 0,
@@ -74,7 +65,6 @@ const MODELS: Record<string, ModelInfo> = {
     capabilities: ['image'],
   },
 
-  // Audio Models (TTS - Text-to-Speech)
   '@cf/myshell-ai/melotts': {
     name: 'MeloTS Text-to-Speech',
     contextLength: 0,
@@ -104,7 +94,6 @@ const MODELS: Record<string, ModelInfo> = {
     capabilities: ['audio', 'tts', 'speech', 'spanish'],
   },
 
-  // Audio Models (ASR - Automatic Speech Recognition)
   '@cf/deepgram/nova-2': {
     name: 'Deepgram Nova-2',
     contextLength: 0,
@@ -120,7 +109,6 @@ const MODELS: Record<string, ModelInfo> = {
     capabilities: ['audio', 'asr', 'transcription'],
   },
 
-  // Embedding Models
   '@cf/openai/clip-vit-base-patch32': {
     name: 'CLIP ViT Base',
     contextLength: 77,
@@ -130,9 +118,6 @@ const MODELS: Record<string, ModelInfo> = {
   },
 };
 
-// ============================================================
-// Workers AI Service Implementation
-// ============================================================
 
 export class WorkersAIService implements IWorkersAIService {
   private env: {
@@ -146,16 +131,10 @@ export class WorkersAIService implements IWorkersAIService {
     this.env = env;
   }
 
-  /**
-   * Get Workers AI binding
-   */
   private getAI(): WorkersAIBinding | null {
     return this.env.bindings?.AI || this.env.AI || null;
   }
 
-  /**
-   * Generic LLM call with full support
-   */
   async callLLM<T = unknown>(
     model: string,
     request: LLMRequest,
@@ -177,14 +156,12 @@ export class WorkersAIService implements IWorkersAIService {
       throw new Error(`Unknown model: ${model}`);
     }
 
-    // Prepare inputs based on request type
     const inputs: Record<string, unknown> = {
       prompt: request.prompt,
       messages: request.messages,
       ...request.parameters,
     };
 
-    // Remove messages if using prompt-based model
     if (!inputs.messages) {
       delete inputs.messages;
     }
@@ -192,11 +169,9 @@ export class WorkersAIService implements IWorkersAIService {
     try {
       const response = await ai.run(model, inputs);
 
-      // Parse response
       const content = this.extractContent(response);
       const tokens = this.estimateTokens(content);
 
-      // Calculate metrics
       const neurons = options.trackNeurons
         ? this.trackNeuronUsage(model, tokens)
         : 0;
@@ -228,9 +203,6 @@ export class WorkersAIService implements IWorkersAIService {
     }
   }
 
-  /**
-   * Stream LLM response
-   */
   streamLLM(
     model: string,
     request: LLMRequest
@@ -249,7 +221,6 @@ export class WorkersAIService implements IWorkersAIService {
     const requestId = this.generateId();
     let totalTokens = 0;
 
-    // Create a TransformStream for streaming
     return new ReadableStream<LLMStreamChunk>({
       async start(controller) {
         try {
@@ -260,13 +231,9 @@ export class WorkersAIService implements IWorkersAIService {
             ...request.parameters,
           };
 
-          // Note: Workers AI streaming support may vary
-          // This is a simplified implementation
           const response = await ai.run(model, inputs);
           const content = String(response || '');
 
-          // Send as single chunk for now
-          // Real SSE streaming would require different implementation
           controller.enqueue({
             content,
             done: false,
@@ -297,9 +264,6 @@ export class WorkersAIService implements IWorkersAIService {
     });
   }
 
-  /**
-   * Select model based on requirements
-   */
   selectModel(requirements: ModelRequirements): string {
     const candidates = Object.entries(MODELS).filter(([_, info]) =>
       info.capabilities.includes(requirements.task)
@@ -309,17 +273,14 @@ export class WorkersAIService implements IWorkersAIService {
       throw new Error(`No models found for task: ${requirements.task}`);
     }
 
-    // Sort by requirements
     let sorted = candidates;
 
-    // Filter by context length
     if (requirements.contextLength !== undefined) {
       sorted = sorted.filter(([_, info]) =>
         (info.contextLength ?? 0) >= requirements.contextLength!
       );
     }
 
-    // Sort by speed preference
     if (requirements.speed) {
       sorted.sort((a, b) => {
         const costA = a[1].costPer1KNeurons;
@@ -330,20 +291,15 @@ export class WorkersAIService implements IWorkersAIService {
       });
     }
 
-    // Sort by cost if cost sensitive
     if (requirements.costSensitive) {
       sorted.sort((a, b) =>
         a[1].costPer1KNeurons - b[1].costPer1KNeurons
       );
     }
 
-    // Return first match
     return sorted[0]?.[0] || '@cf/meta/llama-3.1-8b-instruct';
   }
 
-  /**
-   * Track neuron usage for billing
-   */
   trackNeuronUsage(model: string, tokens: number): number {
     const modelInfo = MODELS[model];
     if (!modelInfo) {
@@ -354,9 +310,6 @@ export class WorkersAIService implements IWorkersAIService {
     return Math.ceil((tokens / 1000) * neuronsPer1K);
   }
 
-  /**
-   * Calculate cost based on neuron usage
-   */
   calculateCost(model: string, neurons: number): number {
     const modelInfo = MODELS[model];
     if (!modelInfo) {
@@ -367,31 +320,15 @@ export class WorkersAIService implements IWorkersAIService {
     return (neurons / 1000) * costPer1KNeurons;
   }
 
-  /**
-   * Get available models
-   */
   getAvailableModels(): string[] {
     return Object.keys(MODELS);
   }
 
-  /**
-   * Get model information
-   */
   getModelInfo(model: string): ModelInfo | null {
     return MODELS[model] || null;
   }
 
-  // ============================================================
-  // Text-to-Speech (TTS) Methods
-  // ============================================================
 
-  /**
-   * Generate speech from text using Workers AI TTS models
-   * @param model TTS model (default: '@cf/myshell-ai/melotts')
-   * @param text Text to convert to speech
-   * @param options TTS options
-   * @returns Base64 encoded audio (MP3)
-   */
   async generateSpeech(
     text: string,
     options: {
@@ -420,7 +357,6 @@ export class WorkersAIService implements IWorkersAIService {
     try {
       const params: Record<string, unknown> = {};
 
-      // MeloTTS uses 'prompt' parameter, others use 'text'
       if (model.includes('melotts')) {
         params.prompt = text;
         params.lang = options.lang || 'en';
@@ -428,29 +364,24 @@ export class WorkersAIService implements IWorkersAIService {
         params.text = text;
       }
 
-      // Add voice/style parameters (if supported)
       if (options.voice) {
         params.voice = options.voice;
       }
 
-      // Add speed control
       if (options.speed !== undefined) {
         params.speed = Math.max(0.25, Math.min(4.0, options.speed));
       }
 
-      // Add pitch control
       if (options.pitch !== undefined) {
         params.pitch = Math.max(-20, Math.min(20, options.pitch));
       }
 
-      // Add emotion control (if supported)
       if (options.emotion) {
         params.emotion = options.emotion;
       }
 
       const response = await ai.run(model, params);
 
-      // Handle ReadableStream response (Deepgram Aura models)
       if (response instanceof ReadableStream) {
         const reader = response.getReader();
         const chunks: Uint8Array[] = [];
@@ -462,11 +393,10 @@ export class WorkersAIService implements IWorkersAIService {
             if (value) chunks.push(value);
           }
         } catch (error) {
-          try { await reader.cancel(); } catch { /* already closed */ }
+          try { await reader.cancel(); } catch {}
           throw error;
         }
 
-        // Combine chunks and convert to base64
         const combined = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
         let offset = 0;
         for (const chunk of chunks) {
@@ -474,7 +404,6 @@ export class WorkersAIService implements IWorkersAIService {
           offset += chunk.length;
         }
 
-        // Convert binary to base64
         const binary = Array.from(combined, byte => String.fromCharCode(byte)).join('');
         const base64 = btoa(binary);
 
@@ -485,7 +414,6 @@ export class WorkersAIService implements IWorkersAIService {
         };
       }
 
-      // MeloTS returns { audio: "base64..." }
       if (typeof response === 'object' && response !== null) {
         const r = response as Record<string, unknown>;
         if ('audio' in r && typeof r.audio === 'string') {
@@ -497,7 +425,6 @@ export class WorkersAIService implements IWorkersAIService {
         }
       }
 
-      // If returnRawResponse, return as-is
       if (options.returnRawResponse) {
         return {
           audio: typeof response === 'string' ? response : JSON.stringify(response),
@@ -515,12 +442,6 @@ export class WorkersAIService implements IWorkersAIService {
     }
   }
 
-  /**
-   * Generate batch TTS for multiple texts
-   * @param texts Array of texts to convert
-   * @param options TTS options
-   * @returns Array of audio results
-   */
   async generateBatchSpeech(
     texts: string[],
     options: {
@@ -534,7 +455,6 @@ export class WorkersAIService implements IWorkersAIService {
     const results: Array<{ audio: string; format: string; model: string; index: number }> = [];
 
     if (parallel) {
-      // Generate in parallel
       const promises = texts.map((text, index) =>
         this.generateSpeech(text, options).then(result => {
           options.onProgress?.(index + 1, texts.length);
@@ -543,7 +463,6 @@ export class WorkersAIService implements IWorkersAIService {
       );
       return await Promise.all(promises);
     } else {
-      // Generate sequentially
       for (let i = 0; i < texts.length; i++) {
         const result = await this.generateSpeech(texts[i], options);
         results.push({ ...result, index: i });
@@ -553,12 +472,6 @@ export class WorkersAIService implements IWorkersAIService {
     }
   }
 
-  /**
-   * Generate speech with voice profile
-   * @param text Text to convert
-   * @param profile Voice profile settings
-   * @returns Audio result
-   */
   async generateSpeechWithProfile(
     text: string,
     profile: {
@@ -573,16 +486,7 @@ export class WorkersAIService implements IWorkersAIService {
     return this.generateSpeech(text, profile);
   }
 
-  // ============================================================
-  // Automatic Speech Recognition (ASR) Methods
-  // ============================================================
 
-  /**
-   * Transcribe audio to text using Workers AI ASR models
-   * @param audio Audio data (ArrayBuffer, Uint8Array, or base64 string)
-   * @param options ASR options
-   * @returns Transcription result with text and metadata
-   */
   async transcribeAudio(
     audio: ArrayBuffer | Uint8Array | string,
     options: {
@@ -606,11 +510,9 @@ export class WorkersAIService implements IWorkersAIService {
     }
 
     try {
-      // Prepare audio input
       let audioInput: Record<string, unknown>;
 
       if (typeof audio === 'string') {
-        // Base64 string - convert to Uint8Array
         const binaryString = atob(audio);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
@@ -625,13 +527,11 @@ export class WorkersAIService implements IWorkersAIService {
           audio: Array.from(audio),
         };
       } else {
-        // ArrayBuffer
         audioInput = {
           audio: Array.from(new Uint8Array(audio)),
         };
       }
 
-      // Add ASR-specific parameters
       if (options.detectLanguage) {
         audioInput.detect_language = options.detectLanguage;
       }
@@ -642,7 +542,6 @@ export class WorkersAIService implements IWorkersAIService {
 
       const response = await ai.run(model, audioInput);
 
-      // Extract transcription text
       let text = '';
       let language: string | undefined;
 
@@ -651,7 +550,6 @@ export class WorkersAIService implements IWorkersAIService {
       } else if (typeof response === 'object' && response !== null) {
         const r = response as Record<string, unknown>;
 
-        // Whisper format: { text: "...", language: "en" }
         if ('text' in r && typeof r.text === 'string') {
           text = r.text;
         }
@@ -660,7 +558,6 @@ export class WorkersAIService implements IWorkersAIService {
           language = r.language;
         }
 
-        // Nova-2 format: { result: "...", detected_language: "en" }
         if ('result' in r && typeof r.result === 'string') {
           text = r.result;
         }
@@ -687,31 +584,19 @@ export class WorkersAIService implements IWorkersAIService {
     }
   }
 
-  /**
-   * Get available TTS models
-   */
   getAvailableTTSModels(): string[] {
     return Object.entries(MODELS)
       .filter(([_, info]) => info.capabilities.includes('tts'))
       .map(([model, _]) => model);
   }
 
-  /**
-   * Get available ASR models
-   */
   getAvailableASRModels(): string[] {
     return Object.entries(MODELS)
       .filter(([_, info]) => info.capabilities.includes('asr'))
       .map(([model, _]) => model);
   }
 
-  // ============================================================
-  // Private Helpers
-  // ============================================================
 
-  /**
-   * Extract content from Workers AI response
-   */
   private extractContent(response: unknown): string {
     if (typeof response === 'string') {
       return response;
@@ -727,9 +612,6 @@ export class WorkersAIService implements IWorkersAIService {
     return String(response || '');
   }
 
-  /**
-   * Try to parse JSON from content
-   */
   private tryParseJSON<T>(content: string): T | undefined {
     try {
       const trimmed = content.trim();
@@ -737,30 +619,18 @@ export class WorkersAIService implements IWorkersAIService {
         return JSON.parse(trimmed) as T;
       }
     } catch {
-      // Not JSON or invalid JSON
     }
     return undefined;
   }
 
-  /**
-   * Estimate token count (rough approximation)
-   */
   private estimateTokens(text: string): number {
-    // Rough estimate: ~4 characters per token
     return Math.ceil(text.length / 4);
   }
 
-  /**
-   * Generate unique ID
-   */
   private generateId(): string {
-    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
     return generateId();
   }
 }
 
-// ============================================================
-// Singleton Instance
-// ============================================================
 
 export const workersAIService = new WorkersAIService({});

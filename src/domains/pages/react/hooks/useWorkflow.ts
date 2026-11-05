@@ -1,7 +1,3 @@
-/**
- * useWorkflow Hook
- * @description Workflow execution and monitoring hook
- */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { APIClient } from '../utils/api-client';
@@ -49,9 +45,6 @@ export interface UseWorkflowReturn {
   resetState: () => void;
 }
 
-/**
- * Workflow hook for React apps
- */
 export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn {
   const {
     baseURL = '',
@@ -71,9 +64,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     error: null,
   });
 
-  /**
-   * Stop polling
-   */
   const stopPolling = useCallback((): void => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -82,9 +72,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     setWorkflowState((prev) => ({ ...prev, isPolling: false }));
   }, []);
 
-  /**
-   * Start polling execution
-   */
   const startPolling = useCallback((executionId: string): void => {
     setWorkflowState((prev) => ({ ...prev, isPolling: true }));
 
@@ -101,14 +88,12 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
           execution,
         }));
 
-        // Check step completions
         execution.steps.forEach((step) => {
           if (step.status === 'completed') {
             onStepComplete?.(step);
           }
         });
 
-        // Stop polling if workflow is complete
         if (execution.status === 'completed' || execution.status === 'failed') {
           stopPolling();
 
@@ -128,9 +113,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     }, pollInterval);
   }, [pollInterval, onStepComplete, onWorkflowComplete, onWorkflowError, stopPolling]);
 
-  /**
-   * Execute workflow
-   */
   const executeWorkflow = useCallback(async (
     workflowId: string,
     input?: unknown
@@ -158,7 +140,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
         isLoading: false,
       }));
 
-      // Start polling for updates
       startPolling(execution.id);
 
       return execution;
@@ -172,9 +153,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     }
   }, [startPolling]);
 
-  /**
-   * Poll execution manually
-   */
   const pollExecution = useCallback(async (executionId: string) => {
     try {
       const response = await client.current.get<{ execution: WorkflowExecution }>(
@@ -195,9 +173,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     }
   }, []);
 
-  /**
-   * Cancel execution
-   */
   const cancelExecution = useCallback(async (executionId: string) => {
     try {
       await client.current.post(`/api/workflows/executions/${executionId}/cancel`, {});
@@ -219,9 +194,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     }
   }, [stopPolling]);
 
-  /**
-   * Reset state
-   */
   const resetState = useCallback((): void => {
     stopPolling();
     setWorkflowState({
@@ -232,8 +204,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
     });
   }, [stopPolling]);
 
-  // Cleanup on unmount — `useEffect` (a `useState` initializer never runs
-  // its returned function, so the interval would otherwise leak).
   useEffect(() => {
     return () => {
       stopPolling();
@@ -249,9 +219,6 @@ export function useWorkflow(options: UseWorkflowOptions = {}): UseWorkflowReturn
   };
 }
 
-/**
- * Batch operation hook
- */
 export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
   options: UseWorkflowOptions & {
     workflowId: string;
@@ -277,9 +244,6 @@ export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
   const [isProcessing, setIsProcessing] = useState(false);
   const { executeWorkflow } = useWorkflow(workflowOptions);
 
-  /**
-   * Add items to batch
-   */
   const addItems = useCallback((newItems: Array<{ id: string; input: TInput }>): void => {
     setItems((prev) => [
       ...prev,
@@ -290,24 +254,16 @@ export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
     ]);
   }, []);
 
-  /**
-   * Process batch
-   */
   const processBatch = useCallback(async () => {
     if (isProcessing) return;
 
     setIsProcessing(true);
 
     try {
-      // `batchSize` caps how many pending items a single processBatch() call
-      // picks up; `concurrency` limits how many run in parallel.
       const pendingItems = items
         .filter((item) => item.status === 'pending')
         .slice(0, batchSize);
 
-      // Worker-pool: process every pending item with at most `concurrency`
-      // in flight (the previous implementation dropped items beyond the
-      // concurrency limit of each chunk).
       let cursor = 0;
       const workers = Array.from(
         { length: Math.max(1, Math.min(concurrency, pendingItems.length)) },
@@ -358,16 +314,10 @@ export function useBatchWorkflow<TInput = unknown, TResult = unknown>(
     }
   }, [items, isProcessing, batchSize, concurrency, workflowId, executeWorkflow]);
 
-  /**
-   * Clear completed items
-   */
   const clearCompleted = useCallback((): void => {
     setItems((prev) => prev.filter((item) => item.status !== 'completed'));
   }, []);
 
-  /**
-   * Reset all items
-   */
   const resetItems = useCallback((): void => {
     setItems([]);
   }, []);

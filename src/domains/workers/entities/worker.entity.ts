@@ -1,7 +1,3 @@
-/**
- * Worker Entity
- * @description Basic Worker entity placeholder
- */
 
 export interface WorkerEntity {
   id: string;
@@ -47,7 +43,6 @@ export interface CloudflareWorkerConfig extends WorkerConfig {
   };
 }
 
-// Workflow types
 export interface WorkflowStep<T = unknown> {
   id: string;
   name: string;
@@ -101,7 +96,6 @@ export interface CloudflareWorkflowConfig {
   maxExecutionTime?: number;
 }
 
-// Middleware config types
 export interface MiddlewareCORSConfig {
   enabled?: boolean;
   allowedOrigins: string[];

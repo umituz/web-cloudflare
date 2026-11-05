@@ -1,7 +1,3 @@
-/**
- * Analytics Entity
- * @description Basic Analytics entity placeholder
- */
 
 export interface AnalyticsEntity {
   siteId: string;

@@ -1,7 +1,3 @@
-/**
- * R2 Entity
- * @description Basic R2 entity placeholder
- */
 
 export interface R2Entity {
   bucketName: string;

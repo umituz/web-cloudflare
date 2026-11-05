@@ -1,7 +1,3 @@
-/**
- * Analytics Service Interface
- * @description Abstract interface for Analytics operations
- */
 
 import type { AnalyticsEvent, AnalyticsData } from '../entities';
 

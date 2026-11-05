@@ -1,7 +1,3 @@
-/**
- * LLM Streaming Service
- * @description Generic streaming support for LLM providers
- */
 
 import type { ILLMStreamingService } from '../types';
 import type {
@@ -10,14 +6,8 @@ import type {
 } from '../entities';
 import { generateId } from '../../../infrastructure/utils/helpers';
 
-// ============================================================
-// LLM Streaming Service Implementation
-// ============================================================
 
 export class LLMStreamingService implements ILLMStreamingService {
-  /**
-   * Create streaming request for any provider
-   */
   streamRequest(
     provider: 'workers-ai' | 'openai' | 'anthropic',
     model: string,
@@ -37,22 +27,15 @@ export class LLMStreamingService implements ILLMStreamingService {
     }
   }
 
-  /**
-   * Stream Workers AI response
-   */
   private streamWorkersAI(
     model: string,
     request: LLMRequest,
     requestId: string
   ): ReadableStream<LLMStreamChunk> {
-    // Note: Workers AI streaming implementation depends on runtime support
-    // This is a simplified version that returns the full response
 
     return new ReadableStream<LLMStreamChunk>({
       async start(controller) {
         try {
-          // For now, we'll return a placeholder
-          // In production, this would use actual Workers AI streaming
           controller.enqueue({
             content: '[Workers AI streaming not yet implemented]',
             done: false,
@@ -74,9 +57,6 @@ export class LLMStreamingService implements ILLMStreamingService {
     });
   }
 
-  /**
-   * Stream OpenAI response
-   */
   private streamOpenAI(
     model: string,
     request: LLMRequest,
@@ -110,7 +90,6 @@ export class LLMStreamingService implements ILLMStreamingService {
             throw new Error(`OpenAI API error: ${response.statusText}`);
           }
 
-          // Read SSE stream
           const reader = response.body?.getReader() ?? null;
           activeReader = reader;
           if (!reader) {
@@ -152,7 +131,6 @@ export class LLMStreamingService implements ILLMStreamingService {
                     });
                   }
                 } catch {
-                  // Skip invalid JSON
                 }
               }
             }
@@ -161,17 +139,13 @@ export class LLMStreamingService implements ILLMStreamingService {
           controller.close();
 
         } catch (error) {
-          // Release the upstream connection when the stream is abandoned
-          try { await activeReader?.cancel(); } catch { /* already closed */ }
+          try { await activeReader?.cancel(); } catch {}
           controller.error(error);
         }
       },
     });
   }
 
-  /**
-   * Stream Anthropic response
-   */
   private streamAnthropic(
     model: string,
     request: LLMRequest,
@@ -207,7 +181,6 @@ export class LLMStreamingService implements ILLMStreamingService {
             throw new Error(`Anthropic API error: ${response.statusText}`);
           }
 
-          // Read SSE stream
           const reader = response.body?.getReader() ?? null;
           activeReader = reader;
           if (!reader) {
@@ -251,7 +224,6 @@ export class LLMStreamingService implements ILLMStreamingService {
                     });
                   }
                 } catch {
-                  // Skip invalid JSON
                 }
               }
             }
@@ -260,17 +232,13 @@ export class LLMStreamingService implements ILLMStreamingService {
           controller.close();
 
         } catch (error) {
-          // Release the upstream connection when the stream is abandoned
-          try { await activeReader?.cancel(); } catch { /* already closed */ }
+          try { await activeReader?.cancel(); } catch {}
           controller.error(error);
         }
       },
     });
   }
 
-  /**
-   * Convert SSE stream to async generator
-   */
   async *streamToGenerator(
     stream: ReadableStream
   ): AsyncGenerator<LLMStreamChunk> {
@@ -287,15 +255,10 @@ export class LLMStreamingService implements ILLMStreamingService {
         }
       }
     } finally {
-      // cancel() releases the lock AND propagates cancellation upstream when
-      // the consumer abandons the generator early (releaseLock alone hangs the source)
-      try { await reader.cancel(); } catch { /* already closed */ }
+      try { await reader.cancel(); } catch {}
     }
   }
 
-  /**
-   * Accumulate streaming response
-   */
   async accumulateStream(
     stream: ReadableStream,
     onChunk?: (chunk: string) => void
@@ -318,27 +281,17 @@ export class LLMStreamingService implements ILLMStreamingService {
         }
       }
     } finally {
-      try { await reader.cancel(); } catch { /* already closed */ }
+      try { await reader.cancel(); } catch {}
     }
 
     return fullContent;
   }
 
-  // ============================================================
-  // Private Helpers
-  // ============================================================
 
-  /**
-   * Generate unique ID
-   */
   private generateId(): string {
-    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
     return generateId();
   }
 }
 
-// ============================================================
-// Singleton Instance
-// ============================================================
 
 export const llmStreamingService = new LLMStreamingService();

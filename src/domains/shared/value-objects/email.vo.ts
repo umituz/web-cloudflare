@@ -1,7 +1,3 @@
-/**
- * Email Value Object
- * @description Immutable email value object with validation
- */
 
 import { ValueObject } from './base.value-object';
 
@@ -26,9 +22,6 @@ export class Email extends ValueObject<EmailProps> {
     return this.props.value.split('@')[0];
   }
 
-  /**
-   * Create Email with validation
-   */
   public static create(email: string): Email {
     const normalized = email.trim().toLowerCase();
 
@@ -56,9 +49,6 @@ export class Email extends ValueObject<EmailProps> {
     return new Email({ value: normalized });
   }
 
-  /**
-   * Safe creation - returns null instead of throwing
-   */
   public static createSafe(email: string): Email | null {
     try {
       return this.create(email);

@@ -1,7 +1,3 @@
-/**
- * AIChat Component
- * @description AI chat interface component with streaming support
- */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useAIChat, type UseAIOptions, type AIMessage } from '../hooks/useAI';
@@ -26,9 +22,6 @@ export interface AIChatProps extends UseAIOptions {
   }) => React.ReactNode;
 }
 
-/**
- * AIChat component for conversational AI interfaces
- */
 export const AIChat: React.FC<AIChatProps> = ({
   className = '',
   placeholder = 'Type your message...',
@@ -49,25 +42,16 @@ export const AIChat: React.FC<AIChatProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  /**
-   * Scroll to bottom when messages change
-   */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /**
-   * Auto-scroll during streaming
-   */
   useEffect(() => {
     if (aiState.isStreaming) {
       messagesContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [aiState.streamContent, aiState.isStreaming]);
 
-  /**
-   * Handle send
-   */
   const handleSend = useCallback(async () => {
     if (!inputValue.trim() || aiState.isLoading) return;
 
@@ -81,7 +65,6 @@ export const AIChat: React.FC<AIChatProps> = ({
         system: systemPrompt,
       });
 
-      // Get the last assistant message
       const lastMessage = messages[messages.length - 1];
       if (lastMessage && lastMessage.role === 'assistant') {
         onMessageReceive?.(lastMessage.content);
@@ -91,9 +74,6 @@ export const AIChat: React.FC<AIChatProps> = ({
     }
   }, [inputValue, aiState.isLoading, sendMessage, messages, systemPrompt, onMessageSend, onMessageReceive]);
 
-  /**
-   * Handle key press
-   */
   const handleKeyPress = useCallback((event: React.KeyboardEvent) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -101,9 +81,6 @@ export const AIChat: React.FC<AIChatProps> = ({
     }
   }, [handleSend]);
 
-  /**
-   * Render default message
-   */
   const renderDefaultMessage = useCallback((message: AIMessage) => {
     return (
       <div
@@ -144,7 +121,6 @@ export const AIChat: React.FC<AIChatProps> = ({
 
   return (
     <div className={`ai-chat ${className}`} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Messages */}
       <div
         ref={messagesContainerRef}
         className="ai-chat-messages"
@@ -181,7 +157,6 @@ export const AIChat: React.FC<AIChatProps> = ({
 
         {messages.map((message) => renderMessage ? renderMessage(message) : renderDefaultMessage(message))}
 
-        {/* Streaming indicator */}
         {aiState.isStreaming && aiState.streamContent && (
           <div
             className="chat-message assistant streaming"
@@ -209,7 +184,6 @@ export const AIChat: React.FC<AIChatProps> = ({
           </div>
         )}
 
-        {/* Loading indicator */}
         {aiState.isLoading && !aiState.isStreaming && (
           <div
             className="chat-message assistant loading"
@@ -232,7 +206,6 @@ export const AIChat: React.FC<AIChatProps> = ({
           </div>
         )}
 
-        {/* Error message */}
         {aiState.error && (
           <div
             className="chat-message error"
@@ -258,7 +231,6 @@ export const AIChat: React.FC<AIChatProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       {renderInput ? (
         renderInput({
           value: inputValue,
@@ -339,9 +311,6 @@ export const AIChat: React.FC<AIChatProps> = ({
   );
 };
 
-/**
- * Simple chat input component
- */
 export const AIChatInput: React.FC<{
   value: string;
   onChange: (value: string) => void;

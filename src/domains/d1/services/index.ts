@@ -1,7 +1,3 @@
-/**
- * Cloudflare D1 Service
- * Subpath: @umituz/web-cloudflare/d1
- */
 
 export {
   D1Service,

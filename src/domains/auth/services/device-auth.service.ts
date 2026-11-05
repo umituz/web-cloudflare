@@ -1,7 +1,3 @@
-/**
- * Device Auth Service
- * @description Device-based anonymous user authentication with account upgrade support
- */
 
 import type {
   IDeviceAuthService,
@@ -23,18 +19,7 @@ import type { KVService } from '../../kv/services/kv.service';
 import { TokenService, INSECURE_DEFAULT_SECRET } from './token.service';
 import { generateId, secureCompare } from '../../../infrastructure/utils/helpers';
 
-// ============================================================
-// Password Hashing
-// ============================================================
 
-/**
- * Password hashing via PBKDF2-SHA256 (Web Crypto — available in Workers).
- * Stored format: `pbkdf2$<iterations>$<saltHex>$<hashHex>` with a 16-byte
- * per-password salt. Previously this was a single unsalted SHA-256 with a
- * hardcoded pepper and a cosmetic "rounds" prefix; `verifyPassword` still
- * accepts that legacy format so existing stored hashes keep working —
- * set a new password (or touch updateUser) to rehash to PBKDF2.
- */
 async function hashPassword(password: string, iterations: number = 100000): Promise<string> {
   const encoder = new TextEncoder();
   const salt = new Uint8Array(16);
@@ -62,8 +47,6 @@ async function hashPassword(password: string, iterations: number = 100000): Prom
 async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split('$');
 
-  // Legacy unsalted SHA-256 format: `<rounds>$<hex>` — verify read-only so
-  // existing accounts can still log in. No new hashes use this format.
   if (parts.length === 2 && !stored.startsWith('pbkdf2$')) {
     const encoder = new TextEncoder();
     const data = encoder.encode(password + 'pepper');
@@ -102,9 +85,6 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
   return secureCompare(computedHex, expectedHex);
 }
 
-// ============================================================
-// Database Row Shapes (D1 snake_case → entity camelCase)
-// ============================================================
 
 interface DbUserRow {
   id: string;
@@ -149,15 +129,11 @@ interface StoredSession {
   isAnonymous: boolean;
   createdAt: number;
   expiresAt: number;
-  /** Present only when the session was refreshed (write-back shape). */
   ipAddress?: string | null;
   userAgent?: string | null;
   lastRefreshedAt?: number;
 }
 
-// ============================================================
-// Device Auth Service
-// ============================================================
 
 export class DeviceAuthService implements IDeviceAuthService {
   private d1: D1Service;
@@ -175,34 +151,23 @@ export class DeviceAuthService implements IDeviceAuthService {
     this.tokenService = new TokenService(options.tokenSecret);
     this.options = {
       initialCredits: options.initialCredits ?? 10,
-      sessionTTL: options.sessionTTL ?? 86400, // 24 hours
+      sessionTTL: options.sessionTTL ?? 86400,
       tokenSecret: options.tokenSecret ?? INSECURE_DEFAULT_SECRET,
-      // Interpreted as PBKDF2 iterations. Values < 1000 (the legacy default
-      // was 10) are clamped up by hashPassword.
       passwordHashRounds: options.passwordHashRounds ?? 100000,
     };
   }
 
-  // ============================================================
-  // Device-Based Authentication
-  // ============================================================
 
-  /**
-   * Register or get user by device ID (anonymous authentication)
-   */
   async registerDevice(input: DeviceAuthInput): Promise<AuthResponse> {
     const { deviceId, deviceInfo } = input;
 
-    // Check if user exists with this device ID
     const existingUser = await this.getDeviceUser(deviceId);
 
     if (existingUser) {
-      // Update last active
       await this.updateUserActivity(existingUser.id);
       return this.createSession(existingUser, deviceId);
     }
 
-    // Create new anonymous user
     const userId = this.generateUUID();
     const now = Date.now();
 
@@ -221,7 +186,6 @@ export class DeviceAuthService implements IDeviceAuthService {
       creditsRemaining: this.options.initialCredits,
     };
 
-    // Insert user into D1
     await this.d1.insert('users', {
       id: user.id,
       device_id: user.deviceId,
@@ -237,15 +201,11 @@ export class DeviceAuthService implements IDeviceAuthService {
       credits_remaining: user.creditsRemaining,
     });
 
-    // Create initial credit transaction
     await this.addCreditTransaction(userId, this.options.initialCredits, 'grant', 'Initial welcome credits');
 
     return this.createSession(user, deviceId);
   }
 
-  /**
-   * Get user by device ID
-   */
   async getDeviceUser(deviceId: string): Promise<User | null> {
     const result = await this.d1.findOne<DbUserRow>(
       `SELECT * FROM users WHERE device_id = ? AND is_anonymous = 1`,
@@ -255,13 +215,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     return result ? this.mapDbUserToUser(result) : null;
   }
 
-  // ============================================================
-  // User Management
-  // ============================================================
 
-  /**
-   * Get user by ID
-   */
   async getUserById(userId: string): Promise<User | null> {
     const result = await this.d1.findOne<DbUserRow>(
       `SELECT * FROM users WHERE id = ?`,
@@ -271,9 +225,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     return result ? this.mapDbUserToUser(result) : null;
   }
 
-  /**
-   * Get user by email
-   */
   async getUserByEmail(email: string): Promise<User | null> {
     const result = await this.d1.findOne<DbUserRow>(
       `SELECT * FROM users WHERE email = ?`,
@@ -283,9 +234,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     return result ? this.mapDbUserToUser(result) : null;
   }
 
-  /**
-   * Update user
-   */
   async updateUser(userId: string, input: UpdateUserInput): Promise<User> {
     const updates: Record<string, string | number | null> = {};
     const now = Date.now();
@@ -317,9 +265,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     return updated;
   }
 
-  /**
-   * Update user last active timestamp
-   */
   private async updateUserActivity(userId: string): Promise<void> {
     await this.d1.query(
       `UPDATE users SET last_active_at = ? WHERE id = ?`,
@@ -327,13 +272,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     );
   }
 
-  // ============================================================
-  // Account Upgrade
-  // ============================================================
 
-  /**
-   * Upgrade anonymous user to real user with email/password
-   */
   async upgradeAccount(userId: string, input: SignUpInput): Promise<AuthResponse> {
     const user = await this.getUserById(userId);
 
@@ -345,13 +284,11 @@ export class DeviceAuthService implements IDeviceAuthService {
       throw new Error('User is already a real user');
     }
 
-    // Check if email already exists
     const existingUser = await this.getUserByEmail(input.email);
     if (existingUser) {
       throw new Error('Email already registered');
     }
 
-    // Update user to real user
     const passwordHash = await hashPassword(input.password, this.options.passwordHashRounds);
     const now = Date.now();
 
@@ -377,19 +314,11 @@ export class DeviceAuthService implements IDeviceAuthService {
       throw new Error('User not found after upgrade');
     }
 
-    // Create new session
     return this.createSession(updatedUser, user.deviceId || undefined);
   }
 
-  // ============================================================
-  // Traditional Authentication
-  // ============================================================
 
-  /**
-   * Sign up new real user (without device ID)
-   */
   async signUp(input: SignUpInput): Promise<AuthResponse> {
-    // Check if email exists
     const existingUser = await this.getUserByEmail(input.email);
     if (existingUser) {
       throw new Error('Email already registered');
@@ -429,15 +358,11 @@ export class DeviceAuthService implements IDeviceAuthService {
       credits_remaining: user.creditsRemaining,
     });
 
-    // Create initial credit transaction
     await this.addCreditTransaction(userId, this.options.initialCredits, 'grant', 'Initial welcome credits');
 
     return this.createSession(user);
   }
 
-  /**
-   * Login with email/password
-   */
   async login(input: LoginInput): Promise<AuthResponse> {
     const user = await this.getUserByEmail(input.email);
 
@@ -455,13 +380,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     return this.createSession(user);
   }
 
-  // ============================================================
-  // Session Management
-  // ============================================================
 
-  /**
-   * Create session for user
-   */
   private async createSession(
     user: User,
     deviceId?: string
@@ -470,9 +389,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     const now = Date.now();
     const expiresAt = now + this.options.sessionTTL * 1000;
 
-    // Create session token payload and pass the expiration explicitly
-    // so the local `deviceId?` parameter (string | undefined) is normalized
-    // to the persisted `string | null` shape that the token requires.
     const sessionToken = await this.tokenService.generateToken({
       userId: user.id,
       sessionId,
@@ -481,7 +397,6 @@ export class DeviceAuthService implements IDeviceAuthService {
       exp: expiresAt,
     });
 
-    // Store session in KV for fast access
     await this.kv.put(
       `session:${sessionId}`,
       {
@@ -495,7 +410,6 @@ export class DeviceAuthService implements IDeviceAuthService {
       { ttl: this.options.sessionTTL }
     );
 
-    // Store session in D1 for persistence
     await this.d1.insert('user_sessions', {
       session_id: sessionId,
       user_id: user.id,
@@ -508,23 +422,16 @@ export class DeviceAuthService implements IDeviceAuthService {
     });
 
     return {
-      // SECURITY: never send the stored password hash to the client.
       user: this.sanitizeUser(user),
       sessionToken,
       expiresAt,
     };
   }
 
-  /**
-   * Strip credential material from a user before returning it in a response.
-   */
   private sanitizeUser(user: User): User {
     return { ...user, passwordHash: null };
   }
 
-  /**
-   * Validate session and return user
-   */
   async validateSession(
     sessionToken: string
   ): Promise<{ user: User; session: UserSession } | null> {
@@ -534,7 +441,6 @@ export class DeviceAuthService implements IDeviceAuthService {
       return null;
     }
 
-    // Check KV first (fast path)
     const kvSession = await this.kv.get<StoredSession>(`session:${payload.sessionId}`);
 
     if (kvSession) {
@@ -556,7 +462,6 @@ export class DeviceAuthService implements IDeviceAuthService {
       }
     }
 
-    // Check D1 if not in KV
     const dbSession = await this.d1.findOne<DbSessionRow>(
       `SELECT * FROM user_sessions WHERE session_id = ? AND expires_at > ?`,
       [payload.sessionId, Date.now()]
@@ -565,7 +470,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     if (dbSession) {
       const user = await this.getUserById(payload.userId);
       if (user) {
-        // Restore to KV
         await this.kv.put(
           `session:${payload.sessionId}`,
           {
@@ -598,9 +502,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     return null;
   }
 
-  /**
-   * Refresh session token
-   */
   async refreshSession(sessionToken: string): Promise<AuthResponse | null> {
     const result = await this.validateSession(sessionToken);
 
@@ -620,7 +521,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     const now = Date.now();
     const expiresAt = now + this.options.sessionTTL * 1000;
 
-    // Update KV
     await this.kv.put(
       `session:${result.session.sessionId}`,
       {
@@ -631,7 +531,6 @@ export class DeviceAuthService implements IDeviceAuthService {
       { ttl: this.options.sessionTTL }
     );
 
-    // Update D1
     await this.d1.query(
       `UPDATE user_sessions SET expires_at = ?, last_refreshed_at = ? WHERE session_id = ?`,
       [expiresAt, now, result.session.sessionId]
@@ -644,9 +543,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     };
   }
 
-  /**
-   * Revoke session
-   */
   async revokeSession(sessionToken: string): Promise<void> {
     const payload = await this.tokenService.verifyToken(sessionToken);
 
@@ -659,9 +555,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     }
   }
 
-  /**
-   * Revoke all user sessions
-   */
   async revokeAllUserSessions(userId: string): Promise<void> {
     const sessions = await this.d1.query<{ session_id: string }>(
       `SELECT session_id FROM user_sessions WHERE user_id = ?`,
@@ -678,13 +571,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     );
   }
 
-  // ============================================================
-  // Credits
-  // ============================================================
 
-  /**
-   * Add credits to user account
-   */
   async addCredits(
     userId: string,
     amount: number,
@@ -699,9 +586,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     return this.addCreditTransaction(userId, amount, 'grant', description, metadata);
   }
 
-  /**
-   * Consume credits from user account
-   */
   async consumeCredits(
     userId: string,
     amount: number,
@@ -718,9 +602,6 @@ export class DeviceAuthService implements IDeviceAuthService {
       throw new Error('Insufficient credits');
     }
 
-    // Atomic decrement: the `credits_remaining >= ?` guard makes the
-    // read-check above advisory only, so concurrent consumes cannot drive
-    // the balance negative.
     const result = await this.d1.query(
       `UPDATE users SET credits_remaining = credits_remaining - ? WHERE id = ? AND credits_remaining >= ?`,
       [amount, userId, amount]
@@ -733,9 +614,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     return this.addCreditTransaction(userId, amount, 'consume', description, metadata);
   }
 
-  /**
-   * Get user credit balance
-   */
   async getCreditBalance(userId: string): Promise<CreditBalance> {
     const user = await this.getUserById(userId);
 
@@ -760,9 +638,6 @@ export class DeviceAuthService implements IDeviceAuthService {
     };
   }
 
-  /**
-   * Get credit transaction history
-   */
   async getCreditHistory(userId: string, limit: number = 50): Promise<CreditTransaction[]> {
     const result = await this.d1.query<DbCreditRow>(
       `SELECT * FROM credit_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
@@ -802,13 +677,7 @@ export class DeviceAuthService implements IDeviceAuthService {
     return transaction;
   }
 
-  // ============================================================
-  // Cleanup
-  // ============================================================
 
-  /**
-   * Clean up expired sessions
-   */
   async cleanupExpiredSessions(): Promise<number> {
     const result = await this.d1.query<{ session_id: string }>(
       `SELECT session_id FROM user_sessions WHERE expires_at < ?`,
@@ -827,12 +696,8 @@ export class DeviceAuthService implements IDeviceAuthService {
     return result.rows.length || 0;
   }
 
-  // ============================================================
-  // Helpers
-  // ============================================================
 
   private generateUUID(): string {
-    // Crypto-secure UUID (user/session/transaction IDs must not be guessable)
     return generateId();
   }
 
@@ -866,10 +731,6 @@ export class DeviceAuthService implements IDeviceAuthService {
   }
 }
 
-// Export singleton instance
-// The singleton is intentionally created with placeholder dependencies that
-// throw a descriptive error on first use; consumers should construct their
-// own `DeviceAuthService` with real D1/KV bindings.
 function unboundStub(name: string): never {
   throw new Error(
     `DeviceAuthService singleton has no ${name} bound. Construct your own instance: new DeviceAuthService(d1Service, kvService, { tokenSecret })`

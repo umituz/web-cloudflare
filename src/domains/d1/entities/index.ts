@@ -1,6 +1,3 @@
-/**
- * D1 Domain Entities
- */
 
 export type {
   D1Entity,

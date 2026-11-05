@@ -1,7 +1,3 @@
-/**
- * Analytics Service
- * @description Cloudflare Web Analytics operations for Workers runtime
- */
 
 import type { AnalyticsEvent, AnalyticsPageviewEvent, AnalyticsCustomEvent, AnalyticsData } from "../entities";
 import type { IAnalyticsService } from "../types/service.interface";
@@ -30,8 +26,6 @@ class AnalyticsService implements IAnalyticsService {
   async trackEvent(event: AnalyticsEvent): Promise<void> {
     this.ensureInitialized();
     this.eventQueue.push(event);
-    // In Workers runtime, events are queued for batch processing
-    // The actual sending would be done via Cloudflare Analytics API
   }
 
   async trackPageview(url: string, title: string, referrer?: string): Promise<void> {
@@ -96,17 +90,15 @@ class AnalyticsService implements IAnalyticsService {
       events: [...this.eventQueue],
       metrics: {
         pageviews: this.eventQueue.filter(e => e.eventType === "pageview").length,
-        uniqueVisitors: 0, // Would be calculated from stored data
+        uniqueVisitors: 0,
       },
     };
   }
 
   async flush(): Promise<void> {
-    // In Workers, this would send events to Cloudflare Analytics API
     this.eventQueue = [];
   }
 }
 
-// Export class and singleton instance
 export { AnalyticsService };
 export const analyticsService = new AnalyticsService();

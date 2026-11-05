@@ -1,7 +1,3 @@
-/**
- * useAI Hook
- * @description AI operations hook for text generation and streaming
- */
 
 import React, { useState, useCallback, useRef } from 'react';
 import { APIClient } from '../utils/api-client';
@@ -49,8 +45,6 @@ export interface UseAIOptions {
 
 export interface UseAIReturn {
   aiState: AIState;
-  /** Low-level state setter. Exposed so companion hooks (e.g. useAIRAG) can
-   *  share the same state object. Prefer the stable action functions. */
   setAIState: React.Dispatch<React.SetStateAction<AIState>>;
   generateText: (prompt: string, options?: AIRequestOptions) => Promise<AIResponse>;
   streamText: (prompt: string, onChunk: (chunk: string) => void, options?: AIRequestOptions) => Promise<void>;
@@ -59,9 +53,6 @@ export interface UseAIReturn {
   clearError: () => void;
 }
 
-/**
- * AI hook for React apps
- */
 export function useAI(options: UseAIOptions = {}): UseAIReturn {
   const {
     baseURL = '',
@@ -80,9 +71,6 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
     streamContent: '',
   });
 
-  /**
-   * Generate text
-   */
   const generateText = useCallback(async (
     prompt: string,
     requestOptions: AIRequestOptions = {}
@@ -122,9 +110,6 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
     }
   }, [defaultModel, defaultTemperature, defaultMaxTokens]);
 
-  /**
-   * Stream text
-   */
   const streamText = useCallback(async (
     prompt: string,
     onChunk: (chunk: string) => void,
@@ -177,9 +162,6 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
     }
   }, [defaultModel, defaultTemperature, defaultMaxTokens]);
 
-  /**
-   * Chat with history
-   */
   const chat = useCallback(async (
     messages: AIMessage[],
     requestOptions: AIRequestOptions = {}
@@ -219,9 +201,6 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
     }
   }, [defaultModel, defaultTemperature, defaultMaxTokens]);
 
-  /**
-   * Reset state
-   */
   const resetState = useCallback((): void => {
     setAIState({
       isLoading: false,
@@ -232,9 +211,6 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
     });
   }, []);
 
-  /**
-   * Clear error
-   */
   const clearError = useCallback((): void => {
     setAIState((prev) => ({ ...prev, error: null }));
   }, []);
@@ -250,16 +226,10 @@ export function useAI(options: UseAIOptions = {}): UseAIReturn {
   };
 }
 
-/**
- * Chat hook with conversation history
- */
 export function useAIChat(options: UseAIOptions = {}) {
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const { aiState, generateText, streamText, resetState } = useAI(options);
 
-  /**
-   * Send message
-   */
   const sendMessage = useCallback(async (
     content: string,
     options?: { stream?: boolean } & AIRequestOptions
@@ -303,15 +273,11 @@ export function useAIChat(options: UseAIOptions = {}) {
         setMessages((prev) => [...prev, assistantMessage]);
       }
     } catch (error) {
-      // Remove user message on error
       setMessages((prev) => prev.slice(0, -1));
       throw error;
     }
   }, [generateText, streamText]);
 
-  /**
-   * Clear conversation
-   */
   const clearConversation = useCallback((): void => {
     setMessages([]);
     resetState();
@@ -325,17 +291,11 @@ export function useAIChat(options: UseAIOptions = {}) {
   };
 }
 
-/**
- * RAG hook for retrieval-augmented generation
- */
 export function useAIRAG(options: UseAIOptions & { ragPath?: string }) {
   const { ragPath = '/api/ai/rag', ...aiOptions } = options;
   const client = useRef<APIClient>(new APIClient({ baseURL: aiOptions.baseURL || '' }));
   const { aiState, setAIState, resetState } = useAI(aiOptions);
 
-  /**
-   * Query with RAG
-   */
   const query = useCallback(async (
     query: string,
     requestOptions?: AIRequestOptions & { topK?: number; threshold?: number }

@@ -1,7 +1,3 @@
-/**
- * useAPIClient Hook
- * @description API client hook with typed methods, streaming, and AI support
- */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { APIClient, type APIResponse, type APIError } from '../utils/api-client';
@@ -40,9 +36,6 @@ export interface GenerateTextOptions {
   history?: Array<{ role: string; content: string }>;
 }
 
-/**
- * API Client hook for React apps
- */
 export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientReturn {
   const {
     baseURL = '',
@@ -54,9 +47,6 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
 
   const clientRef = useRef<APIClient>(new APIClient({ baseURL, timeout }));
 
-  /**
-   * Wrap request with lifecycle hooks
-   */
   const wrapRequest = useCallback(async <T,>(
     requestFn: () => Promise<APIResponse<T>>
   ): Promise<APIResponse<T>> => {
@@ -73,16 +63,10 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
     }
   }, [onRequestStart, onRequestEnd, onError]);
 
-  /**
-   * GET request
-   */
   const get = useCallback(async <T,>(path: string): Promise<APIResponse<T>> => {
     return wrapRequest<T>(() => clientRef.current.get<T>(path));
   }, [wrapRequest]);
 
-  /**
-   * POST request
-   */
   const post = useCallback(async <T,>(
     path: string,
     body?: unknown
@@ -90,9 +74,6 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
     return wrapRequest<T>(() => clientRef.current.post<T>(path, body));
   }, [wrapRequest]);
 
-  /**
-   * PUT request
-   */
   const put = useCallback(async <T,>(
     path: string,
     body?: unknown
@@ -100,9 +81,6 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
     return wrapRequest<T>(() => clientRef.current.put<T>(path, body));
   }, [wrapRequest]);
 
-  /**
-   * PATCH request
-   */
   const patch = useCallback(async <T,>(
     path: string,
     body?: unknown
@@ -110,17 +88,10 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
     return wrapRequest<T>(() => clientRef.current.patch<T>(path, body));
   }, [wrapRequest]);
 
-  /**
-   * DELETE request
-   */
   const deleteReq = useCallback(async <T,>(path: string): Promise<APIResponse<T>> => {
     return wrapRequest<T>(() => clientRef.current.delete<T>(path));
   }, [wrapRequest]);
 
-  /**
-   * Stream request (stream returns void, not an APIResponse, so it applies
-   * the lifecycle hooks manually rather than going through wrapRequest)
-   */
   const stream = useCallback(async (
     path: string,
     body?: unknown,
@@ -138,9 +109,6 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
     }
   }, [onRequestStart, onRequestEnd, onError]);
 
-  /**
-   * Generate text (AI)
-   */
   const generateText = useCallback(async (
     prompt: string,
     options: GenerateTextOptions = {}
@@ -154,10 +122,6 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
     return response.data.text;
   }, [wrapRequest]);
 
-  /**
-   * Stream text (AI) — stream returns void, not an APIResponse, so it applies
-   * the lifecycle hooks manually rather than going through wrapRequest
-   */
   const streamText = useCallback(async (
     prompt: string,
     onChunk: (chunk: string) => void,
@@ -191,9 +155,6 @@ export function useAPIClient(options: UseAPIClientOptions = {}): UseAPIClientRet
   };
 }
 
-/**
- * Simplified hook for data fetching
- */
 export function useFetch<T>(path: string, options: UseAPIClientOptions = {}) {
   const [state, setState] = useState<APIRequestState<T>>({
     data: null,
@@ -222,11 +183,8 @@ export function useFetch<T>(path: string, options: UseAPIClientOptions = {}) {
     }
   }, [get, path]);
 
-  // Generation counter guarding against out-of-order responses overwriting
-  // newer data when `path` changes rapidly.
   const fetchGenerationRef = useRef(0);
 
-  // Fetch on mount and whenever `path` changes.
   useEffect(() => {
     let cancelled = false;
     const generation = ++fetchGenerationRef.current;
@@ -262,9 +220,6 @@ export function useFetch<T>(path: string, options: UseAPIClientOptions = {}) {
   };
 }
 
-/**
- * Hook for mutations (POST, PUT, PATCH, DELETE)
- */
 export function useMutation<TData, TVariables = unknown>(
   mutationFn: (variables: TVariables) => Promise<APIResponse<TData>>,
   options: UseAPIClientOptions = {}

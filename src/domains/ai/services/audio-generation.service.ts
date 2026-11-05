@@ -1,16 +1,8 @@
-/**
- * Audio/Music Generation Service
- * @description Service for generating audio and music using external AI providers (FAL AI, Replicate, etc.)
- * Supports long-running tasks with progress tracking, retry logic, and R2 upload
- */
 
 import type { IR2Service } from '../../r2/types/service.interface';
 import type { IKVService } from '../../kv/types/service.interface';
 import { generateId } from '../../../infrastructure/utils/helpers';
 
-// ============================================================
-// Types
-// ============================================================
 
 export interface AudioGenerationRequest {
   prompt: string;
@@ -51,12 +43,8 @@ export interface AudioProvider {
   type: 'fal-ai' | 'replicate' | 'custom';
 }
 
-/** Provider metadata safe to expose (no credentials). */
 export type PublicAudioProvider = Omit<AudioProvider, 'apiKey'>;
 
-// ============================================================
-// Audio Generation Service
-// ============================================================
 
 export class AudioGenerationService {
   private providers: Map<string, AudioProvider> = new Map();
@@ -74,15 +62,11 @@ export class AudioGenerationService {
     this.kv = kv;
     this.r2BucketName = r2BucketName;
 
-    // Register providers
     for (const provider of providers) {
       this.providers.set(provider.id, provider);
     }
   }
 
-  /**
-   * Generate audio with retry logic and progress tracking
-   */
   async generateAudio(
     request: AudioGenerationRequest,
     options: AudioGenerationOptions = {}
@@ -110,13 +94,11 @@ export class AudioGenerationService {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
-        // 4xx (except 408/429) will fail identically on retry — abort early.
         if (!this.isRetryable(error)) {
           throw lastError;
         }
 
         if (attempt < maxRetries - 1) {
-          // Exponential backoff + jitter (avoids synchronized retry storms)
           const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 500);
           options.progressCallback?.(0, `Retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
@@ -127,44 +109,31 @@ export class AudioGenerationService {
     throw lastError || new Error('Audio generation failed');
   }
 
-  /**
-   * Retry only what the provider can plausibly recover from: network errors
-   * (no status), 408 request-timeout, 429 rate-limit, and 5xx. Other 4xx
-   * (bad payload, bad key) are deterministic failures.
-   */
   private isRetryable(error: unknown): boolean {
     const status = (error as { status?: number }).status;
     if (status === undefined) return true;
     return status === 408 || status === 429 || status >= 500;
   }
 
-  /**
-   * Internal audio generation with timeout
-   */
   private async generateAudioInternal(
     provider: AudioProvider,
     request: AudioGenerationRequest,
     options: AudioGenerationOptions
   ): Promise<AudioGenerationResult> {
     const startTime = Date.now();
-    const timeout = options.timeout || 300000; // 5 minutes default
+    const timeout = options.timeout || 300000;
 
-    // Build request payload
     const model = options.model || provider.models[0];
     const payload = this.buildPayload(request, model, provider);
 
-    // AbortSignal-based timeout: cancels the in-flight fetch AND the download,
-    // and always clears the timer (the previous Promise.race left it pending).
     const timeoutController = new AbortController();
     const timer = setTimeout(() => timeoutController.abort(), timeout);
 
     try {
       const response = await this.callProvider(provider, model, payload, timeoutController.signal);
 
-      // Extract audio URL from response
       const audioUrl = this.extractAudioUrl(response);
 
-      // Download audio (shares the same timeout budget)
       options.progressCallback?.(50, 'Downloading audio...');
       const audioBuffer = await this.downloadAudio(audioUrl, timeoutController.signal);
 
@@ -186,7 +155,6 @@ export class AudioGenerationService {
     options: AudioGenerationOptions,
     startTime: number
   ): Promise<AudioGenerationResult> {
-    // Upload to R2 if requested
     if (options.uploadToR2 && this.r2) {
       options.progressCallback?.(70, 'Uploading to R2...');
       const r2Key = await this.uploadToR2(audioBuffer, request);
@@ -214,9 +182,6 @@ export class AudioGenerationService {
     };
   }
 
-  /**
-   * Build provider-specific payload
-   */
   private buildPayload(request: AudioGenerationRequest, model: string, provider: AudioProvider): Record<string, unknown> {
     const basePayload = {
       prompt: request.prompt,
@@ -237,9 +202,6 @@ export class AudioGenerationService {
     return basePayload;
   }
 
-  /**
-   * Call provider API
-   */
   private async callProvider(
     provider: AudioProvider,
     model: string,
@@ -260,7 +222,6 @@ export class AudioGenerationService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      // Attach status so the retry loop can classify (4xx = don't retry).
       const error = new Error(
         `Provider error: ${response.status} ${errorText}`
       ) as Error & { status?: number };
@@ -271,14 +232,10 @@ export class AudioGenerationService {
     return await response.json();
   }
 
-  /**
-   * Extract audio URL from provider response
-   */
   private extractAudioUrl(response: unknown): string {
     if (typeof response === 'object' && response !== null) {
       const r = response as Record<string, unknown>;
 
-      // FAL AI format: { audio_url: { url: "..." } }
       if (r.audio_url) {
         const audioUrl = r.audio_url as Record<string, unknown>;
         if (audioUrl.url) {
@@ -287,12 +244,10 @@ export class AudioGenerationService {
         return String(audioUrl);
       }
 
-      // Direct URL format: { audio_url: "..." }
       if (r.audio_url && typeof r.audio_url === 'string') {
         return r.audio_url;
       }
 
-      // Other formats
       if (r.url && typeof r.url === 'string') {
         return r.url;
       }
@@ -305,9 +260,6 @@ export class AudioGenerationService {
     throw new Error('Could not extract audio URL from response');
   }
 
-  /**
-   * Download audio from URL
-   */
   private async downloadAudio(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
     const response = await fetch(url, { signal });
 
@@ -318,9 +270,6 @@ export class AudioGenerationService {
     return await response.arrayBuffer();
   }
 
-  /**
-   * Upload audio to R2
-   */
   private async uploadToR2(buffer: ArrayBuffer, request: AudioGenerationRequest): Promise<string> {
     if (!this.r2) {
       throw new Error('R2 service not configured');
@@ -329,7 +278,6 @@ export class AudioGenerationService {
     const timestamp = Date.now();
     const key = `audio/generated/${timestamp}-${this.generateId()}.mp3`;
 
-    // Upload to R2 (implementation depends on R2Service)
     await this.r2.put(key, buffer, {
       customMetadata: {
         prompt: request.prompt,
@@ -343,42 +291,24 @@ export class AudioGenerationService {
     return key;
   }
 
-  /**
-   * Get public URL for R2 object
-   */
   private getPublicUrl(key: string): string {
-    // Assumes custom domain or public bucket
-    // Users should configure their own domain
     return `https://${this.r2BucketName || 'r2'}.r2.dev/${key}`;
   }
 
-  /**
-   * Generate unique ID
-   */
   private generateId(): string {
-    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
     return generateId();
   }
 
-  /**
-   * Check if provider is available
-   */
   isProviderAvailable(providerId: string): boolean {
     return this.providers.has(providerId);
   }
 
-  /**
-   * Get available providers (credentials stripped — safe to log or send to clients)
-   */
   getAvailableProviders(): PublicAudioProvider[] {
     return Array.from(this.providers.values()).map(
       ({ apiKey: _apiKey, ...safe }) => safe
     );
   }
 
-  /**
-   * Get provider by ID (credentials stripped — safe to log or send to clients)
-   */
   getProvider(providerId: string): PublicAudioProvider | undefined {
     const provider = this.providers.get(providerId);
     if (!provider) return undefined;
@@ -387,13 +317,7 @@ export class AudioGenerationService {
   }
 }
 
-// ============================================================
-// Factory Function
-// ============================================================
 
-/**
- * Create audio generation service
- */
 export function createAudioGenerationService(
   providers: AudioProvider[],
   r2?: IR2Service,
@@ -403,7 +327,4 @@ export function createAudioGenerationService(
   return new AudioGenerationService(providers, r2, kv, r2BucketName);
 }
 
-/**
- * Default instance (without providers)
- */
 export const audioGenerationService = new AudioGenerationService([]);

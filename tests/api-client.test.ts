@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { APIClient } from '../src/domains/pages/react/utils/api-client';
 import type { APIError } from '../src/domains/pages/react/utils/api-client';

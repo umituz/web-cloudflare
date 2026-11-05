@@ -1,7 +1,3 @@
-/**
- * Cloudflare Workflows Service
- * @description Service for orchestrating long-running, retryable operations
- */
 
 import type {
   WorkflowDefinition,
@@ -10,7 +6,6 @@ import type {
 } from '../entities';
 import { generateId } from '../../../infrastructure/utils/helpers';
 
-// Additional workflow types
 export type WorkflowInstanceState = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface WorkflowStepState {
@@ -47,7 +42,7 @@ export interface BatchOperationWorkflow {
 export interface WorkflowServiceConfig {
   KV?: KVNamespace;
   D1?: D1Database;
-  maxExecutionTime?: number; // seconds
+  maxExecutionTime?: number;
   defaultRetries?: number;
 }
 
@@ -62,16 +57,12 @@ export class WorkflowService {
   constructor(config: WorkflowServiceConfig = {}) {
     this.kv = config.KV;
     this.d1 = config.D1;
-    this.maxExecutionTime = config.maxExecutionTime || 300; // 5 minutes default
+    this.maxExecutionTime = config.maxExecutionTime || 300;
     this.defaultRetries = config.defaultRetries || 3;
   }
 
-  /**
-   * Cleanup step state cache to prevent memory leaks
-   */
   private cleanupStepStateCache(): void {
     if (this.stepStateCache.size > this.maxCacheSize) {
-      // Clear oldest entries (first half)
       const entries = Array.from(this.stepStateCache.entries());
       const toRemove = Math.floor(this.maxCacheSize * 0.5);
       for (let i = 0; i < toRemove; i++) {
@@ -80,9 +71,6 @@ export class WorkflowService {
     }
   }
 
-  /**
-   * Clear step state cache after workflow completion
-   */
   private clearStepStateCache(executionId: string): void {
     for (const key of this.stepStateCache.keys()) {
       if (key.startsWith(`${executionId}:`)) {
@@ -91,9 +79,6 @@ export class WorkflowService {
     }
   }
 
-  /**
-   * Create a new workflow definition
-   */
   async createWorkflow(definition: WorkflowDefinition): Promise<void> {
     const key = `workflow:${definition.id}`;
     if (this.kv) {
@@ -101,9 +86,6 @@ export class WorkflowService {
     }
   }
 
-  /**
-   * Get workflow definition
-   */
   async getWorkflow(workflowId: string): Promise<WorkflowDefinition | null> {
     if (this.kv) {
       const data = await this.kv.get(`workflow:${workflowId}`);
@@ -112,9 +94,6 @@ export class WorkflowService {
     return null;
   }
 
-  /**
-   * Start a workflow execution
-   */
   async startExecution(
     workflowId: string,
     inputs: Record<string, unknown>
@@ -142,10 +121,6 @@ export class WorkflowService {
     return execution;
   }
 
-  /**
-   * Execute workflow steps
-   * Optimized with in-memory caching and batched KV writes
-   */
   private async executeWorkflow(
     execution: WorkflowExecution,
     workflow: WorkflowDefinition
@@ -158,19 +133,16 @@ export class WorkflowService {
     const stepStatesToSave: Array<{ executionId: string; stepId: string; data: Record<string, unknown> }> = [];
 
     try {
-      // Execute steps in order, respecting dependencies
       for (const step of workflow.steps) {
-        // Check if dependencies are met
         if (step.dependencies) {
           const depsMet = step.dependencies.every(
             (dep) => stepStatus[dep] === 'completed'
           );
           if (!depsMet) {
-            continue; // Skip for now, will retry later
+            continue;
           }
         }
 
-        // Get step state from cache first (faster than KV)
         const cacheKey = `${execution.id}:${step.id}`;
         let state = this.stepStateCache.get(cacheKey);
 
@@ -183,9 +155,6 @@ export class WorkflowService {
 
         const stepInputs = state?.data || { ...results, ...step.inputs };
 
-        // Retry the SAME step until attempts are exhausted. The previous
-        // implementation `continue`d the outer steps-loop on retry, which
-        // SKIPPED the failed step and moved on to the next one.
         const retryPolicy = step.retryPolicy || workflow.retryConfig;
         const maxAttempts = retryPolicy
           ? ((step.retryPolicy?.maxAttempts ?? workflow.retryConfig?.maxRetries ?? this.defaultRetries) + 1)
@@ -207,7 +176,6 @@ export class WorkflowService {
             execution.status = 'retrying';
             await this.saveExecution(execution);
 
-            // Exponential backoff with defaults
             const initialDelay = retryPolicy?.initialDelay ?? 1000;
             const backoffMultiplier = retryPolicy?.backoffMultiplier ?? 2;
             const maxDelay = retryPolicy?.maxDelay ?? 30000;
@@ -221,7 +189,6 @@ export class WorkflowService {
         }
 
         if (stepError !== null) {
-          // Max retries exceeded, mark as failed
           stepStatus[step.id] = 'failed';
           execution.failedSteps.push(step.id);
           execution.error = stepError instanceof Error ? stepError.message : String(stepError);
@@ -231,19 +198,16 @@ export class WorkflowService {
           throw stepError;
         }
 
-        // Store result
         results[step.id] = stepResult;
         stepStatus[step.id] = 'completed';
         execution.completedSteps.push(step.id);
 
-        // Queue step state for batch save (faster than individual saves)
         stepStatesToSave.push({
           executionId: execution.id,
           stepId: step.id,
           data: { result: stepResult } as Record<string, unknown>
         });
 
-        // Update cache
         this.stepStateCache.set(cacheKey, {
           data: { result: stepResult },
           status: 'completed',
@@ -251,7 +215,6 @@ export class WorkflowService {
         });
       }
 
-      // Batch save all step states at once (much faster than individual saves)
       if (stepStatesToSave.length > 0) {
         await Promise.all(
           stepStatesToSave.map(({ executionId, stepId, data }) =>
@@ -260,31 +223,23 @@ export class WorkflowService {
         );
       }
 
-      // All steps completed
       execution.status = 'completed';
       execution.outputs = results;
       execution.completedAt = Date.now();
       await this.saveExecution(execution);
 
-      // Cleanup step state cache after successful completion
       this.clearStepStateCache(execution.id);
 
     } catch (error) {
-      // On error, still cleanup to prevent memory leaks
       this.clearStepStateCache(execution.id);
       throw error;
     }
   }
 
-  /**
-   * Execute a single step
-   */
   private async executeStep(
     step: WorkflowStep,
     inputs: Record<string, unknown>
   ): Promise<unknown> {
-    // This would call the actual handler function
-    // For now, simulate execution
     const handlerId = typeof step.handler === 'string' ? step.handler : 'anonymous';
     const handler = this.getHandler(handlerId);
     if (!handler) {
@@ -294,9 +249,6 @@ export class WorkflowService {
     return handler(inputs);
   }
 
-  /**
-   * Resume a workflow from a specific step
-   */
   async resumeExecution(
     executionId: string,
     fromStep?: string
@@ -311,14 +263,12 @@ export class WorkflowService {
       throw new Error(`Workflow ${execution.workflowId} not found`);
     }
 
-    // If fromStep is specified, reset to that step
     if (fromStep) {
       const stepIndex = workflow.steps.findIndex((s) => s.id === fromStep);
       if (stepIndex === -1) {
         throw new Error(`Step ${fromStep} not found`);
       }
 
-      // Reset completed steps after the resume point
       execution.completedSteps = workflow.steps
         .slice(0, stepIndex)
         .map((s) => s.id);
@@ -330,9 +280,6 @@ export class WorkflowService {
     return execution;
   }
 
-  /**
-   * Get execution status
-   */
   async getExecution(executionId: string): Promise<WorkflowExecution | null> {
     if (this.kv) {
       const data = await this.kv.get(`execution:${executionId}`);
@@ -341,31 +288,20 @@ export class WorkflowService {
     return null;
   }
 
-  /**
-   * List executions for a workflow
-   */
   async listExecutions(_workflowId: string): Promise<WorkflowExecution[]> {
-    // This would typically use D1 for proper querying
-    // For now, return empty array
     return [];
   }
 
-  /**
-   * Save execution state
-   */
   private async saveExecution(execution: WorkflowExecution): Promise<void> {
     if (this.kv) {
       await this.kv.put(
         `execution:${execution.id}`,
         JSON.stringify(execution),
-        { expirationTtl: 86400 } // 24 hours
+        { expirationTtl: 86400 }
       );
     }
   }
 
-  /**
-   * Save step state for idempotency
-   */
   private async saveStepState(
     executionId: string,
     stepId: string,
@@ -384,9 +320,6 @@ export class WorkflowService {
     }
   }
 
-  /**
-   * Get step state
-   */
   private async getStepState(
     executionId: string,
     stepId: string
@@ -398,9 +331,6 @@ export class WorkflowService {
     return undefined;
   }
 
-  /**
-   * Get handler function (mock implementation)
-   */
   private getHandler(name: string): ((inputs: Record<string, unknown>) => Promise<unknown>) | null {
     const handlers: Record<string, (inputs: Record<string, unknown>) => Promise<unknown>> = {
       'media-process': async (_inputs) => ({ processed: true, urls: [] }),
@@ -411,12 +341,10 @@ export class WorkflowService {
   }
 
   private generateId(): string {
-    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
     return generateId();
   }
 }
 
-// Predefined workflow templates
 export const WORKFLOW_TEMPLATES: Record<string, Partial<WorkflowDefinition>> = {
   'media-processing': {
     name: 'Media Processing Workflow',
@@ -506,7 +434,6 @@ export const WORKFLOW_TEMPLATES: Record<string, Partial<WorkflowDefinition>> = {
     ],
   },
 
-  // Voice cloning inspired workflow
   'voice-content-creation': {
     name: 'Voice Content Creation',
     description: 'Create AI-generated audio content with cloned voice',
@@ -546,9 +473,6 @@ export const WORKFLOW_TEMPLATES: Record<string, Partial<WorkflowDefinition>> = {
     ],
   },
 
-  // ============================================================
-  // Voice & Audio Workflow Templates
-  // ============================================================
 
   'voice-cloning-complete': {
     name: 'Complete Voice Cloning Pipeline',
@@ -854,9 +778,6 @@ export const WORKFLOW_TEMPLATES: Record<string, Partial<WorkflowDefinition>> = {
     ],
   },
 
-  // ============================================================
-  // AI Pipeline Templates (Generic, No Specific Use Cases)
-  // ============================================================
 
   'rag-pipeline': {
     name: 'RAG (Retrieval-Augmented Generation) Pipeline',
@@ -1087,5 +1008,4 @@ export const WORKFLOW_TEMPLATES: Record<string, Partial<WorkflowDefinition>> = {
   },
 };
 
-// Export singleton instance
 export const workflowService = new WorkflowService();

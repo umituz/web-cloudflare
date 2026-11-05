@@ -1,7 +1,3 @@
-/**
- * Images Service
- * @description Cloudflare Images operations
- */
 
 import type { ImageUploadResult, ImageUploadOptions, ImageTransformation, SignedURL } from "../entities";
 import type { IImageService } from "../types/service.interface";
@@ -44,7 +40,6 @@ class ImagesService implements IImageService {
   }
 
   async upload(file: File | Blob, options?: ImageUploadOptions): Promise<ImageUploadResult> {
-    // Validate file
     if (file instanceof File) {
       if (!validationUtils.isValidImageType(file.type)) {
         throw new Error(`Invalid image type: ${file.type}`);
@@ -55,11 +50,9 @@ class ImagesService implements IImageService {
       }
     }
 
-    // Prepare form data
     const formData = new FormData();
     formData.append("file", file);
 
-    // Apply transformations if specified in options
     if (options?.width || options?.height || options?.format || options?.quality) {
       const variants: Array<{ width?: number; height?: number; format?: string; quality?: number }> = [];
       if (options.width) variants.push({ width: options.width });
@@ -68,7 +61,6 @@ class ImagesService implements IImageService {
       if (options.quality) variants.push({ quality: options.quality });
     }
 
-    // Upload
     const response = await fetch(`${this.getAPIBaseURL()}/direct_upload`, {
       method: "POST",
       headers: this.getAuthHeaders(),
@@ -90,7 +82,6 @@ class ImagesService implements IImageService {
       };
     };
 
-    // Map API response to old entity type
     return {
       id: data.result.id,
       url: data.result.variants[0] || '',
@@ -141,7 +132,6 @@ class ImagesService implements IImageService {
       return transformUtils.generateTransformURL(baseURL, transform);
     }
 
-    // Fallback to Cloudflare CDN URL
     const baseURL = `https://imagedelivery.net/${this.accountId}/${imageId}/public`;
     return transformUtils.generateTransformURL(baseURL, transform);
   }
@@ -160,9 +150,6 @@ class ImagesService implements IImageService {
     return true;
   }
 
-  /**
-   * List helpers
-   */
   async listImages(options?: { page?: number; perPage?: number }): Promise<{
     images: readonly ImageUploadResult[];
     totalCount: number;
@@ -207,9 +194,6 @@ class ImagesService implements IImageService {
     };
   }
 
-  /**
-   * Bulk operations
-   */
   async uploadMultiple(files: readonly (File | Blob)[], options?: ImageUploadOptions): Promise<ImageUploadResult[]> {
     const uploads = files.map((file) => this.upload(file, options));
 
@@ -224,9 +208,6 @@ class ImagesService implements IImageService {
     return true;
   }
 
-  /**
-   * Variant helpers
-   */
   generateVariantURL(imageId: string, variant: string): string {
     if (this.customDomain) {
       return `https://${this.customDomain}/${imageId}/${variant}`;
@@ -235,15 +216,11 @@ class ImagesService implements IImageService {
     return `https://imagedelivery.net/${this.accountId}/${imageId}/${variant}`;
   }
 
-  /**
-   * Upload from URL
-   */
   async uploadFromURL(
     url: string,
     filename: string,
     options?: ImageUploadOptions
   ): Promise<ImageUploadResult> {
-    // Fetch the image
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -251,7 +228,6 @@ class ImagesService implements IImageService {
 
     const blob = await response.blob();
 
-    // Upload the blob
     return this.upload(
       new File([blob], filename, { type: blob.type || "image/jpeg" }),
       options
@@ -259,6 +235,5 @@ class ImagesService implements IImageService {
   }
 }
 
-// Export class and singleton instance
 export { ImagesService };
 export const imagesService = new ImagesService();

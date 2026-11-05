@@ -1,7 +1,3 @@
-/**
- * Streaming and Server-Sent Events (SSE) Utilities
- * @description Helper functions for streaming responses and real-time progress updates
- */
 
 export interface SSEMessage {
   data: unknown;
@@ -14,13 +10,7 @@ export interface ProgressCallback {
   (progress: number, status: string, data?: Record<string, unknown>): void;
 }
 
-// ============================================================
-// Server-Sent Events (SSE) Helpers
-// ============================================================
 
-/**
- * Create SSE message string
- */
 export function createSSEMessage(message: SSEMessage): string {
   let output = '';
 
@@ -46,9 +36,6 @@ export function createSSEMessage(message: SSEMessage): string {
   return output;
 }
 
-/**
- * Create SSE stream from async generator
- */
 export async function* createSSEStream(
   generator: AsyncIterable<SSEMessage>
 ): AsyncIterable<string> {
@@ -57,9 +44,6 @@ export async function* createSSEStream(
   }
 }
 
-/**
- * Create ReadableStream for SSE response
- */
 export function createSSEReadableStream(
   generator: () => AsyncIterable<SSEMessage>
 ): ReadableStream<Uint8Array> {
@@ -69,8 +53,6 @@ export function createSSEReadableStream(
 
       try {
         for await (const chunk of generator()) {
-          // `chunk` is an SSEMessage object; serialize it via the SSE
-          // formatter before encoding to UTF-8 bytes.
           controller.enqueue(encoder.encode(createSSEMessage(chunk)));
         }
       } catch (error) {
@@ -86,9 +68,6 @@ export function createSSEReadableStream(
   });
 }
 
-/**
- * Create SSE response
- */
 export function createSSEResponse(
   generator: () => AsyncIterable<SSEMessage>,
   init?: ResponseInit
@@ -106,38 +85,22 @@ export function createSSEResponse(
   });
 }
 
-// ============================================================
-// Progress Tracking
-// ============================================================
 
-/**
- * Create progress tracker with callbacks
- */
 export class ProgressTracker {
   private callbacks: ProgressCallback[] = [];
   private currentProgress: number = 0;
   private currentStatus: string = '';
   private metadata: Record<string, unknown> = {};
 
-  /**
-   * Optional error sink invoked when a subscriber throws.
-   * Defaults to console.error; consumers can override for telemetry.
-   */
   onCallbackError?: (error: unknown) => void = (error) => {
     console.error('[ProgressTracker] subscriber threw:', error);
   };
 
-  /**
-   * Add progress callback
-   */
   onProgress(callback: ProgressCallback): this {
     this.callbacks.push(callback);
     return this;
   }
 
-  /**
-   * Update progress
-   */
   update(progress: number, status: string, data?: Record<string, unknown>): void {
     this.currentProgress = Math.max(0, Math.min(100, progress));
     this.currentStatus = status;
@@ -150,17 +113,11 @@ export class ProgressTracker {
       try {
         callback(this.currentProgress, this.currentStatus, this.metadata);
       } catch (error) {
-        // Surface callback errors to the consumer without breaking the tracker.
-        // Throwing here would abort the entire progress stream for a single
-        // bad consumer; reporting preserves isolation.
         this.onCallbackError?.(error);
       }
     }
   }
 
-  /**
-   * Get current state
-   */
   getState(): {
     progress: number;
     status: string;
@@ -173,18 +130,12 @@ export class ProgressTracker {
     };
   }
 
-  /**
-   * Reset tracker
-   */
   reset(): void {
     this.currentProgress = 0;
     this.currentStatus = '';
     this.metadata = {};
   }
 
-  /**
-   * Create SSE generator from this tracker
-   */
   async *toSSE(interval: number = 1000): AsyncIterable<SSEMessage> {
     const startTime = Date.now();
     let lastProgress = -1;
@@ -206,7 +157,6 @@ export class ProgressTracker {
       await new Promise(resolve => setTimeout(resolve, interval));
     }
 
-    // Final completion message
     yield {
       event: 'complete',
       data: {
@@ -219,17 +169,7 @@ export class ProgressTracker {
   }
 }
 
-// ============================================================
-// Streaming Helpers for Long-Running Tasks
-// ============================================================
 
-/**
- * Stream long-running task progress
- *
- * The progress counter is intentionally capped at 90% until the underlying
- * task resolves — emitting 100% before the task completes would lie to
- * consumers and break idempotent progress UIs.
- */
 export async function* streamTaskProgress<T>(
   task: () => Promise<T>,
   options: {
@@ -244,7 +184,6 @@ export async function* streamTaskProgress<T>(
   let error: string | undefined;
   let resolved = false;
 
-  // Start task in background
   const taskPromise = task()
     .then((r) => {
       result = r;
@@ -256,7 +195,6 @@ export async function* streamTaskProgress<T>(
       resolved = true;
     });
 
-  // Yield indeterminate progress until the task resolves
   while (!resolved) {
     yield { progress };
     progress = Math.min(progress + 10, 90);
@@ -264,8 +202,6 @@ export async function* streamTaskProgress<T>(
     await new Promise((resolve) => setTimeout(resolve, updateInterval));
   }
 
-  // Wait for the task to settle in case it resolved between the loop check
-  // and the final yield.
   await taskPromise.catch(() => undefined);
 
   if (error) {
@@ -278,13 +214,7 @@ export async function* streamTaskProgress<T>(
 }
 
 
-// ============================================================
-// Utility Functions
-// ============================================================
 
-/**
- * Convert async generator to SSE message generator
- */
 export async function* toSSEMessages<T>(
   generator: AsyncIterable<T>,
   eventName: string = 'message'
@@ -294,9 +224,6 @@ export async function* toSSEMessages<T>(
   }
 }
 
-/**
- * Poll task status and yield SSE messages
- */
 export async function* pollTaskStatus<T>(
   getTask: () => Promise<{ status: string; result?: T; error?: string }>,
   options: {

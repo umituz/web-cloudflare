@@ -1,11 +1,3 @@
-/**
- * Wrangler Service Implementation
- * Wraps Wrangler CLI commands with TypeScript
- *
- * ⚠️ NODE.JS ONLY: This service requires Node.js runtime and is NOT compatible
- * with Cloudflare Workers runtime. Use this service only in build/development
- * scripts running in Node.js environment.
- */
 
 import { execSync } from 'child_process';
 import type {
@@ -30,7 +22,6 @@ export class WranglerService implements IWranglerService {
     this.wranglerCommand = options?.wranglerPath || 'npx wrangler';
   }
 
-  // Authentication
   async login(_options?: WranglerCommandOptions): Promise<WranglerResult<AuthInfo>> {
     const result = this.executeWrangler(['login']);
     if (result.success) {
@@ -55,7 +46,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // Project management
   async init(projectName: string, template?: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
     const args = ['init', projectName];
     if (template) {
@@ -104,7 +94,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // KV operations
   async kvNamespaceCreate(title: string, _options?: WranglerCommandOptions): Promise<WranglerResult<KVNamespaceInfo>> {
     const result = this.executeWrangler(['kv:namespace', 'create', title]);
     if (result.success) {
@@ -117,8 +106,6 @@ export class WranglerService implements IWranglerService {
   async kvNamespaceList(_options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<KVNamespaceInfo, 'title'>>>> {
     const result = this.executeWrangler(['kv:namespace', 'list']);
     if (result.success) {
-      // Table output only carries the namespace title — use the JSON command
-      // if you need ids (wrangler kv:namespace list --json is not table-parsed).
       const namespaces = this.parseTableOutput(result.stdout).map((n) => ({ title: n.name }));
       return { success: true, data: namespaces };
     }
@@ -158,7 +145,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // R2 operations
   async r2BucketCreate(bucketName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<R2BucketInfo>> {
     const result = this.executeWrangler(['r2:bucket', 'create', bucketName]);
     if (result.success) {
@@ -208,7 +194,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // D1 operations
   async d1DatabaseCreate(databaseName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<D1DatabaseInfo>> {
     const result = this.executeWrangler(['d1:create', databaseName]);
     if (result.success) {
@@ -221,8 +206,6 @@ export class WranglerService implements IWranglerService {
   async d1DatabaseList(_options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<D1DatabaseInfo, 'name'>>>> {
     const result = this.executeWrangler(['d1:list']);
     if (result.success) {
-      // Table output only carries the database name — use `wrangler d1 list
-      // --json` output paths if you need uuid/created_at.
       const databases = this.parseTableOutput(result.stdout);
       return { success: true, data: databases };
     }
@@ -251,7 +234,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // Secret management
   async secretPut(secretName: string, value: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
     const result = this.executeWrangler(['secret', 'put', secretName, value]);
     if (result.success) {
@@ -277,7 +259,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // Monitoring
   async tail(_options?: WranglerCommandOptions & { format?: 'pretty' | 'json' }): Promise<WranglerResult<void>> {
     const args = ['tail'];
     if (_options?.format) {
@@ -290,11 +271,9 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // Versions
   async versionsList(_options?: WranglerCommandOptions): Promise<WranglerResult<Array<Pick<WorkerVersionInfo, 'id'>>>> {
     const result = this.executeWrangler(['versions', 'list']);
     if (result.success) {
-      // Table output carries only the version id column.
       const versions = this.parseTableOutput(result.stdout).map((v) => ({ id: v.name }));
       return { success: true, data: versions };
     }
@@ -309,7 +288,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // Generic command execution
   async executeCommand(command: string, args: string[], _options?: WranglerCommandOptions): Promise<WranglerResult<string>> {
     const result = this.executeWrangler([command, ...args]);
     if (result.success) {
@@ -318,7 +296,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  // Pages operations
   async pagesProjectCreate(projectName: string, _options?: WranglerCommandOptions & { productionBranch?: string }): Promise<WranglerResult<PagesProjectInfo>> {
     const args = ['pages', 'project', 'create', projectName];
     if (_options?.productionBranch) {
@@ -361,9 +338,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Delete a Pages project
-   */
   async pagesProjectDelete(projectName: string, _options?: WranglerCommandOptions): Promise<WranglerResult<void>> {
     const result = this.executeWrangler(['pages', 'project', 'delete', projectName]);
     if (result.success) {
@@ -372,9 +346,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * List all Workers
-   */
   async workersList(_options?: WranglerCommandOptions): Promise<WranglerResult<string[]>> {
     const result = this.executeWrangler(['workers', 'list']);
     if (result.success) {
@@ -384,9 +355,6 @@ export class WranglerService implements IWranglerService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Execute wrangler command
-   */
   private executeWrangler(
     args: string[],
     options?: { cwd?: string; env?: Record<string, string> }
@@ -413,25 +381,16 @@ export class WranglerService implements IWranglerService {
     }
   }
 
-  /**
-   * Extract ID from wrangler output
-   */
   private extractId(stdout: string): string | undefined {
     const idMatch = stdout.match(/id\s*=\s*([a-f0-9-]+)/i);
     return idMatch ? idMatch[1] : undefined;
   }
 
-  /**
-   * Extract URL from wrangler output
-   */
   private extractUrl(stdout: string): string | undefined {
     const urlMatch = stdout.match(/https?:\/\/[^\s]+\.pages\.dev[^\s]*/);
     return urlMatch ? urlMatch[0] : undefined;
   }
 
-  /**
-   * Parse table output from wrangler
-   */
   private parseTableOutput(stdout: string): Array<{ name: string }> {
     const items: Array<{ name: string }> = [];
     const lines = stdout.split('\n');
@@ -446,9 +405,6 @@ export class WranglerService implements IWranglerService {
     return items;
   }
 
-  /**
-   * Parse key list from wrangler output
-   */
   private parseKeyList(stdout: string): string[] {
     const keys: string[] = [];
     const lines = stdout.split('\n');
@@ -462,5 +418,4 @@ export class WranglerService implements IWranglerService {
   }
 }
 
-// Export singleton instance
 export const wranglerService = new WranglerService();

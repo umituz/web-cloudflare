@@ -1,6 +1,3 @@
-/**
- * R2 Domain Entities
- */
 
 export type {
   R2Object,

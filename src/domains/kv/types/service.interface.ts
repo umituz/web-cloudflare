@@ -1,7 +1,3 @@
-/**
- * KV Service Interface
- * @description Abstract interface for KV storage operations
- */
 
 import type { KVListOptions, KVListResult } from '../entities';
 

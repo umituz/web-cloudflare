@@ -21,9 +21,6 @@ interface CircuitBreakerState {
   nextAttemptTime: number;
 }
 
-// ============================================================
-// AI Gateway Service Implementation
-// ============================================================
 
 export class AIGatewayService implements IAIGatewayService {
   private config: AIGatewayConfig;
@@ -31,7 +28,6 @@ export class AIGatewayService implements IAIGatewayService {
   private embeddingService?: IEmbeddingService;
   private workersAI?: WorkersAIBinding;
 
-  // Cost tracking
   private costTracker: Map<string, number> = new Map();
   private costHistory: Array<{
     provider: string;
@@ -42,18 +38,14 @@ export class AIGatewayService implements IAIGatewayService {
     timestamp: number;
   }> = [];
 
-  // Circuit breakers
   private circuitBreakers: Map<string, CircuitBreakerState> = new Map();
 
-  // Analytics
   private analytics: Map<string, number> = new Map();
 
-  // Configuration
   private readonly CIRCUIT_BREAKER_THRESHOLD = 5;
-  private readonly CIRCUIT_BREAKER_TIMEOUT = 60000; // 1 minute
+  private readonly CIRCUIT_BREAKER_TIMEOUT = 60000;
   private readonly MAX_COST_HISTORY = 1000;
 
-  // Cloudflare account ID and gateway ID for Hugging Face
   private accountId?: string;
   private gatewayId?: string;
 
@@ -68,13 +60,11 @@ export class AIGatewayService implements IAIGatewayService {
     this.embeddingService = embeddingService;
     this.workersAI = workersAI;
 
-    // Extract account and gateway ID from first provider if Hugging Face
     const hfProvider = config.providers.find(p => this.isHuggingFaceProvider(p));
     if (hfProvider) {
       this.parseHuggingFaceGatewayURL(hfProvider.baseURL);
     }
 
-    // Initialize circuit breakers for all providers
     for (const provider of config.providers) {
       this.circuitBreakers.set(provider.id, {
         isOpen: false,
@@ -85,18 +75,7 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  // ============================================================
-  // Generic Provider Methods
-  // ============================================================
 
-  /**
-   * Generic call to any AI provider
-   * @param provider Provider type ('huggingface', 'workers-ai', 'openai', etc.)
-   * @param model Model identifier
-   * @param payload Request payload
-   * @param options Call options
-   * @returns Provider call result
-   */
   async callProvider<T = unknown>(
     provider: 'huggingface' | 'workers-ai' | 'openai' | 'anthropic' | 'cohere' | 'custom',
     model: string,
@@ -105,13 +84,11 @@ export class AIGatewayService implements IAIGatewayService {
   ): Promise<ProviderCallResult<T>> {
     const startTime = Date.now();
 
-    // Find provider configuration
     const providerConfig = this.findProviderConfig(provider);
     if (!providerConfig) {
       throw new Error(`Provider '${provider}' not configured`);
     }
 
-    // Build gateway URL for Hugging Face
     let url = providerConfig.baseURL;
     if (provider === 'huggingface') {
       url = this.buildHuggingFaceGatewayURL(
@@ -122,20 +99,16 @@ export class AIGatewayService implements IAIGatewayService {
       url = `${providerConfig.baseURL}/${model}`;
     }
 
-    // Prepare request
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...options?.headers,
     };
 
-    // Add authorization if not Hugging Face (HF uses AI Gateway auth)
     if (provider !== 'huggingface' && providerConfig.apiKey) {
       headers['Authorization'] = `Bearer ${providerConfig.apiKey}`;
     }
 
     try {
-      // Honor options.timeout: abort the in-flight fetch instead of letting
-      // it hang (previously the field was accepted but never used).
       const timeoutController = options?.timeout
         ? new AbortController()
         : undefined;
@@ -163,7 +136,6 @@ export class AIGatewayService implements IAIGatewayService {
         throw new Error(`Provider error: ${response.status} ${response.statusText}`);
       }
 
-      // Handle response based on options
       let data: T | Response;
       let tokens = 0;
       let cost = 0;
@@ -190,7 +162,6 @@ export class AIGatewayService implements IAIGatewayService {
             data = await response.json() as T;
         }
 
-        // Estimate tokens and cost for JSON responses
         if (responseType === 'json' && typeof data === 'object') {
           tokens = this.estimateTokensFromData(data);
           cost = this.calculateCost(providerConfig, model, tokens);
@@ -220,13 +191,6 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Call Hugging Face model via Cloudflare AI Gateway
-   * @param model Hugging Face model identifier
-   * @param payload Request payload
-   * @param options Call options
-   * @returns Provider call result
-   */
   async callHuggingFace<T = unknown>(
     model: string,
     payload: unknown,
@@ -239,23 +203,6 @@ export class AIGatewayService implements IAIGatewayService {
     } : { gatewayId });
   }
 
-  /**
-   * Call Workers AI model with native binding (recommended)
-   * @description Uses env.AI.run() for 2-3x faster performance than HTTP fetch
-   * @param model Workers AI model identifier (e.g., '@cf/meta/llama-3.1-8b-instruct')
-   * @param params Model parameters
-   * @param gateway Optional AI Gateway configuration
-   * @returns Provider call result
-   *
-   * @example
-   * ```typescript
-   * const result = await aiGateway.callWorkersAI(
-   *   '@cf/meta/llama-3.1-8b-instruct',
-   *   { prompt: 'Hello, world!' },
-   *   { id: 'my-gateway', skipCache: false, cacheTtl: 3600 }
-   * );
-   * ```
-   */
   async callWorkersAI<T = unknown>(
     model: string,
     params: Record<string, unknown>,
@@ -274,10 +221,8 @@ export class AIGatewayService implements IAIGatewayService {
     }
 
     try {
-      // Prepare inputs
       const inputs: Record<string, unknown> = { ...params };
 
-      // Add AI Gateway configuration if provided
       const options: Record<string, unknown> = {};
       if (gateway) {
         if (gateway.id) options.gateway = gateway.id;
@@ -285,10 +230,8 @@ export class AIGatewayService implements IAIGatewayService {
         if (gateway.cacheTtl !== undefined) options.cacheTtl = gateway.cacheTtl;
       }
 
-      // Call Workers AI with native binding
       const result = await this.workersAI.run<T>(model, inputs);
 
-      // Calculate metrics
       const tokens = this.estimateTokensFromData(result);
       const cost = this.calculateCostFromModel(model, tokens);
       const latency = Date.now() - startTime;
@@ -303,7 +246,7 @@ export class AIGatewayService implements IAIGatewayService {
         cached: false,
         metadata: {
           gatewayId: gateway?.id,
-          binding: true, // Flag indicating native binding was used
+          binding: true,
         },
       };
 
@@ -314,12 +257,7 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Calculate cost for Workers AI model
-   * @private
-   */
   private calculateCostFromModel(model: string, tokens: number): number {
-    // Workers AI pricing (approximate)
     const pricing: Record<string, number> = {
       '@cf/meta/llama-3.1-8b-instruct': 0.00015,
       '@cf/meta/llama-3.3-70b-instruct': 0.00045,
@@ -332,31 +270,15 @@ export class AIGatewayService implements IAIGatewayService {
     return (tokens / 1000) * costPer1K;
   }
 
-  // ============================================================
-  // Hugging Face Gateway URL Builder
-  // ============================================================
 
-  /**
-   * Build Cloudflare AI Gateway URL for Hugging Face
-   * @param model Hugging Face model identifier
-   * @param gatewayId Gateway ID (optional, uses default if not provided)
-   * @returns Complete gateway URL
-   */
   buildHuggingFaceGatewayURL(model: string, gatewayId?: string): string {
     const accountId = this.accountId || '{account_id}';
     const gwId = gatewayId || this.gatewayId || this.config.gatewayId || '{gateway_id}';
 
-    // Cloudflare AI Gateway format for Hugging Face:
-    // https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface/{model}
     return `https://gateway.ai.cloudflare.com/v1/${accountId}/${gwId}/huggingface/${model}`;
   }
 
-  /**
-   * Parse Hugging Face gateway URL to extract account and gateway IDs
-   * @param url Gateway URL
-   */
   private parseHuggingFaceGatewayURL(url: string): void {
-    // Match pattern: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/huggingface
     const match = url.match(/\/v1\/([^/]+)\/([^/]+)\/huggingface/);
     if (match) {
       this.accountId = match[1];
@@ -364,21 +286,11 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Check if provider is Hugging Face
-   * @param provider Provider configuration
-   * @returns True if Hugging Face provider
-   */
   private isHuggingFaceProvider(provider: AIProvider): boolean {
     return provider.baseURL.includes('/huggingface') ||
            provider.type === 'custom' && provider.name.toLowerCase().includes('huggingface');
   }
 
-  /**
-   * Find provider configuration by type
-   * @param providerType Provider type
-   * @returns Provider configuration or null
-   */
   private findProviderConfig(
     providerType: 'huggingface' | 'workers-ai' | 'openai' | 'anthropic' | 'cohere' | 'custom'
   ): AIProvider | null {
@@ -390,16 +302,9 @@ export class AIGatewayService implements IAIGatewayService {
     }) || null;
   }
 
-  // ============================================================
-  // Original AI Gateway Methods
-  // ============================================================
 
-  /**
-   * Route AI request to appropriate provider
-   */
   async route(request: AIRequest): Promise<AIResponse> {
 
-    // Check cache first
     if (this.config.cacheEnabled && request.cacheKey) {
       const cached = await this.getCached(request.cacheKey);
       if (cached) {
@@ -411,15 +316,12 @@ export class AIGatewayService implements IAIGatewayService {
       }
     }
 
-    // Select provider
     const provider = this.selectProvider(request.provider);
     if (!provider) {
       throw new Error(`Provider ${request.provider} not found`);
     }
 
-    // Check circuit breaker
     if (!this.isProviderAvailable(provider.id)) {
-      // Try fallback
       if (provider.fallbackProvider) {
         const fallback = this.config.providers.find(p => p.id === provider.fallbackProvider);
         if (fallback && this.isProviderAvailable(fallback.id)) {
@@ -432,12 +334,10 @@ export class AIGatewayService implements IAIGatewayService {
     try {
       const response = await this.makeRequest(provider, request);
 
-      // Cache response
       if (this.config.cacheEnabled && request.cacheKey) {
         await this.saveToCache(request.cacheKey, response);
       }
 
-      // Track analytics
       if (this.config.analytics) {
         this.trackAnalytics(provider.id);
       }
@@ -445,10 +345,8 @@ export class AIGatewayService implements IAIGatewayService {
       return response;
 
     } catch (error) {
-      // Record failure
       this.recordFailure(provider.id);
 
-      // Try fallback
       if (provider.fallbackProvider) {
         const fallback = this.config.providers.find(p => p.id === provider.fallbackProvider);
         if (fallback && this.isProviderAvailable(fallback.id)) {
@@ -460,9 +358,6 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Make request to provider
-   */
   private async makeRequest(
     provider: AIProvider,
     request: AIRequest
@@ -474,7 +369,6 @@ export class AIGatewayService implements IAIGatewayService {
       let response: Response;
 
       if (provider.type === 'workers-ai') {
-        // Use Workers AI binding - call public method with retry
         const result = await this.callWorkersAI(
           request.model,
           {
@@ -487,7 +381,6 @@ export class AIGatewayService implements IAIGatewayService {
           headers: { 'Content-Type': 'application/json' },
         });
       } else {
-        // Use HTTP API
         response = await fetch(url, {
           method: 'POST',
           headers: {
@@ -508,13 +401,10 @@ export class AIGatewayService implements IAIGatewayService {
 
       const data = await response.json() as Record<string, unknown>;
 
-      // Extract content
       const content = this.extractContent(data);
 
-      // Calculate cost
       const cost = this.calculateCost(provider, request.model, neurons);
 
-      // Track cost
       await this.trackCost({
         provider: provider.id,
         model: request.model,
@@ -546,15 +436,11 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Select provider by ID or load balancing
-  */
   private selectProvider(providerId?: string): AIProvider | null {
     if (providerId) {
       return this.config.providers.find(p => p.id === providerId) || null;
     }
 
-    // Load balancing based on weights
     const totalWeight = this.config.providers.reduce(
       (sum, p) => sum + (p.weight || 1),
       0
@@ -572,9 +458,6 @@ export class AIGatewayService implements IAIGatewayService {
     return this.config.providers[0] || null;
   }
 
-  /**
-   * Track AI call cost
-   */
   async trackCost(data: {
     provider: string;
     model: string;
@@ -582,41 +465,32 @@ export class AIGatewayService implements IAIGatewayService {
     cost: number;
     userId?: string;
   }): Promise<void> {
-    // Update in-memory tracker
     const key = `${data.provider}:${data.model}`;
     const current = this.costTracker.get(key) || 0;
     this.costTracker.set(key, current + data.cost);
 
-    // Add to history
     this.costHistory.push({
       ...data,
       timestamp: Date.now(),
     });
 
-    // Trim history if needed
     if (this.costHistory.length > this.MAX_COST_HISTORY) {
       this.costHistory.shift();
     }
 
-    // Persist to KV if available
     if (this.kv) {
-      const periodKey = `cost:${Math.floor(Date.now() / 3600000)}`; // Hourly
+      const periodKey = `cost:${Math.floor(Date.now() / 3600000)}`;
       try {
         await this.kv.put(periodKey, JSON.stringify(this.costHistory), {
-          expirationTtl: 86400, // 24 hours
+          expirationTtl: 86400,
         });
       } catch (error) {
-        // Cost tracking is auxiliary; surface to console but never break
-        // the caller's flow because telemetry write failed.
          
         console.warn('[AIGateway] Failed to persist cost history:', error);
       }
     }
   }
 
-  /**
-   * Get cost summary
-   */
   async getCostSummary(_period: 'hour' | 'day' | 'week' | 'month' = 'day'): Promise<AICostSummary> {
     const totalCost = Array.from(this.costTracker.values()).reduce((a, b) => a + b, 0);
     const totalNeurons = this.costHistory.reduce((sum, r) => sum + r.neurons, 0);
@@ -639,9 +513,6 @@ export class AIGatewayService implements IAIGatewayService {
     };
   }
 
-  /**
-   * Enforce budget limit
-   */
   enforceBudget(budget: number, provider?: string): boolean {
     const summary = this.getCostSummaryFromMemory();
 
@@ -653,9 +524,6 @@ export class AIGatewayService implements IAIGatewayService {
     return summary.totalCost < budget;
   }
 
-  /**
-   * Get cached response (exact match)
-   */
   async getCached(key: string): Promise<AIResponse | null> {
     if (!this.kv) {
       return null;
@@ -664,28 +532,21 @@ export class AIGatewayService implements IAIGatewayService {
       const data = await this.kv.get(`ai_cache:${key}`);
       return data ? (JSON.parse(data) as AIResponse) : null;
     } catch (error) {
-      // A cache miss is recoverable; corruption is reported so operators
-      // can investigate, but the caller still receives a "not cached" answer.
        
       console.warn('[AIGateway] Cache read failed:', error);
       return null;
     }
   }
 
-  /**
-   * Get cached response (semantic match)
-   */
   async getCachedSemantic(
     embedding: number[],
     threshold: number = 0.9
   ): Promise<AIResponse | null> {
-    // Requires embedding service for semantic matching
     if (!this.embeddingService || !this.kv) {
       return null;
     }
 
     try {
-      // Get recent cache keys
       const recentKeys = await this.getRecentCacheKeys(100);
 
       for (const key of recentKeys) {
@@ -709,9 +570,6 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Save response to cache
-   */
   async saveToCache(key: string, response: AIResponse): Promise<void> {
     if (!this.kv || !this.config.cacheTTL) {
       return;
@@ -728,9 +586,6 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Get analytics
-   */
   async getAnalytics(): Promise<{
     totalRequests: number;
     totalTokens: number;
@@ -755,9 +610,6 @@ export class AIGatewayService implements IAIGatewayService {
     };
   }
 
-  /**
-   * Check circuit breaker
-   */
   isProviderAvailable(provider: string): boolean {
     const state = this.circuitBreakers.get(provider);
     if (!state) {
@@ -765,9 +617,7 @@ export class AIGatewayService implements IAIGatewayService {
     }
 
     if (state.isOpen) {
-      // Check if timeout has elapsed
       if (Date.now() >= state.nextAttemptTime) {
-        // Reset circuit breaker
         state.isOpen = false;
         state.failureCount = 0;
         return true;
@@ -778,9 +628,6 @@ export class AIGatewayService implements IAIGatewayService {
     return true;
   }
 
-  /**
-   * Reset circuit breaker
-   */
   resetCircuitBreaker(provider: string): void {
     const state = this.circuitBreakers.get(provider);
     if (state) {
@@ -791,9 +638,6 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Record failure
-   */
   private recordFailure(provider: string): void {
     const state = this.circuitBreakers.get(provider);
     if (!state) {
@@ -809,26 +653,15 @@ export class AIGatewayService implements IAIGatewayService {
     }
   }
 
-  /**
-   * Track analytics
-   */
   private trackAnalytics(key: string): void {
     const current = this.analytics.get(key) || 0;
     this.analytics.set(key, current + 1);
   }
 
-  /**
-   * Get recent cache keys
-   */
   private async getRecentCacheKeys(_limit: number): Promise<string[]> {
-    // This would require KV list support
-    // For now, return empty array
     return [];
   }
 
-  /**
-   * Get cost summary from memory
-   */
   private getCostSummaryFromMemory(): AICostSummary {
     const totalCost = Array.from(this.costTracker.values()).reduce((a, b) => a + b, 0);
     const totalNeurons = this.costHistory.reduce((sum, r) => sum + r.neurons, 0);
@@ -851,29 +684,17 @@ export class AIGatewayService implements IAIGatewayService {
     };
   }
 
-  /**
-   * Extract content from response
-   */
   private extractContent(data: Record<string, unknown>): string {
     return String(
       data.content || data.response || data.output || data.text || data.message || ''
     );
   }
 
-  /**
-   * Estimate neurons from text
-   */
   private estimateNeurons(text: string): number {
-    // Rough estimate: ~4 characters per token, ~208 neurons per 1K tokens for Llama
     const tokens = Math.ceil(text.length / 4);
     return Math.ceil((tokens / 1000) * 208);
   }
 
-  /**
-   * Estimate tokens from data object
-   * @param data Data object
-   * @returns Estimated token count
-   */
   private estimateTokensFromData(data: unknown): number {
     if (typeof data === 'string') {
       return Math.ceil(data.length / 4);
@@ -885,9 +706,6 @@ export class AIGatewayService implements IAIGatewayService {
     return 0;
   }
 
-  /**
-   * Calculate cost for provider and model
-   */
   private calculateCost(provider: AIProvider, model: string, neurons: number): number {
     const pricing = provider.pricing?.[model];
 
@@ -898,52 +716,15 @@ export class AIGatewayService implements IAIGatewayService {
       return (neurons / 1000) * (pricing.costPer1KNeurons ?? 0);
     }
 
-    // Default pricing
     return (neurons / 1000) * 0.00015;
   }
 
-  /**
-   * Generate unique ID
-   */
   private generateId(): string {
-    // Delegates to the shared crypto-safe helper (Math.random IDs are predictable)
     return generateId();
   }
 }
 
-// ============================================================
-// Singleton Instance
-// ============================================================
 
-/**
- * Create AI Gateway Service with Workers AI binding support
- * @param config AI Gateway configuration
- * @param KV Optional KV namespace for caching
- * @param embeddingService Optional embedding service for semantic caching
- * @param workersAI Optional Workers AI binding for native calls
- * @returns Configured AIGatewayService instance
- *
- * @example
- * ```typescript
- * import { createAIGatewayService } from '@umituz/web-cloudflare';
- *
- * export interface Env {
- *   AI: WorkersAIBinding;
- *   KV: KVNamespace;
- * }
- *
- * const aiGateway = createAIGatewayService(
- *   {
- *     gatewayId: 'my-gateway',
- *     providers: [...],
- *     cacheEnabled: true,
- *   },
- *   env.KV,
- *   undefined,
- *   env.AI // Pass Workers AI binding for native calls
- * );
- * ```
- */
 export function createAIGatewayService(
   config: AIGatewayConfig,
   KV?: KVNamespace,
@@ -953,10 +734,6 @@ export function createAIGatewayService(
   return new AIGatewayService(config, KV, embeddingService, workersAI);
 }
 
-/**
- * Default AI Gateway service instance (without Workers AI binding)
- * @deprecated Use createAIGatewayService() and pass Workers AI binding for better performance
- */
 export const aiGatewayService = new AIGatewayService({
   gatewayId: 'default',
   providers: [],

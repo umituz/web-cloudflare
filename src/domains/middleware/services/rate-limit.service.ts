@@ -1,7 +1,3 @@
-/**
- * Rate Limit Service
- * @description Rate limiting middleware for Cloudflare Workers
- */
 
 import type { MiddlewareRateLimitConfig } from '../entities';
 
@@ -14,25 +10,20 @@ interface RateLimitEntry {
 }
 
 const rateLimitStore = new Map<string, RateLimitEntry>();
-const MAX_ENTRIES = 10000; // Prevent memory leak
-const CLEANUP_INTERVAL = 60000; // 1 minute
+const MAX_ENTRIES = 10000;
+const CLEANUP_INTERVAL = 60000;
 
-// Periodic cleanup to prevent memory leak
 let lastCleanup = Date.now();
 
-/**
- * Cleanup expired entries
- */
 function cleanupExpiredEntries(): void {
   const now = Date.now();
 
-  // Run cleanup periodically
   if (now - lastCleanup < CLEANUP_INTERVAL && rateLimitStore.size < MAX_ENTRIES) {
     return;
   }
 
   lastCleanup = now;
-  const cutoffTime = now - 3600000; // 1 hour ago
+  const cutoffTime = now - 3600000;
 
   for (const [key, entry] of rateLimitStore.entries()) {
     if (entry.resetTime < cutoffTime) {
@@ -40,21 +31,17 @@ function cleanupExpiredEntries(): void {
     }
   }
 
-  // If still too many entries, remove oldest accessed
   if (rateLimitStore.size >= MAX_ENTRIES) {
     const entries = Array.from(rateLimitStore.entries())
       .sort((a, b) => a[1].lastAccess - b[1].lastAccess);
 
-    const toRemove = Math.floor(MAX_ENTRIES * 0.1); // Remove 10%
+    const toRemove = Math.floor(MAX_ENTRIES * 0.1);
     for (let i = 0; i < toRemove; i++) {
       rateLimitStore.delete(entries[i][0]);
     }
   }
 }
 
-/**
- * Get rate limit key
- */
 function getRateLimitKey(request: Request, config: MiddlewareRateLimitConfig): string {
   const parts: string[] = [];
 
@@ -78,9 +65,6 @@ function getRateLimitKey(request: Request, config: MiddlewareRateLimitConfig): s
   return parts.join(':') || 'default';
 }
 
-/**
- * Check rate limit
- */
 export async function checkRateLimit(
   request: Request,
   config: MiddlewareRateLimitConfig
@@ -89,12 +73,10 @@ export async function checkRateLimit(
     return null;
   }
 
-  // Run cleanup before checking
   cleanupExpiredEntries();
 
   const key = getRateLimitKey(request, config);
 
-  // Check whitelist
   if (config.whitelist?.includes(key)) {
     return null;
   }
@@ -102,7 +84,6 @@ export async function checkRateLimit(
   const now = Date.now();
   const entry = rateLimitStore.get(key);
 
-  // Reset if window expired
   if (!entry || now > entry.resetTime) {
     rateLimitStore.set(key, {
       count: 1,
@@ -112,13 +93,10 @@ export async function checkRateLimit(
     return null;
   }
 
-  // Update last access
   entry.lastAccess = now;
 
-  // Increment count
   entry.count++;
 
-  // Check if exceeded
   if (entry.count > config.maxRequests) {
     const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
     return new Response(
@@ -139,9 +117,6 @@ export async function checkRateLimit(
   return null;
 }
 
-// ============================================================
-// User-Based Quota Tracking
-// ============================================================
 
 interface UserQuotaEntry {
   quota: number;
@@ -151,11 +126,6 @@ interface UserQuotaEntry {
 
 const userQuotaStore = new Map<string, UserQuotaEntry>();
 
-/**
- * In-memory fallback stores live for the isolate's lifetime and grow with
- * every distinct user ID. Cap them: evict expired entries first, then the
- * oldest-inserted, so a flood of unique IDs can't exhaust isolate memory.
- */
 const MAX_QUOTA_STORE_ENTRIES = 10_000;
 
 function pruneQuotaStore<T extends { resetTime: number }>(store: Map<string, T>): void {
@@ -171,16 +141,12 @@ function pruneQuotaStore<T extends { resetTime: number }>(store: Map<string, T>)
   }
 }
 
-/**
- * Check user quota (general purpose quota tracking)
- */
 export async function checkUserQuota(
   userId: string,
   quota: number,
   window: number,
   kv?: KVNamespace
 ): Promise<boolean> {
-  // Check KV first if available
   if (kv) {
     const periodKey = `user_quota:${userId}:${Math.floor(Date.now() / (window * 1000))}`;
     const currentUsage = await kv.get(periodKey, 'json');
@@ -191,7 +157,6 @@ export async function checkUserQuota(
       return false;
     }
 
-    // Increment usage
     await kv.put(periodKey, JSON.stringify({ count: usage + 1 }), {
       expirationTtl: window,
     });
@@ -199,12 +164,10 @@ export async function checkUserQuota(
     return true;
   }
 
-  // Fallback to in-memory store
   pruneQuotaStore(userQuotaStore);
   const now = Date.now();
   const entry = userQuotaStore.get(userId);
 
-  // Reset if window expired
   if (!entry || now > entry.resetTime) {
     userQuotaStore.set(userId, {
       quota,
@@ -214,32 +177,24 @@ export async function checkUserQuota(
     return true;
   }
 
-  // Check if exceeded
   if (entry.usage >= quota) {
     return false;
   }
 
-  // Increment usage
   entry.usage++;
   return true;
 }
 
-// ============================================================
-// AI-Specific Quota Tracking (Neuron-based)
-// ============================================================
 
 interface AIQuotaEntry {
-  quota: number; // Neurons per period
-  usage: number; // Neurons used
+  quota: number;
+  usage: number;
   resetTime: number;
-  period: number; // Period in seconds
+  period: number;
 }
 
 const aiQuotaStore = new Map<string, AIQuotaEntry>();
 
-/**
- * Check AI quota (based on neuron usage)
- */
 export async function checkAIQuota(
   userId: string,
   neurons: number,
@@ -251,7 +206,6 @@ export async function checkAIQuota(
 ): Promise<{ allowed: boolean; remaining: number; resetAt: number; currentUsage: number }> {
   const periodKey = `ai_quota:${userId}:${Math.floor(Date.now() / (config.period * 1000))}`;
 
-  // Check KV first if available
   if (config.kv) {
     const currentUsage = await config.kv.get(periodKey, 'json');
     const usage = (currentUsage as { neurons: number })?.neurons || 0;
@@ -267,7 +221,6 @@ export async function checkAIQuota(
       };
     }
 
-    // Update usage
     await config.kv.put(periodKey, JSON.stringify({ neurons: newUsage }), {
       expirationTtl: config.period,
     });
@@ -280,12 +233,10 @@ export async function checkAIQuota(
     };
   }
 
-  // Fallback to in-memory store
   pruneQuotaStore(aiQuotaStore);
   const now = Date.now();
   const entry = aiQuotaStore.get(userId);
 
-  // Reset if window expired or doesn't exist
   if (!entry || now > entry.resetTime || entry.period !== config.period) {
     if (neurons > config.quota) {
       return {
@@ -311,7 +262,6 @@ export async function checkAIQuota(
     };
   }
 
-  // Check if would exceed quota
   const newUsage = entry.usage + neurons;
 
   if (newUsage > entry.quota) {
@@ -323,7 +273,6 @@ export async function checkAIQuota(
     };
   }
 
-  // Update usage
   entry.usage = newUsage;
 
   return {

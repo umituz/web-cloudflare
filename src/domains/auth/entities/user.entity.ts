@@ -1,11 +1,4 @@
-/**
- * User Entity
- * @description User entity for anonymous and real users with device-based authentication
- */
 
-// ============================================================
-// User Types
-// ============================================================
 
 export type UserType = 'anonymous' | 'real';
 
@@ -24,9 +17,6 @@ export interface User {
   creditsRemaining: number;
 }
 
-// ============================================================
-// User Creation Types
-// ============================================================
 
 export interface CreateUserInput {
   deviceId?: string;
@@ -46,9 +36,6 @@ export interface UpdateUserInput {
   metadata?: Record<string, unknown>;
 }
 
-// ============================================================
-// Authentication Types
-// ============================================================
 
 export interface DeviceAuthInput {
   deviceId: string;
@@ -77,9 +64,6 @@ export interface AuthResponse {
   expiresAt: number;
 }
 
-// ============================================================
-// Session Types
-// ============================================================
 
 export interface UserSession {
   sessionId: string;
@@ -92,9 +76,6 @@ export interface UserSession {
   lastRefreshedAt: number;
 }
 
-// ============================================================
-// Token Types
-// ============================================================
 
 export interface TokenPayload {
   userId: string;
@@ -105,9 +86,6 @@ export interface TokenPayload {
   exp: number;
 }
 
-// ============================================================
-// Credit System Types
-// ============================================================
 
 export interface CreditTransaction {
   id: string;

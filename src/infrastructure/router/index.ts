@@ -1,14 +1,7 @@
-/**
- * Cloudflare Worker Router
- * @description Express-like router for Cloudflare Workers
- */
 
 import { json, notFound } from '../utils/helpers';
 import type { WorkersAIBinding } from '../../config/types';
 
-// ============================================================
-// Environment Types
-// ============================================================
 
 export interface BaseEnv {
   readonly KV?: Record<string, KVNamespace>;
@@ -23,12 +16,8 @@ export interface CloudflareEnv extends BaseEnv {
   vars?: Record<string, string>;
 }
 
-// Re-export Env for convenience
 export type Env = CloudflareEnv;
 
-// ============================================================
-// Route Handler Types
-// ============================================================
 
 export type RouteHandler = (
   request: Request,
@@ -50,9 +39,6 @@ export interface Route {
   middlewares?: Middleware[];
 }
 
-// ============================================================
-// Router Class
-// ============================================================
 
 export class Router {
   private routes: Route[] = [];
@@ -61,17 +47,11 @@ export class Router {
   private cacheEnabled: boolean = true;
   private maxCacheSize: number = 1000;
 
-  /**
-   * Add global middleware
-   */
   use(middleware: Middleware): Router {
     this.globalMiddlewares.push(middleware);
     return this;
   }
 
-  /**
-   * Enable or disable route cache
-   */
   setCacheEnabled(enabled: boolean): Router {
     this.cacheEnabled = enabled;
     if (!enabled) {
@@ -80,20 +60,13 @@ export class Router {
     return this;
   }
 
-  /**
-   * Clear route cache
-   */
   clearCache(): Router {
     this.routeCache.clear();
     return this;
   }
 
-  /**
-   * Cleanup route cache if it grows too large
-   */
   private cleanupCache(): void {
     if (this.routeCache.size > this.maxCacheSize) {
-      // Clear 50% of the cache
       const entriesToDelete = Math.floor(this.maxCacheSize * 0.5);
       let deleted = 0;
       for (const key of this.routeCache.keys()) {
@@ -104,72 +77,44 @@ export class Router {
     }
   }
 
-  /**
-   * Add GET route
-   */
   get(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('GET', path, handler, middlewares);
   }
 
-  /**
-   * Add POST route
-   */
   post(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('POST', path, handler, middlewares);
   }
 
-  /**
-   * Add PUT route
-   */
   put(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('PUT', path, handler, middlewares);
   }
 
-  /**
-   * Add PATCH route
-   */
   patch(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('PATCH', path, handler, middlewares);
   }
 
-  /**
-   * Add DELETE route
-   */
   delete(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('DELETE', path, handler, middlewares);
   }
 
-  /**
-   * Add HEAD route
-   */
   head(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('HEAD', path, handler, middlewares);
   }
 
-  /**
-   * Add OPTIONS route
-   */
   options(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('OPTIONS', path, handler, middlewares);
   }
 
-  /**
-   * Add route for any method
-   */
   all(path: string, handler: RouteHandler, middlewares?: Middleware[]): Router {
     return this.addRoute('*', path, handler, middlewares);
   }
 
-  /**
-   * Add route
-   */
   private addRoute(
     method: string,
     path: string,
     handler: RouteHandler,
     middlewares?: Middleware[]
   ): Router {
-    // Convert path pattern to URLPattern
     const pattern = new URLPattern({ pathname: path });
 
     this.routes.push({
@@ -182,14 +127,10 @@ export class Router {
     return this;
   }
 
-  /**
-   * Group routes with prefix
-   */
   group(prefix: string, callback: (router: Router) => void): Router {
     const groupedRouter = new Router();
     callback(groupedRouter);
 
-    // Add all routes from grouped router with prefix
     groupedRouter.routes.forEach((route) => {
       const prefixedPath = prefix + route.pattern.pathname;
       this.routes.push({
@@ -201,10 +142,6 @@ export class Router {
     return this;
   }
 
-  /**
-   * Handle request
-   * Optimized with caching and early termination
-   */
   async handle(
     request: Request,
     env?: CloudflareEnv,
@@ -213,7 +150,6 @@ export class Router {
     const url = new URL(request.url);
     const method = request.method;
 
-    // Run global middlewares
     for (const middleware of this.globalMiddlewares) {
       const response = await middleware(request, env, ctx);
       if (response) {
@@ -221,7 +157,6 @@ export class Router {
       }
     }
 
-    // Check cache for route match
     const cacheKey = `${method}:${url.pathname}`;
     let matchedRoute: Route | undefined;
 
@@ -233,19 +168,15 @@ export class Router {
       }
     }
 
-    // Find matching route if not in cache
     if (!matchedRoute) {
       for (const route of this.routes) {
-        // Check method (wildcard matches all)
         if (route.method !== '*' && route.method !== method) {
           continue;
         }
 
-        // Check path pattern
         const match = route.pattern.exec(url);
         if (match) {
           matchedRoute = route;
-          // Cache the match for future requests
           if (this.cacheEnabled) {
             this.routeCache.set(cacheKey, route);
           }
@@ -255,17 +186,13 @@ export class Router {
     }
 
     if (matchedRoute) {
-      // Extract params
       const match = matchedRoute.pattern.exec(url);
       const params = this.extractParams(match || null);
 
-      // Annotate the request so handler-side helpers (e.g. `params(req)`) can read
-      // path params without each handler having to plumb them through manually.
       const annotatedRequest = params
         ? Object.assign(request, { __routerParams: params })
         : request;
 
-      // Run route middlewares
       if (matchedRoute.middlewares) {
         for (const middleware of matchedRoute.middlewares) {
           const response = await middleware(annotatedRequest, env, ctx);
@@ -275,7 +202,6 @@ export class Router {
         }
       }
 
-      // Run handler
       try {
         return await matchedRoute.handler(annotatedRequest, params, env, ctx);
       } catch (error) {
@@ -288,18 +214,13 @@ export class Router {
       }
     }
 
-    // No route matched - cache negative result
     if (this.cacheEnabled) {
       this.routeCache.set(cacheKey, null);
     }
 
-    // No route matched
     return notFound();
   }
 
-  /**
-   * Extract params from URLPattern result
-   */
   private extractParams(
     match: URLPatternResult | null
   ): Record<string, string> {
@@ -309,7 +230,6 @@ export class Router {
 
     const params: Record<string, string> = {};
 
-    // Extract pathname groups
     if (match.pathname?.groups) {
       Object.assign(params, match.pathname.groups);
     }
@@ -317,9 +237,6 @@ export class Router {
     return params;
   }
 
-  /**
-   * Get all registered routes
-   */
   getRoutes(): Array<{ method: string; path: string }> {
     return this.routes.map((route) => ({
       method: route.method,
@@ -327,9 +244,6 @@ export class Router {
     }));
   }
 
-  /**
-   * Clear all routes
-   */
   clear(): Router {
     this.routes = [];
     this.globalMiddlewares = [];
@@ -337,9 +251,6 @@ export class Router {
   }
 }
 
-// ============================================================
-// Route Builder (Fluent API)
-// ============================================================
 
 export class RouteBuilder {
   private router: Router;
@@ -348,9 +259,6 @@ export class RouteBuilder {
     this.router = new Router();
   }
 
-  /**
-   * Define route with fluent API
-   */
   route(method: string, path: string, handler: RouteHandler): RouteBuilder {
     switch (method.toUpperCase()) {
       case 'GET':
@@ -380,29 +288,17 @@ export class RouteBuilder {
     return this;
   }
 
-  /**
-   * Add middleware
-   */
   use(middleware: Middleware): RouteBuilder {
     this.router.use(middleware);
     return this;
   }
 
-  /**
-   * Get router instance
-   */
   build(): Router {
     return this.router;
   }
 }
 
-// ============================================================
-// Controller Helpers
-// ============================================================
 
-/**
- * Create resource routes (CRUD)
- */
 export function resource(
   router: Router,
   path: string,
@@ -433,9 +329,6 @@ export function resource(
   return router;
 }
 
-/**
- * Create API routes
- */
 export function api(
   router: Router,
   path: string,
@@ -469,13 +362,7 @@ export function api(
   return router;
 }
 
-// ============================================================
-// Middleware Helpers
-// ============================================================
 
-/**
- * Combine multiple middlewares
- */
 export function combineMiddlewares(...middlewares: Middleware[]): Middleware {
   return async (request, env, ctx) => {
     for (const middleware of middlewares) {
@@ -488,9 +375,6 @@ export function combineMiddlewares(...middlewares: Middleware[]): Middleware {
   };
 }
 
-/**
- * Create conditional middleware
- */
 export function conditionalMiddleware(
   condition: (request: Request) => boolean,
   middleware: Middleware
@@ -503,9 +387,6 @@ export function conditionalMiddleware(
   };
 }
 
-/**
- * Create path-specific middleware
- */
 export function pathMiddleware(path: string, middleware: Middleware): Middleware {
   return conditionalMiddleware(
     (request) => {
@@ -516,9 +397,6 @@ export function pathMiddleware(path: string, middleware: Middleware): Middleware
   );
 }
 
-/**
- * Create method-specific middleware
- */
 export function methodMiddleware(
   methods: string[],
   middleware: Middleware
@@ -529,18 +407,9 @@ export function methodMiddleware(
   );
 }
 
-// ============================================================
-// Response Helpers
-// ============================================================
 
-/**
- * Send JSON response
- */
 export const send = json;
 
-/**
- * Send success response
- */
 export function success(data: unknown, message?: string): Response {
   return json({
     success: true,
@@ -549,9 +418,6 @@ export function success(data: unknown, message?: string): Response {
   });
 }
 
-/**
- * Send error response
- */
 export function fail(error: string, status: number = 400): Response {
   return json(
     {
@@ -562,9 +428,6 @@ export function fail(error: string, status: number = 400): Response {
   );
 }
 
-/**
- * Send validation error
- */
 export function validationError(errors: Record<string, string[]>): Response {
   return json(
     {
@@ -576,59 +439,33 @@ export function validationError(errors: Record<string, string[]>): Response {
   );
 }
 
-// ============================================================
-// Request Helpers
-// ============================================================
 
-/**
- * Get request body as JSON
- */
 export async function body<T = unknown>(request: Request): Promise<T> {
   return request.json() as Promise<T>;
 }
 
-/**
- * Get query params
- */
 export function query(request: Request): Record<string, string> {
   const url = new URL(request.url);
   const result: Record<string, string> = {};
-  // URLSearchParams.keys() is not available in Workers runtime
   url.searchParams.forEach((value, key) => {
     result[key] = value;
   });
   return result;
 }
 
-/**
- * Get path params from a Request that was previously annotated by the router.
- *
- * The router mutates the request's `cf` properties bag with `params` so this
- * helper can be called from inside a handler without threading extra context.
- * Returns an empty object for requests not produced by this router.
- */
 export function params(request: Request): Record<string, string> {
   const annotated = (request as Request & { __routerParams?: Record<string, string> }).__routerParams;
   return annotated ?? {};
 }
 
-/**
- * Get headers
- */
 export function headers(request: Request): Headers {
   return request.headers;
 }
 
-/**
- * Get header value
- */
 export function header(request: Request, name: string): string | null {
   return request.headers.get(name);
 }
 
-/**
- * Get cookie value
- */
 export function cookie(request: Request, name: string): string | null {
   const cookieHeader = request.headers.get('Cookie');
   if (!cookieHeader) {
@@ -641,9 +478,6 @@ export function cookie(request: Request, name: string): string | null {
   return target ? target.substring(name.length + 1) : null;
 }
 
-// ============================================================
-// Export shorthand
-// ============================================================
 
 export const createRouter = (): Router => new Router();
 

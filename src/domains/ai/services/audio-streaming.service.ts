@@ -1,21 +1,13 @@
-/**
- * Audio Streaming Service
- * @description Progressive download, chunked transfer, and range request support
- * for large audio files in Workers runtime.
- */
 
 import type { IR2Service, R2GetOptions } from '../../r2/types/service.interface';
 
-// ============================================================
-// Types
-// ============================================================
 
 export interface AudioStreamOptions {
   enableRangeRequests: boolean;
   enableCaching: boolean;
   cacheTTL?: number;
-  chunkSize?: number; // bytes
-  maxChunkSize?: number; // bytes (default 10MB)
+  chunkSize?: number;
+  maxChunkSize?: number;
 }
 
 export interface AudioStreamChunk {
@@ -39,12 +31,9 @@ export interface StreamInfo {
   supportsRanges: boolean;
 }
 
-const DEFAULT_CHUNK_SIZE = 256 * 1024; // 256 KB
+const DEFAULT_CHUNK_SIZE = 256 * 1024;
 const DEFAULT_CACHE_TTL = 3600;
 
-// ============================================================
-// Audio Streaming Service
-// ============================================================
 
 export class AudioStreamingService {
   private r2?: IR2Service;
@@ -61,11 +50,6 @@ export class AudioStreamingService {
     };
   }
 
-  /**
-   * Handle range request for audio streaming.
-   * Returns 206 with the requested byte range, or 200 with the full body
-   * when the client did not request a range.
-   */
   async handleRangeRequest(
     key: string,
     rangeHeader: string | null,
@@ -88,10 +72,6 @@ export class AudioStreamingService {
     return this.streamFull(key, totalSize, mimeType, bucket);
   }
 
-  /**
-   * Stream audio in chunks via a ReadableStream.
-   * Yields chunks until the full body has been consumed.
-   */
   streamAudio(
     key: string,
     bucket?: string,
@@ -145,10 +125,6 @@ export class AudioStreamingService {
     });
   }
 
-  /**
-   * Generate an HLS (HTTP Live Streaming) playlist for the audio file.
-   * The caller is responsible for translating this string into a Response.
-   */
   async generateHLSPlaylist(
     key: string,
     segmentDuration: number = 10,
@@ -165,9 +141,6 @@ export class AudioStreamingService {
     const duration = this.parseNumberMetadata(object.customMetadata, 'duration');
 
     if (!duration) {
-      // Without duration we cannot segment, so return a single-item playlist
-      // that streams the whole file. Callers can short-circuit if they need
-      // exact HLS semantics.
       return [
         '#EXTM3U',
         '#EXT-X-VERSION:3',
@@ -202,9 +175,6 @@ export class AudioStreamingService {
     return playlist.join('\n');
   }
 
-  /**
-   * Handle an HLS segment request.
-   */
   async handleHLSSegment(
     key: string,
     _segmentIndex: number,
@@ -233,9 +203,6 @@ export class AudioStreamingService {
     });
   }
 
-  /**
-   * Get stream info for an audio file. Returns null when the object is missing.
-   */
   async getStreamInfo(key: string, bucket?: string): Promise<StreamInfo | null> {
     
 
@@ -253,10 +220,6 @@ export class AudioStreamingService {
     };
   }
 
-  /**
-   * Generate waveform data for visualization.
-   * Reads the entire object into memory and computes peak amplitude per bucket.
-   */
   async generateWaveform(
     key: string,
     samples: number = 1000,
@@ -288,9 +251,6 @@ export class AudioStreamingService {
     return waveform;
   }
 
-  /**
-   * Progressive download with progress callback.
-   */
   async progressiveDownload(
     key: string,
     onProgress: (progress: number, downloaded: number, total: number) => void,
@@ -321,7 +281,7 @@ export class AudioStreamingService {
         if (value) collected.push(value);
       }
     } catch (error) {
-      try { await reader.cancel(); } catch { /* already closed */ }
+      try { await reader.cancel(); } catch {}
       throw error;
     }
 
@@ -336,15 +296,7 @@ export class AudioStreamingService {
     return result.buffer;
   }
 
-  // ============================================================
-  // Private Helpers
-  // ============================================================
 
-  /**
-   * Returns the bound R2 service or throws. Throws first so callers can
-   * safely use `!` after — TypeScript cannot narrow the class's `r2?`
-   * field through an assertion signature in all targets.
-   */
   private requireR2(): IR2Service {
     if (!this.r2) {
       throw new Error('R2 service not configured');
@@ -367,10 +319,6 @@ export class AudioStreamingService {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
 
-  /**
-   * Parse a Range header into a concrete byte range.
-   * Returns null if the header is missing, malformed, or unsatisfiable.
-   */
   private parseRangeHeader(rangeHeader: string | null, totalSize: number): RangeRequest | null {
     if (!rangeHeader) return null;
 
@@ -389,9 +337,6 @@ export class AudioStreamingService {
     return { start, end: safeEnd, size: safeEnd - start + 1 };
   }
 
-  /**
-   * Stream a specific byte range of an audio file as a 206 response.
-   */
   private async streamRange(
     key: string,
     range: RangeRequest,
@@ -422,9 +367,6 @@ export class AudioStreamingService {
     });
   }
 
-  /**
-   * Stream the full audio file as a 200 response.
-   */
   private async streamFull(
     key: string,
     totalSize: number,
@@ -450,9 +392,6 @@ export class AudioStreamingService {
   }
 }
 
-// ============================================================
-// Factory Function
-// ============================================================
 
 export function createAudioStreamingService(
   r2?: IR2Service,
@@ -461,7 +400,4 @@ export function createAudioStreamingService(
   return new AudioStreamingService(r2, options);
 }
 
-// Default singleton — useful for stateless Workers, but consumers should
-// prefer `createAudioStreamingService(r2Service)` so the R2 binding is wired
-// in rather than relying on a later `bind*` call.
 export const audioStreamingService = createAudioStreamingService();

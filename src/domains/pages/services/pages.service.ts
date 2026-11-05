@@ -1,11 +1,3 @@
-/**
- * Pages Service Implementation
- * Cloudflare Pages deployment and management
- *
- * ⚠️ NODE.JS ONLY: This service requires Node.js runtime and is NOT compatible
- * with Cloudflare Workers runtime. Use this service only in build/development
- * scripts running in Node.js environment.
- */
 
 import { execSync } from 'child_process';
 import type { IPagesService } from '../types/service.interface';
@@ -24,9 +16,6 @@ export class PagesService implements IPagesService {
     this.wranglerCommand = options?.wranglerPath || 'npx wrangler';
   }
 
-  /**
-   * Create a new Pages project
-   */
   async createProject(
     projectName: string,
     options?: {
@@ -52,13 +41,9 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * List all Pages projects
-   */
   async listProjects(): Promise<{ success: boolean; data?: PagesProject[]; error?: string }> {
     const result = this.executeWranglerPages(['project', 'list']);
     if (result.success) {
-      // Parse output to get project list
       try {
         const projects = this.parseProjectsList(result.stdout);
         return { success: true, data: projects };
@@ -69,9 +54,6 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Get project details
-   */
   async getProject(projectName: string): Promise<{ success: boolean; data?: PagesProject; error?: string }> {
     const result = this.executeWranglerPages(['project', 'view', projectName]);
     if (result.success) {
@@ -83,9 +65,6 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Deploy to Pages
-   */
   async deploy(
     options: PagesDeployOptions
   ): Promise<{ success: boolean; data?: PagesDeploymentResult; error?: string }> {
@@ -99,7 +78,6 @@ export class PagesService implements IPagesService {
       args.push('--branch', `preview-${Date.now()}`);
     }
 
-    // Add environment variables
     if (options.vars && Object.keys(options.vars).length > 0) {
       Object.entries(options.vars).forEach(([key, value]) => {
         args.push('--var', `${key}:${value}`);
@@ -124,9 +102,6 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Create a Pages function
-   */
   async createFunction(
     projectName: string,
     functionName: string,
@@ -154,9 +129,6 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * List deployments for a project
-   */
   async listDeployments(
     projectName: string
   ): Promise<{ success: boolean; data?: PagesDeployment[]; error?: string }> {
@@ -167,9 +139,6 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Get deployment details
-   */
   async getDeployment(
     projectName: string,
     deploymentId: string
@@ -194,9 +163,6 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Delete a deployment
-   */
   async deleteDeployment(
     projectName: string,
     deploymentId: string
@@ -214,9 +180,6 @@ export class PagesService implements IPagesService {
     return { success: false, error: result.stderr };
   }
 
-  /**
-   * Execute wrangler pages command
-   */
   private executeWranglerPages(
     args: string[],
     options?: { cwd?: string; env?: Record<string, string> }
@@ -243,9 +206,6 @@ export class PagesService implements IPagesService {
     }
   }
 
-  /**
-   * Parse projects list output
-   */
   private parseProjectsList(stdout: string): PagesProject[] {
     const projects: PagesProject[] = [];
     const lines = stdout.split('\n');
@@ -260,9 +220,6 @@ export class PagesService implements IPagesService {
     return projects;
   }
 
-  /**
-   * Extract deployment URL from wrangler output
-   */
   private extractDeploymentUrl(stdout: string): string | undefined {
     const urlMatch = stdout.match(/https?:\/\/[^\s]+\.pages\.dev[^\s]*/);
     return urlMatch ? urlMatch[0] : undefined;

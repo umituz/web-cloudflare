@@ -1,14 +1,3 @@
-/**
- * Workers Service
- * @description Cloudflare Workers HTTP handler and routing
- *
- * NOTE: This is a thin convenience wrapper that mirrors the Express-like
- * router in `infrastructure/router`. For new code we recommend the
- * `Router` class directly — it supports more method/path patterns, a
- * fluent `RouteBuilder`, and richer middleware composition. This class
- * is kept for backward compatibility with consumers that already use
- * `workersService.route(...)` and `workersService.use(...)`.
- */
 
 import type { WorkerRequest, WorkerResponse } from "../entities";
 import type { Env } from "../types";
@@ -49,28 +38,18 @@ class WorkersService {
   private routeCache: Map<string, WorkerRouteConfig | null> = new Map();
   private maxCacheSize: number = 1000;
 
-  /**
-   * Register a route
-   */
   route(pattern: string, handler: WorkerRouteConfig["handler"]): void {
     this.routes.push({
       pattern: new URLPattern({ pathname: pattern }),
       handler,
     });
-    // Clear cache when routes change
     this.routeCache.clear();
   }
 
-  /**
-   * Add middleware
-   */
   use(middleware: WorkersMiddleware): void {
     this.middleware.push(middleware);
   }
 
-  /**
-   * Cleanup route cache if it grows too large
-   */
   private cleanupCache(): void {
     if (this.routeCache.size > this.maxCacheSize) {
       const entriesToDelete = Math.floor(this.maxCacheSize * 0.5);
@@ -83,26 +62,18 @@ class WorkersService {
     }
   }
 
-  /**
-   * Fetch handler
-   * Optimized with route caching and early termination
-   */
   async fetch(request: WorkerRequest, env?: Env, _ctx?: ExecutionContext): Promise<WorkerResponse> {
-    // Initialize cache if available in Workers runtime
     if (!this.cache && env && typeof caches !== 'undefined') {
-      // Handle caches.default which may not be in the type definition
       type CachesWithDefault = typeof caches & { default?: Cache };
       const cacheDefault = (caches as CachesWithDefault).default;
       this.cache = cacheDefault ?? null;
     }
 
-    // Try middleware
     for (const mw of this.middleware) {
       const response = await mw(request, env);
       if (response) return response;
     }
 
-    // Match route with caching
     const url = new URL(request.url);
     const cacheKey = `${request.method}:${url.pathname}`;
 
@@ -110,7 +81,6 @@ class WorkersService {
 
     let matchedRoute = this.routeCache.get(cacheKey);
     if (matchedRoute === undefined) {
-      // Not in cache, find matching route
       for (const route of this.routes) {
         if (route.pattern.test(url)) {
           matchedRoute = route;
@@ -119,7 +89,6 @@ class WorkersService {
         }
       }
 
-      // Cache negative result
       if (matchedRoute === undefined) {
         this.routeCache.set(cacheKey, null);
       }
@@ -129,13 +98,9 @@ class WorkersService {
       return matchedRoute.handler(request, env);
     }
 
-    // 404
     return new Response("Not Found", { status: 404 });
   }
 
-  /**
-   * JSON response helper
-   */
   json(data: unknown, status = 200): WorkerResponse {
     return new Response(JSON.stringify(data), {
       status,
@@ -145,16 +110,10 @@ class WorkersService {
     });
   }
 
-  /**
-   * Error response helper
-   */
   error(message: string, status = 500): WorkerResponse {
     return this.json({ error: message }, status);
   }
 
-  /**
-   * CORS response helper
-   */
   cors(options: CorsOptions = {}): WorkerResponse {
     const headers = new Headers();
 
@@ -178,9 +137,6 @@ class WorkersService {
     return new Response(null, { headers });
   }
 
-  /**
-   * Cache response helper
-   */
   async cached(request: Request, ttl: number, fetcher: () => Promise<Response>): Promise<Response> {
     if (!this.cache) return fetcher();
 
@@ -197,9 +153,6 @@ class WorkersService {
     return response;
   }
 
-  /**
-   * Redirect response helper
-   */
   redirect(url: string, status = 302): WorkerResponse {
     return new Response(null, {
       status,
@@ -210,6 +163,5 @@ class WorkersService {
   }
 }
 
-// Export class and singleton instance
 export { WorkersService };
 export const workersService = new WorkersService();

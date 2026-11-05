@@ -1,22 +1,11 @@
-/**
- * KV Service
- * @description Cloudflare KV key-value storage operations with AI response caching and hierarchical L1/L2 caching
- */
 
 import type { KVListOptions, KVListResult } from "../entities";
 import type { IKVService } from "../types/service.interface";
 import type { AIResponse } from "../../ai/entities";
 import type { IKVValidator } from "../interfaces/kv-validator.interface";
 
-/**
- * Default TTL in seconds (1 hour).
- * Centralized so service initialization and ad-hoc put() calls stay aligned.
- */
 const DEFAULT_TTL_SECONDS = 3600;
 
-// ============================================================
-// LRU Cache for L1 Memory Cache
-// ============================================================
 
 class LRUCache<T> {
   private cache: Map<string, { value: T; expires: number }>;
@@ -31,13 +20,11 @@ class LRUCache<T> {
     const item = this.cache.get(key);
     if (!item) return null;
 
-    // Check expiration
     if (Date.now() > item.expires) {
       this.cache.delete(key);
       return null;
     }
 
-    // Move to end (most recently used)
     this.cache.delete(key);
     this.cache.set(key, item);
 
@@ -45,7 +32,6 @@ class LRUCache<T> {
   }
 
   set(key: string, value: T, ttl: number): void {
-    // Remove oldest if at capacity
     if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) this.cache.delete(firstKey);
@@ -84,9 +70,6 @@ class LRUCache<T> {
   }
 }
 
-// ============================================================
-// KV Cache Options
-// ============================================================
 
 export interface KVCacheOptions {
   readonly namespace: string;
@@ -95,9 +78,6 @@ export interface KVCacheOptions {
   readonly enableL1Cache?: boolean;
 }
 
-// ============================================================
-// AI Response Cache Types
-// ============================================================
 
 export interface AIResponseCacheOptions {
   readonly ttl?: number;
@@ -120,8 +100,6 @@ export class KVService implements IKVService {
   }
 
   private createDefaultValidator(): IKVValidator {
-    // Default implementation if no validator provided.
-    // Mirrors the canonical regex in `KVValidator` (domains/kv/interfaces/*).
     return {
       isValidKey: (key: string) => {
         if (!key || key.trim().length === 0) return false;
@@ -138,8 +116,6 @@ export class KVService implements IKVService {
   }
 
   initialize(options: KVCacheOptions): void {
-    // Namespaces are bound by Cloudflare at runtime
-    // This is just a reference to the binding name
     this.defaultTTL = options.defaultTTL ?? DEFAULT_TTL_SECONDS;
     this.enableL1Cache = options.enableL1Cache ?? true;
 
@@ -204,8 +180,6 @@ export class KVService implements IKVService {
       prefix: options?.prefix,
     });
 
-    // Cloudflare's KV list response has a cursor at runtime that isn't
-    // surfaced in @cloudflare/workers-types yet; widen locally to read it.
     const cursor = (list as { cursor?: string }).cursor;
 
     return {
@@ -218,18 +192,11 @@ export class KVService implements IKVService {
     };
   }
 
-  // ============================================================
-  // Hierarchical Caching (L1 Memory + L2 KV)
-  // ============================================================
 
-  /**
-   * Get with hierarchical caching (L1 → L2)
-   */
   async getWithCache<T>(
     key: string,
     options?: { ttl?: number; binding?: string }
   ): Promise<T | null> {
-    // Check L1 (memory) cache first
     if (this.enableL1Cache) {
       const l1Value = this.l1Cache.get(key) as T | null;
       if (l1Value !== null) {
@@ -237,10 +204,8 @@ export class KVService implements IKVService {
       }
     }
 
-    // Check L2 (KV) cache
     const value = await this.get<T>(key, options?.binding);
 
-    // Store in L1 if found in L2
     if (value !== null && this.enableL1Cache) {
       const ttl = options?.ttl ?? this.defaultTTL;
       this.l1Cache.set(key, value, ttl);
@@ -249,31 +214,20 @@ export class KVService implements IKVService {
     return value;
   }
 
-  /**
-   * Put with hierarchical caching
-   */
   async putWithCache<T>(
     key: string,
     value: T,
     options?: { ttl?: number; binding?: string }
   ): Promise<void> {
-    // Store in L1 (memory)
     if (this.enableL1Cache) {
       const ttl = options?.ttl ?? this.defaultTTL;
       this.l1Cache.set(key, value, ttl);
     }
 
-    // Store in L2 (KV)
     await this.put(key, value, options);
   }
 
-  // ============================================================
-  // AI Response Caching
-  // ============================================================
 
-  /**
-   * Cache AI response with metadata
-   */
   async cacheAIResponse(
     key: string,
     response: AIResponse,
@@ -282,7 +236,6 @@ export class KVService implements IKVService {
     const ttl = options?.ttl ?? this.defaultTTL;
     const tags = options?.tags || [];
 
-    // Store with metadata
     const cacheValue = {
       ...response,
       _tags: tags,
@@ -291,7 +244,6 @@ export class KVService implements IKVService {
 
     await this.put(`ai:${key}`, cacheValue, { ttl, binding: options?.binding });
 
-    // Also store tagged indexes for invalidation
     for (const tag of tags) {
       const tagKey = `ai:tag:${tag}`;
       const taggedKeys = (await this.get<string[]>(tagKey, options?.binding)) || [];
@@ -300,9 +252,6 @@ export class KVService implements IKVService {
     }
   }
 
-  /**
-   * Get cached AI response
-   */
   async getCachedAIResponse(
     key: string,
     binding?: string
@@ -311,33 +260,20 @@ export class KVService implements IKVService {
     return cached;
   }
 
-  /**
-   * Invalidate AI cache by tag
-   */
   async invalidateTagged(tag: string, binding?: string): Promise<void> {
     const tagKey = `ai:tag:${tag}`;
     const taggedKeys = await this.get<string[]>(tagKey, binding);
 
     if (!taggedKeys) return;
 
-    // Delete all cached responses with this tag
     for (const key of taggedKeys) {
       await this.delete(`ai:${key}`, binding);
     }
 
-    // Delete the tag index
     await this.delete(tagKey, binding);
   }
 
-  // ============================================================
-  // Intelligent Cache Invalidation
-  // ============================================================
-  // Cache Warming
-  // ============================================================
 
-  /**
-   * Warm cache with predefined entries
-   */
   async warmCache(
     entries: Array<{
       key: string;
@@ -346,7 +282,6 @@ export class KVService implements IKVService {
     }>,
     binding?: string
   ): Promise<void> {
-    // Warm L1 cache
     if (this.enableL1Cache) {
       const defaultTtl = this.defaultTTL;
       for (const entry of entries) {
@@ -354,7 +289,6 @@ export class KVService implements IKVService {
       }
     }
 
-    // Warm L2 cache (KV) in batches
     const BATCH_SIZE = 100;
     for (let i = 0; i < entries.length; i += BATCH_SIZE) {
       const batch = entries.slice(i, i + BATCH_SIZE);
@@ -366,9 +300,6 @@ export class KVService implements IKVService {
     }
   }
 
-  /**
-   * Cache helpers
-   */
   async getOrSet<T>(
     key: string,
     factory: () => Promise<T>,
@@ -383,27 +314,19 @@ export class KVService implements IKVService {
     return value;
   }
 
-  /**
-   * Invalidate cache entries matching a pattern
-   * Optimized to process in batches for better performance
-   */
   async invalidatePattern(prefix: string, binding?: string): Promise<void> {
-    // Clear from L1 cache as well
     if (this.enableL1Cache) {
-      // Clean up expired entries
       this.l1Cache.cleanup();
     }
 
-    const BATCH_SIZE = 100; // Process in batches to avoid overwhelming KV
+    const BATCH_SIZE = 100;
     let cursor: string | undefined;
 
     do {
       const list = await this.list({ prefix, binding, limit: BATCH_SIZE, cursor });
 
-      // Delete entries in batches (faster than sequential)
       await Promise.all(
         list.keys.map((key) => {
-          // Also remove from L1 cache
           if (this.enableL1Cache) {
             this.l1Cache.delete(key.key);
           }
@@ -412,47 +335,33 @@ export class KVService implements IKVService {
       );
 
       cursor = list.cursor;
-    } while (cursor); // Continue until there are no more entries
+    } while (cursor);
   }
 
-  // ============================================================
-  // Cache Statistics and Management
-  // ============================================================
 
-  /**
-   * Get cache statistics
-   */
   async getCacheStats(_binding?: string): Promise<{
     l1Size: number;
     l1Hits: number;
     l1HitRate: number;
   }> {
-    // Clean up expired entries
     if (this.enableL1Cache) {
       this.l1Cache.cleanup();
     }
 
     return {
       l1Size: this.l1Cache.size,
-      l1Hits: 0, // Would need to track hits
+      l1Hits: 0,
       l1HitRate: 0,
     };
   }
 
-  /**
-   * Clear all L1 cache entries
-   */
   clearL1Cache(): void {
     this.l1Cache.clear();
   }
 
-  /**
-   * Cleanup expired entries from L1 cache
-   */
   cleanupL1Cache(): number {
     return this.l1Cache.cleanup();
   }
 }
 
-// Export singleton instance
 export const kvService = new KVService();

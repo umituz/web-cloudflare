@@ -1,7 +1,3 @@
-/**
- * useAuth Hook
- * @description Authentication state management for React apps
- */
 
 import { useState, useEffect, useCallback } from 'react';
 
@@ -47,10 +43,6 @@ export interface UseAuthReturn {
   clearError: () => void;
 }
 
-/**
- * Parse an error response body into a message without throwing when the
- * body is not JSON (proxies/edge errors often return HTML).
- */
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const body: unknown = await response.json();
@@ -62,20 +54,16 @@ async function readErrorMessage(response: Response, fallback: string): Promise<s
       return (body as { message: string }).message;
     }
   } catch {
-    // Not JSON — fall through to the fallback message.
   }
   return fallback;
 }
 
-/**
- * Authentication hook for React apps
- */
 export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
   const {
     baseURL = '',
     storageKey = 'auth_token',
     autoRefresh = true,
-    refreshInterval = 300000, // 5 minutes
+    refreshInterval = 300000,
   } = options;
 
   const [authState, setAuthState] = useState<AuthState>({
@@ -85,33 +73,21 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
     error: null,
   });
 
-  /**
-   * Get stored token
-   */
   const getToken = useCallback((): string | null => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem(storageKey);
   }, [storageKey]);
 
-  /**
-   * Set token
-   */
   const setToken = useCallback((token: string): void => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(storageKey, token);
   }, [storageKey]);
 
-  /**
-   * Clear token
-   */
   const clearToken = useCallback((): void => {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(storageKey);
   }, [storageKey]);
 
-  /**
-   * Validate session and fetch user data
-   */
   const validateSession = useCallback(async () => {
     const token = getToken();
 
@@ -156,9 +132,6 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
     }
   }, [baseURL, getToken, clearToken]);
 
-  /**
-   * Login
-   */
   const login = useCallback(async (credentials: LoginCredentials) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
@@ -199,9 +172,6 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
     }
   }, [baseURL, setToken]);
 
-  /**
-   * Signup
-   */
   const signup = useCallback(async (credentials: LoginCredentials) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
@@ -242,9 +212,6 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
     }
   }, [baseURL, setToken]);
 
-  /**
-   * Logout
-   */
   const logout = useCallback(async () => {
     setAuthState((prev) => ({ ...prev, isLoading: true }));
 
@@ -259,7 +226,6 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
         });
       }
     } catch {
-      // Logout failures on the server must not block local session teardown
     } finally {
       clearToken();
       setAuthState({
@@ -271,16 +237,10 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
     }
   }, [baseURL, getToken, clearToken]);
 
-  /**
-   * Refresh session
-   */
   const refresh = useCallback(async () => {
     await validateSession();
   }, [validateSession]);
 
-  /**
-   * Update user data
-   */
   const updateUser = useCallback(async (updates: Partial<User>) => {
     setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
 
@@ -318,19 +278,14 @@ export function useAuth(options: UseAuthOptions = {}): UseAuthReturn {
     }
   }, [baseURL, getToken]);
 
-  /**
-   * Clear error
-   */
   const clearError = useCallback((): void => {
     setAuthState((prev) => ({ ...prev, error: null }));
   }, []);
 
-  // Validate session on mount
   useEffect(() => {
     validateSession();
   }, [validateSession]);
 
-  // Auto-refresh session
   useEffect(() => {
     if (!autoRefresh || !authState.isAuthenticated) return;
 

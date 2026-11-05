@@ -1,7 +1,3 @@
-/**
- * FileUpload Component
- * @description File upload component for R2 with progress tracking
- */
 
 import React, { useCallback } from 'react';
 import { useFileUpload, type UploadOptions } from '../hooks/useFileUpload';
@@ -18,9 +14,6 @@ export interface FileUploadProps extends UploadOptions {
   children?: React.ReactNode;
 }
 
-/**
- * FileUpload component for R2 uploads
- */
 export const FileUpload: React.FC<FileUploadProps> = ({
   onUploadComplete,
   onUploadError,
@@ -37,16 +30,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = React.useState(false);
 
-  /**
-   * Handle file selection
-   */
   const handleFileSelect = useCallback((file: File) => {
     selectFile(file);
   }, [selectFile]);
 
-  /**
-   * Handle file input change
-   */
   const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
@@ -54,9 +41,6 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
   }, [handleFileSelect]);
 
-  /**
-   * Handle drop
-   */
   const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
@@ -67,34 +51,22 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
   }, [handleFileSelect]);
 
-  /**
-   * Handle drag over
-   */
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(true);
   }, []);
 
-  /**
-   * Handle drag leave
-   */
   const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
   }, []);
 
-  /**
-   * Handle click
-   */
   const handleClick = useCallback(() => {
     if (!disabled) {
       inputRef.current?.click();
     }
   }, [disabled]);
 
-  /**
-   * Auto-upload when file is selected
-   */
   React.useEffect(() => {
     if (uploadState.file && !uploadState.error && !uploadState.isLoading) {
       uploadFile()
@@ -203,9 +175,6 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   );
 };
 
-/**
- * Simple file upload button component
- */
 export const FileUploadButton: React.FC<
   Omit<FileUploadProps, 'dropzoneText' | 'showProgress' | 'children'> & {
     buttonText?: string;

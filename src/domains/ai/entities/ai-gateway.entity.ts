@@ -1,7 +1,3 @@
-/**
- * AI Gateway Entities
- * @description Core entities for AI Gateway operations
- */
 
 export interface ProviderCallOptions {
   returnRawResponse?: boolean;

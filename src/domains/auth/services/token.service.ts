@@ -1,21 +1,8 @@
-/**
- * Token Service
- * @description Simple JWT-like token generation and verification for Cloudflare Workers
- */
 
 import type { ITokenService } from '../types';
 import type { TokenPayload } from '../entities';
 
-// ============================================================
-// Token Service Implementation
-// ============================================================
 
-/**
- * Sentinel secret retained for API compatibility. Signing or verifying with
- * it throws: anyone can read this value from the published package, so
- * tokens minted with it are forgeable by definition. Construct
- * `TokenService` with a real secret (e.g. a Worker secret binding).
- */
 export const INSECURE_DEFAULT_SECRET = 'default-secret-change-in-production';
 
 function assertRealSecret(secret: string): void {
@@ -33,33 +20,23 @@ export class TokenService implements ITokenService {
     this.secret = secret;
   }
 
-  /**
-   * Generate a token from payload
-   * Uses base64url encoding with HMAC-SHA256 signature
-   */
   async generateToken(payload: Omit<TokenPayload, 'iat'> & { exp?: number }): Promise<string> {
     assertRealSecret(this.secret);
     const now = Date.now();
     const fullPayload: TokenPayload = {
       ...payload,
       iat: now,
-      exp: payload.exp ?? now + 86400000, // 24 hours default
+      exp: payload.exp ?? now + 86400000,
     };
 
-    // Encode payload
     const encodedPayload = this.base64UrlEncode(JSON.stringify(fullPayload));
 
-    // Create signature
     const signature = await this.createSignature(encodedPayload, this.secret);
     const encodedSignature = this.base64UrlEncode(signature);
 
-    // Combine: payload.signature
     return `${encodedPayload}.${encodedSignature}`;
   }
 
-  /**
-   * Verify and decode a token
-   */
   async verifyToken(token: string): Promise<TokenPayload | null> {
     assertRealSecret(this.secret);
     try {
@@ -69,20 +46,16 @@ export class TokenService implements ITokenService {
         return null;
       }
 
-      // Verify signature
       const signature = this.base64UrlDecode(encodedSignature);
       const expectedSignature = await this.createSignature(encodedPayload, this.secret);
 
-      // Constant-time comparison to prevent timing attacks
       if (!this.constantTimeCompare(signature, expectedSignature)) {
         return null;
       }
 
-      // Decode payload
       const payloadJson = this.base64UrlDecode(encodedPayload);
       const payload: TokenPayload = JSON.parse(payloadJson);
 
-      // Check expiration
       if (Date.now() > payload.exp) {
         return null;
       }
@@ -93,9 +66,6 @@ export class TokenService implements ITokenService {
     }
   }
 
-  /**
-   * Refresh a token with new expiration
-   */
   async refreshToken(token: string, ttl: number = 86400): Promise<string | null> {
     const payload = await this.verifyToken(token);
     if (!payload) {
@@ -113,14 +83,8 @@ export class TokenService implements ITokenService {
     return this.generateToken(newPayload);
   }
 
-  // ============================================================
-  // Private Helpers
-  // ============================================================
 
   private base64UrlEncode(str: string): string {
-    // Byte-safe: btoa() throws on non-Latin1 characters, so encode via
-    // UTF-8 bytes first. Identical output to btoa(str) for ASCII payloads,
-    // so previously issued tokens still verify.
     const bytes = new TextEncoder().encode(str);
     let binary = '';
     bytes.forEach((b) => {
@@ -147,7 +111,6 @@ export class TokenService implements ITokenService {
   }
 
   private async createSignature(data: string, secret: string): Promise<string> {
-    // Simple HMAC-SHA256 using Web Crypto API
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);
     const messageData = encoder.encode(data);
@@ -164,7 +127,6 @@ export class TokenService implements ITokenService {
     const signatureArray = Array.from(new Uint8Array(signature));
     const signatureHex = signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // Convert hex to base64url
     return this.base64UrlEncode(signatureHex.match(/.{2}/g)?.map(b => String.fromCharCode(parseInt(b, 16))).join('') || '');
   }
 
@@ -182,5 +144,4 @@ export class TokenService implements ITokenService {
   }
 }
 
-// Export singleton instance
 export const tokenService = new TokenService();

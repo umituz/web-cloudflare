@@ -1,6 +1,3 @@
-/**
- * Workflows Domain Entities
- */
 
 export type {
   WorkflowStep,

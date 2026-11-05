@@ -9,17 +9,11 @@ import type { GeneratedAssetMetadata } from '../../ai/value-objects';
 import type { D1Service } from '../../d1/services/d1.service';
 import { validationUtils } from '../../../infrastructure/utils';
 
-// ============================================================
-// R2 Metadata Types
-// ============================================================
 
 export interface R2MetadataWithD1 {
-  /** R2 custom metadata */
   customMetadata?: Record<string, string>;
-  /** HTTP metadata */
   httpMetadata?: R2Conditions;
 
-  /** D1 auto-save configuration */
   saveToD1?: {
     table: string;
     foreignKey?: string;
@@ -35,37 +29,22 @@ export interface R2Conditions {
   contentEncoding?: string;
 }
 
-// R2 metadata types
 export interface R2CustomMetadata {
   [key: string]: string;
 }
 
-/**
- * HTTP metadata for R2 uploads
- * @description Standard HTTP headers for R2 objects
- */
 export interface R2HTTPMetadata {
-  /** Content-Type header */
   contentType?: string;
-  /** Content-Encoding header */
   contentEncoding?: string;
-  /** Content-Language header */
   contentLanguage?: string;
-  /** Cache-Control header */
   cacheControl?: string;
-  /** Content-Disposition header */
   contentDisposition?: string;
 }
 
-// R2UploadOptions base interface (from Cloudflare Workers types)
 export interface R2UploadOptions {
-  /** Only upload if the object does not already exist */
   onlyIf?: { etag?: string; uploadTag?: string };
-  /** HTTP headers to use when uploading */
   httpMetadata?: R2HTTPMetadata;
-  /** Custom metadata key-value pairs */
   customMetadata?: R2CustomMetadata;
-  /** Binding name */
   binding?: string;
 }
 
@@ -73,9 +52,6 @@ export interface R2UploadOptionsExtended extends R2UploadOptions {
   saveToD1?: R2MetadataWithD1['saveToD1'];
 }
 
-// ============================================================
-// Multipart Upload Types
-// ============================================================
 
 export interface R2MultipartUpload {
   uploadId: string;
@@ -88,9 +64,6 @@ export interface R2UploadedPart {
   etag: string;
 }
 
-// ============================================================
-// R2 Cache Options
-// ============================================================
 
 export interface R2CacheOptions {
   readonly bucket: string;
@@ -123,19 +96,7 @@ export class R2Service implements IR2Service {
     return bucket;
   }
 
-  // ============================================================
-  // Enhanced Get with Public URL
-  // ============================================================
 
-  /**
-   * Get public URL for an object
-   *
-   * Requires a custom domain (constructor option or per-call override).
-   * Cloudflare's managed `r2.dev` subdomain is account-specific
-   * (`https://pub-<account-hash>.r2.dev/`) and cannot be derived from a
-   * binding name, so there is no sensible default — we throw rather than
-   * guess a domain you don't own.
-   */
   getPublicURL(
     key: string,
     options?: { binding?: string; customDomain?: string }
@@ -153,9 +114,6 @@ export class R2Service implements IR2Service {
     );
   }
 
-  /**
-   * Get signed URL for private objects (using presigned URL)
-   */
   async getSignedURL(
     key: string,
     expiresIn = 3600,
@@ -182,11 +140,6 @@ export class R2Service implements IR2Service {
     };
   }
 
-  /**
-   * Fetch object metadata without downloading the body.
-   * Returns null when the object is missing. Cloudflare's R2 head() returns
-   * null on miss rather than throwing.
-   */
   async head(key: string, options?: R2GetOptions): Promise<R2ObjectMetadata | null> {
     if (!validationUtils.isValidR2Key(key)) {
       throw new Error(`Invalid R2 key: ${key}`);
@@ -227,12 +180,6 @@ export class R2Service implements IR2Service {
     };
   }
 
-  /**
-   * Fetch object body as ArrayBuffer. Returns null on miss.
-   * Supports R2 range requests via the optional `range` parameter.
-   * Translates the public `{ start, end }` (inclusive) shape to Cloudflare's
-   * `{ offset, length }` (offset + length) range format.
-   */
   async getBody(key: string, options?: R2GetOptions): Promise<ArrayBuffer | null> {
     if (!validationUtils.isValidR2Key(key)) {
       throw new Error(`Invalid R2 key: ${key}`);
@@ -266,9 +213,6 @@ export class R2Service implements IR2Service {
     });
   }
 
-  /**
-   * Put with metadata and auto-save to D1
-   */
   async putWithMetadata(
     key: string,
     data: ReadableStream | ArrayBuffer | string,
@@ -279,18 +223,15 @@ export class R2Service implements IR2Service {
       throw new Error(`Invalid R2 key: ${key}`);
     }
 
-    // Upload to R2
     await this.put(key, data, {
       ...options,
       customMetadata: metadata.customMetadata,
       httpMetadata: metadata.httpMetadata,
     });
 
-    // Auto-save to D1 if configured
     if (metadata.saveToD1 && this.d1Service) {
       const { table, foreignKey, additionalData } = metadata.saveToD1;
 
-      // Prepare data for D1
       const d1Data: Record<string, unknown> = {
         key,
         size: typeof data === 'string' ? data.length : data instanceof ArrayBuffer ? data.byteLength : 0,
@@ -371,13 +312,6 @@ export class R2Service implements IR2Service {
     return key;
   }
 
-  /**
-   * Batch upload multiple generated assets
-   * @description Upload multiple assets in parallel
-   * @param assets Array of assets to upload
-   * @param options Upload options
-   * @returns Array of uploaded keys
-   */
   async uploadGeneratedAssets(
     assets: Array<{
       buffer: ArrayBuffer;
@@ -397,9 +331,6 @@ export class R2Service implements IR2Service {
     return Promise.all(uploads);
   }
 
-  // ============================================================
-  // Original R2 Methods
-  // ============================================================
 
   async delete(key: string, binding?: string): Promise<boolean> {
     if (!validationUtils.isValidR2Key(key)) {
@@ -420,7 +351,6 @@ export class R2Service implements IR2Service {
       cursor: options?.cursor,
     });
 
-    // Handle cursor property which may not be in the type definition
     type ListResultWithCursor = typeof listed & { cursor?: string };
     const cursor = (listed as ListResultWithCursor).cursor;
 
@@ -439,18 +369,6 @@ export class R2Service implements IR2Service {
     expiresIn = 3600,
     options?: { method?: 'GET' | 'PUT'; binding?: string }
   ): Promise<R2PresignedURL> {
-    // Real presigned URLs require AWS SigV4 signing using R2 access keys.
-    // We don't ship credentials inside the Worker, so this implementation
-    // returns a *public* URL (only useful when the bucket/object is public).
-    //
-    // For private buckets, consumers should:
-    //   - Use Cloudflare's S3-compatible API with @aws-sdk/client-s3
-    //     signed with R2 access keys, or
-    //   - Use R2's public bucket + custom domain pattern.
-    //
-    // Throwing would be more defensive, but returning a public URL keeps
-    // existing call sites functional against public buckets while making
-    // the limitation explicit in the docs and the warning below.
     const expires = Date.now() + expiresIn * 1000;
     const url = this.getPublicURL(key, { binding: options?.binding });
 
@@ -462,22 +380,7 @@ export class R2Service implements IR2Service {
     return { url, expires };
   }
 
-  // ============================================================
-  // Multipart Upload Support
-  // ============================================================
-  //
-  // The native R2 bindings do not expose an S3-style multipart upload
-  // (CreateMultipartUpload / UploadPart / CompleteMultipartUpload). The
-  // R2 team recommends using the AWS SDK against the S3-compatible
-  // endpoint for that flow. The methods below throw with a clear pointer
-  // to that approach so callers cannot accidentally use a stub that
-  // silently no-ops.
 
-  /**
-   * Create a multipart upload.
-   * Throws because R2 bindings do not support S3-style multipart APIs.
-   * Use the AWS SDK against the S3-compatible endpoint instead.
-   */
   async createMultipartUpload(
     _key: string,
     _options?: R2UploadOptions
@@ -488,10 +391,6 @@ export class R2Service implements IR2Service {
     );
   }
 
-  /**
-   * Upload a part in a multipart upload.
-   * Throws — see {@link createMultipartUpload}.
-   */
   async uploadPart(
     _uploadId: string,
     _partNumber: number,
@@ -504,10 +403,6 @@ export class R2Service implements IR2Service {
     );
   }
 
-  /**
-   * Complete a multipart upload.
-   * Throws — see {@link createMultipartUpload}.
-   */
   async completeMultipartUpload(
     _uploadId: string,
     _parts: R2UploadedPart[],
@@ -519,10 +414,6 @@ export class R2Service implements IR2Service {
     );
   }
 
-  /**
-   * Abort a multipart upload.
-   * Throws — see {@link createMultipartUpload}.
-   */
   async abortMultipartUpload(
     _uploadId: string,
     _binding?: string
@@ -533,9 +424,6 @@ export class R2Service implements IR2Service {
     );
   }
 
-  /**
-   * Upload helpers
-   */
   async uploadFile(file: File, key?: string, options?: R2UploadOptions, _binding?: string): Promise<void> {
     const objectKey = key || `uploads/${Date.now()}-${file.name}`;
 
@@ -567,9 +455,6 @@ export class R2Service implements IR2Service {
     });
   }
 
-  /**
-   * Delete helpers
-   */
   async deleteMultiple(keys: readonly string[], binding?: string): Promise<void> {
     const bucket = this.getBucket(binding);
 
@@ -587,5 +472,4 @@ export class R2Service implements IR2Service {
   }
 }
 
-// Export singleton instance
 export const r2Service = new R2Service();

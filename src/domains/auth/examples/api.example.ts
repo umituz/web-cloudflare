@@ -1,10 +1,3 @@
-/**
- * Auth API Example
- * @description Reference implementation of device-based authentication API endpoints
- *
- * Copy this file into your application and bind real D1 / KV namespaces
- * (see the usage block at the bottom). All handlers are typed end-to-end.
- */
 
 import { DeviceAuthService } from '../services/device-auth.service';
 import { json } from '../../../infrastructure/utils/helpers';
@@ -37,10 +30,6 @@ interface ConsumeCreditsBody {
   description: string;
 }
 
-/**
- * Build the auth router with the supplied service instances.
- * The factories are the integration seam — pass real D1/KV bindings here.
- */
 export function createAuthRouter(auth: DeviceAuthService) {
   const requireBearer = (request: Request): string | null => {
     const header = request.headers.get('Authorization');
@@ -202,34 +191,3 @@ export function createAuthRouter(auth: DeviceAuthService) {
     .post('/api/auth/credits/add', addCredits)
     .post('/api/auth/credits/consume', consumeCredits);
 }
-
-// ============================================================
-// Usage in Worker
-// ============================================================
-
-/*
-import { D1Service, KVService } from '@umituz/web-cloudflare';
-
-interface Env {
-  DB: D1Database;
-  CACHE: KVNamespace;
-}
-
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const d1 = new D1Service();
-    d1.bindDatabase('main', env.DB);
-
-    const kv = new KVService();
-    kv.bindNamespace('main', env.CACHE);
-
-    const auth = new DeviceAuthService(d1, kv, {
-      initialCredits: 10,
-      sessionTTL: 86400,
-      tokenSecret: 'replace-me',
-    });
-
-    return createAuthRouter(auth).handle(request, env, ctx);
-  },
-};
-*/

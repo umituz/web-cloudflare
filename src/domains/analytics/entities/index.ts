@@ -1,6 +1,3 @@
-/**
- * Analytics Domain Entities
- */
 
 export type {
   AnalyticsEntity,

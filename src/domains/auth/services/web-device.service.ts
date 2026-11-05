@@ -1,15 +1,3 @@
-/**
- * Web Device Service
- * @description Device ID generation and management for web browsers using localStorage and fingerprinting
- *
- * IMPORTANT: This service is browser-only. It must never be imported from
- * Worker code, because the runtime does not provide `localStorage`, `navigator`,
- * or `screen`. Use the `WebDeviceService.isBrowserAvailable()` guard before
- * touching any DOM API.
- *
- * Browser global types are declared locally so they don't collide with the
- * WebWorker `WorkerNavigator` provided by the default lib.
- */
 
 export interface WebDeviceInfo {
   deviceId: string;
@@ -65,19 +53,11 @@ const STORAGE_KEY = 'web_device_id';
 const FINGERPRINT_KEY = 'web_device_fingerprint';
 
 export class WebDeviceService {
-  /**
-   * Check if the current runtime exposes the browser APIs the service depends on.
-   * Use this to guard usage inside Workers, SSR, or test environments.
-   */
   static isBrowserAvailable(): boolean {
     const g = globalThis as unknown as Partial<BrowserGlobalScope>;
     return typeof g.localStorage !== 'undefined' && typeof g.navigator !== 'undefined';
   }
 
-  /**
-   * Get or create device ID.
-   * Uses localStorage with fallback to fingerprinting.
-   */
   getDeviceId(): string {
     if (!WebDeviceService.isBrowserAvailable()) {
       throw new Error('WebDeviceService must be used in a browser runtime');
@@ -96,10 +76,6 @@ export class WebDeviceService {
     return deviceId;
   }
 
-  /**
-   * Get complete device info. Builds a fresh info record rather than returning
-   * the cached one so the snapshot reflects the current page state.
-   */
   getDeviceInfo(): WebDeviceInfo {
     if (!WebDeviceService.isBrowserAvailable()) {
       throw new Error('WebDeviceService must be used in a browser runtime');
@@ -107,10 +83,6 @@ export class WebDeviceService {
     return this.collectDeviceInfo(this.getDeviceId());
   }
 
-  /**
-   * Generate browser fingerprint.
-   * Uses canvas, webgl, and other browser attributes when available.
-   */
   getFingerprint(): string {
     if (!WebDeviceService.isBrowserAvailable()) {
       throw new Error('WebDeviceService must be used in a browser runtime');
@@ -126,9 +98,6 @@ export class WebDeviceService {
     return fingerprint;
   }
 
-  /**
-   * Reset device ID (for testing or privacy)
-   */
   resetDeviceId(): void {
     if (!WebDeviceService.isBrowserAvailable()) return;
     const g = globalThis as unknown as BrowserGlobalScope;
@@ -136,18 +105,12 @@ export class WebDeviceService {
     g.localStorage.removeItem(FINGERPRINT_KEY);
   }
 
-  /**
-   * Check if device ID exists
-   */
   hasDeviceId(): boolean {
     if (!WebDeviceService.isBrowserAvailable()) return false;
     const stored = this.getFromLocalStorage<WebDeviceInfo>(STORAGE_KEY);
     return Boolean(stored?.deviceId);
   }
 
-  // ============================================================
-  // Private Helpers
-  // ============================================================
 
   private collectDeviceInfo(deviceId: string): WebDeviceInfo {
     const g = globalThis as unknown as BrowserGlobalScope;
@@ -178,7 +141,6 @@ export class WebDeviceService {
       g.navigator.doNotTrack || '0',
     ];
 
-    // Optional canvas fingerprint
     try {
       if (g.document) {
         const canvas = g.document.createElement('canvas');
@@ -191,15 +153,11 @@ export class WebDeviceService {
         }
       }
     } catch {
-      // Canvas not available, continue without it
     }
 
     return this.simpleHash(components.join('|'));
   }
 
-  /**
-   * Generate v4 UUID (crypto-secure — device IDs authenticate sessions)
-   */
   private generateDeviceId(): string {
     if (typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
@@ -212,22 +170,16 @@ export class WebDeviceService {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
-  /**
-   * Simple hash function for fingerprinting
-   */
   private simpleHash(str: string): string {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
+      hash = hash & hash;
     }
     return Math.abs(hash).toString(16) + Date.now().toString(36);
   }
 
-  /**
-   * Get from localStorage with error handling
-   */
   private getFromLocalStorage<T>(key: string): T | null {
     try {
       const item = globalThis.localStorage.getItem(key);
@@ -237,18 +189,12 @@ export class WebDeviceService {
     }
   }
 
-  /**
-   * Set to localStorage with error handling
-   */
   private setToLocalStorage<T>(key: string, value: T): void {
     try {
       globalThis.localStorage.setItem(key, JSON.stringify(value));
     } catch {
-      // Quota exceeded or storage disabled — silently skip.
-      // The service degrades to per-session device IDs in that case.
     }
   }
 }
 
-// Export singleton instance
 export const webDeviceService = new WebDeviceService();

@@ -1,7 +1,3 @@
-/**
- * React Components
- * @description Barrel export for all React components
- */
 
 export { FileUpload, FileUploadButton } from './FileUpload';
 export type { FileUploadProps } from './FileUpload';

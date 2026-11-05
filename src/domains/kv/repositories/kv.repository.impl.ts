@@ -1,7 +1,3 @@
-/**
- * KV Repository Implementation
- * @description Concrete implementation of KV repository using Cloudflare KV
- */
 
 import type { IKVRepository } from './kv.repository.interface';
 import type { KVEntity } from '../entities';

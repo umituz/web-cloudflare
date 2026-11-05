@@ -1,14 +1,3 @@
-/**
- * Multi-Tenant Service
- * @description Service for managing multiple tenants with isolated resources
- *
- * IMPORTANT — Workers isolation
- * The default in-memory state is scoped to a single Worker isolate. Two
- * different isolates (or two different Worker invocations on separate
- * machines) will not share tenant registrations. For multi-isolate
- * consistency, persist tenant definitions to D1 / KV and rehydrate on
- * each request, or move the registry into a Durable Object.
- */
 
 import type {
   Tenant,
@@ -21,9 +10,6 @@ import type { IMultiTenantService } from '../types';
 
 export type { Tenant, TenantConfig, TenantContext, TenantRoute, TenantResolutionResult };
 
-// ============================================================
-// Multi-Tenant Service
-// ============================================================
 
 export class MultiTenantService implements IMultiTenantService {
   private static instance: MultiTenantService;
@@ -42,22 +28,10 @@ export class MultiTenantService implements IMultiTenantService {
     return MultiTenantService.instance;
   }
 
-  /**
-   * Create an independent registry instance.
-   *
-   * Prefer this over the shared singleton: a Workers isolate can interleave
-   * concurrent requests, and the `currentTenantId`-based context APIs
-   * (`withTenant`, `getCurrentTenantId`, `setCurrentTenantId`) are shared
-   * mutable state — two overlapping requests on one instance corrupt each
-   * other's tenant. Give each request (or request context) its own instance.
-   */
   static create(): MultiTenantService {
     return new MultiTenantService();
   }
 
-  // ============================================================
-  // Tenant Management
-  // ============================================================
 
   async registerTenant(
     tenant: Omit<Tenant, 'id' | 'createdAt' | 'updatedAt'>
@@ -74,7 +48,6 @@ export class MultiTenantService implements IMultiTenantService {
 
     this.tenants.set(id, newTenant);
 
-    // Initialize empty context
     this.contexts.set(id, {
       tenant: newTenant,
       d1: new Map(),
@@ -116,7 +89,6 @@ export class MultiTenantService implements IMultiTenantService {
 
     this.tenants.set(tenantId, updatedTenant);
 
-    // Update context
     const context = this.contexts.get(tenantId);
     if (context) {
       context.tenant = updatedTenant;
@@ -139,9 +111,6 @@ export class MultiTenantService implements IMultiTenantService {
     return Array.from(this.tenants.values());
   }
 
-  // ============================================================
-  // Binding Management
-  // ============================================================
 
   bindD1(tenantId: string, bindingName: string, binding: D1Database): void {
     const context = this.contexts.get(tenantId);
@@ -156,7 +125,6 @@ export class MultiTenantService implements IMultiTenantService {
 
     context.d1.set(bindingName, binding);
 
-    // Update tenant config
     const tenant = this.tenants.get(tenantId);
     if (tenant) {
       if (!tenant.config.d1Bindings) {
@@ -181,7 +149,6 @@ export class MultiTenantService implements IMultiTenantService {
 
     context.r2.set(bindingName, binding);
 
-    // Update tenant config
     const tenant = this.tenants.get(tenantId);
     if (tenant) {
       if (!tenant.config.r2Bindings) {
@@ -206,7 +173,6 @@ export class MultiTenantService implements IMultiTenantService {
 
     context.kv.set(bindingName, binding);
 
-    // Update tenant config
     const tenant = this.tenants.get(tenantId);
     if (tenant) {
       if (!tenant.config.kvNamespaces) {
@@ -231,7 +197,6 @@ export class MultiTenantService implements IMultiTenantService {
 
     context.vectorize.set(bindingName, binding);
 
-    // Update tenant config
     const tenant = this.tenants.get(tenantId);
     if (tenant) {
       if (!tenant.config.vectorizeIndexes) {
@@ -256,7 +221,6 @@ export class MultiTenantService implements IMultiTenantService {
 
     context.queues.set(bindingName, binding);
 
-    // Update tenant config
     const tenant = this.tenants.get(tenantId);
     if (tenant) {
       if (!tenant.config.queueNames) {
@@ -272,15 +236,11 @@ export class MultiTenantService implements IMultiTenantService {
     return this.contexts.get(tenantId) || null;
   }
 
-  // ============================================================
-  // Tenant Routing
-  // ============================================================
 
   async resolveTenant(request: Request): Promise<TenantResolutionResult | null> {
     const url = new URL(request.url);
     const hostname = url.hostname;
 
-    // Check for hostname-based routing
     for (const [tenantId, route] of this.routes.entries()) {
       if (route.hostname && hostname === route.hostname) {
         const tenant = this.tenants.get(tenantId);
@@ -289,7 +249,6 @@ export class MultiTenantService implements IMultiTenantService {
         }
       }
 
-      // Check header-based routing
       if (route.header) {
         const headerValue = request.headers.get(route.header);
         if (headerValue === tenantId) {
@@ -300,7 +259,6 @@ export class MultiTenantService implements IMultiTenantService {
         }
       }
 
-      // Check query-based routing
       if (route.query) {
         const queryValue = url.searchParams.get(route.query);
         if (queryValue === tenantId) {
@@ -311,7 +269,6 @@ export class MultiTenantService implements IMultiTenantService {
         }
       }
 
-      // Check path-based routing
       if (route.path) {
         const pathMatch = url.pathname.match(route.path);
         if (pathMatch) {
@@ -338,19 +295,7 @@ export class MultiTenantService implements IMultiTenantService {
     return this.routes.get(tenantId) || null;
   }
 
-  // ============================================================
-  // Tenant Isolation
-  // ============================================================
 
-  /**
-   * Run an operation with a tenant context.
-   *
-   * WARNING: this mutates instance-level state. If two requests interleave
-   * on the SAME instance (possible within one Workers isolate),
-   * `getCurrentTenantId()` can return the wrong tenant. Either use
-   * `MultiTenantService.create()` per request, or pass the `context`
-   * argument explicitly and ignore the current-tenant APIs entirely.
-   */
   async withTenant<T>(
     tenantId: string,
     operation: (context: TenantContext) => Promise<T>
@@ -376,11 +321,6 @@ export class MultiTenantService implements IMultiTenantService {
     return this.currentTenantId;
   }
 
-  /**
-   * @deprecated Racy under concurrent requests on a shared instance — there
-   * is no restore point. Use `withTenant` (scoped) or a per-request instance
-   * from `MultiTenantService.create()`.
-   */
   setCurrentTenantId(tenantId: string): void {
     if (!this.tenants.has(tenantId)) {
       throw new Error(`Tenant not found: ${tenantId}`);
@@ -393,9 +333,6 @@ export class MultiTenantService implements IMultiTenantService {
     this.currentTenantId = null;
   }
 
-  // ============================================================
-  // Tenant Data Operations
-  // ============================================================
 
   getTenantKVKey(tenantId: string, key: string): string {
     const tenant = this.tenants.get(tenantId);
@@ -427,12 +364,8 @@ export class MultiTenantService implements IMultiTenantService {
     return `${tenant.slug}_${tableName}`;
   }
 
-  // ============================================================
-  // Helper Methods
-  // ============================================================
 
   private generateTenantId(): string {
-    // Crypto-secure suffix (Math.random IDs are predictable)
     const bytes = new Uint8Array(6);
     crypto.getRandomValues(bytes);
     const random = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -440,5 +373,4 @@ export class MultiTenantService implements IMultiTenantService {
   }
 }
 
-// Create singleton instance
 export const multiTenantService = MultiTenantService.getInstance();

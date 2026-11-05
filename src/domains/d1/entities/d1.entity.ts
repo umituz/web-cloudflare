@@ -1,7 +1,3 @@
-/**
- * D1 Entity
- * @description Basic D1 entity placeholder
- */
 
 export interface D1Entity {
   databaseId: string;
