@@ -37,7 +37,10 @@ function cleanupExpiredEntries(): void {
 
     const toRemove = Math.floor(MAX_ENTRIES * 0.1);
     for (let i = 0; i < toRemove; i++) {
-      rateLimitStore.delete(entries[i][0]);
+      const entry = entries[i];
+      if (entry) {
+        rateLimitStore.delete(entry[0]);
+      }
     }
   }
 }

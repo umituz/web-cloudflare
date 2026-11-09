@@ -242,7 +242,7 @@ export class AudioStreamingService {
       let max = 0;
 
       for (let j = start; j < end && j < data.length; j++) {
-        max = Math.max(max, Math.abs(data[j]));
+        max = Math.max(max, Math.abs(data[j] ?? 0));
       }
 
       waveform.push(max / 32768);
@@ -325,7 +325,7 @@ export class AudioStreamingService {
     const matches = /bytes=(\d+)-(\d*)/.exec(rangeHeader);
     if (!matches) return null;
 
-    const start = parseInt(matches[1], 10);
+    const start = parseInt(matches[1] ?? '', 10);
     if (!Number.isFinite(start) || start < 0) return null;
 
     const end = matches[2] ? parseInt(matches[2], 10) : totalSize - 1;

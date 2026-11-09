@@ -471,7 +471,10 @@ export class ConfigBuilder {
         weight: 1,
       });
     } else {
-      this.config.ai.gateway.providers[0].models = models;
+      const provider = this.config.ai.gateway.providers[0];
+      if (provider) {
+        provider.models = models;
+      }
     }
     return this;
   }

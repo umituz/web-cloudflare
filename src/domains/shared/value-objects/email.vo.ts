@@ -15,11 +15,11 @@ export class Email extends ValueObject<EmailProps> {
   }
 
   get domain(): string {
-    return this.props.value.split('@')[1];
+    return this.props.value.split('@')[1] ?? '';
   }
 
   get localPart(): string {
-    return this.props.value.split('@')[0];
+    return this.props.value.split('@')[0] ?? '';
   }
 
   public static create(email: string): Email {

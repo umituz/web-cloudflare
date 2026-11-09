@@ -123,7 +123,7 @@ export class AudioGenerationService {
     const startTime = Date.now();
     const timeout = options.timeout || 300000;
 
-    const model = options.model || provider.models[0];
+    const model = options.model || provider.models[0] || '';
     const payload = this.buildPayload(request, model, provider);
 
     const timeoutController = new AbortController();

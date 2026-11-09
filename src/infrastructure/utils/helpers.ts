@@ -63,7 +63,7 @@ export function parseAcceptLanguage(request: Request): string[] {
   const acceptLanguage = request.headers.get('Accept-Language') || '';
   return acceptLanguage
     .split(',')
-    .map((lang) => lang.split(';')[0].trim());
+    .map((lang) => (lang.split(';')[0] ?? '').trim());
 }
 
 
@@ -263,7 +263,7 @@ export function parseCacheControl(header: string): {
   } = {};
 
   for (const directive of directives) {
-    const [key, value] = directive.split('=');
+    const [key = '', value = ''] = directive.split('=');
 
     switch (key.toLowerCase()) {
       case 'max-age': {
@@ -296,8 +296,8 @@ export function parseDuration(duration: string): number {
     throw new Error(`Invalid duration format: ${duration}`);
   }
 
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
+  const value = parseInt(match[1] ?? '', 10);
+  const unit = match[2] ?? '';
 
   switch (unit) {
     case 's':
@@ -436,7 +436,12 @@ export function shuffle<T>(array: T[]): T[] {
   const result = [...array];
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
+    const current = result[i];
+    const swap = result[j];
+    if (current !== undefined && swap !== undefined) {
+      result[i] = swap;
+      result[j] = current;
+    }
   }
   return result;
 }
@@ -526,11 +531,11 @@ export function randomString(length: number = 16): string {
   crypto.getRandomValues(bytes);
   let result = '';
   for (let i = 0; i < length; i++) {
-    let byte = bytes[i];
+    let byte = bytes[i] ?? 0;
     while (byte >= 248) {
       const extra = new Uint8Array(1);
       crypto.getRandomValues(extra);
-      byte = extra[0];
+      byte = extra[0] ?? 0;
     }
     result += chars.charAt(byte % 62);
   }
@@ -549,14 +554,14 @@ export function generateId(): string {
   }
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export function randomItem<T>(array: T[]): T {
-  return array[Math.floor(Math.random() * array.length)];
+  return array[Math.floor(Math.random() * array.length)] as T;
 }
 
 export function randomInRange(min: number, max: number): number {

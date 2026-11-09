@@ -43,7 +43,10 @@ function cleanupCache(): void {
 
     const toRemove = Math.floor(MAX_CACHE_ENTRIES * 0.15);
     for (let i = 0; i < toRemove; i++) {
-      cacheStore.delete(entries[i][0]);
+      const entry = entries[i];
+      if (entry) {
+        cacheStore.delete(entry[0]);
+      }
     }
   }
 }

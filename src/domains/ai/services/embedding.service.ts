@@ -154,9 +154,9 @@ export class EmbeddingService implements IEmbeddingService {
     let norm2 = 0;
 
     for (let i = 0; i < embedding1.length; i++) {
-      dotProduct += embedding1[i] * embedding2[i];
-      norm1 += embedding1[i] * embedding1[i];
-      norm2 += embedding2[i] * embedding2[i];
+      dotProduct += (embedding1[i] ?? 0) * (embedding2[i] ?? 0);
+      norm1 += (embedding1[i] ?? 0) * (embedding1[i] ?? 0);
+      norm2 += (embedding2[i] ?? 0) * (embedding2[i] ?? 0);
     }
 
     const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
@@ -180,10 +180,13 @@ export class EmbeddingService implements IEmbeddingService {
     let maxIndex = 0;
 
     for (let i = 0; i < candidates.length; i++) {
-      const score = this.calculateSimilarity(query, candidates[i]);
-      if (score > maxScore) {
-        maxScore = score;
-        maxIndex = i;
+      const candidate = candidates[i];
+      if (candidate) {
+        const score = this.calculateSimilarity(query, candidate);
+        if (score > maxScore) {
+          maxScore = score;
+          maxIndex = i;
+        }
       }
     }
 
@@ -195,7 +198,7 @@ export class EmbeddingService implements IEmbeddingService {
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+      binary += String.fromCharCode(bytes[i] ?? 0);
     }
     return btoa(binary);
   }

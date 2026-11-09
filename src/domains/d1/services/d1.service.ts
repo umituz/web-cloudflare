@@ -266,7 +266,11 @@ export class D1Service implements ID1Service {
       throw new Error("Batch operations must be from the same database binding");
     }
 
-    const [bindingName, preparedStatements] = Array.from(grouped.entries())[0];
+    const first = Array.from(grouped.entries())[0];
+    if (!first) {
+      throw new Error('Batch requires at least one statement');
+    }
+    const [bindingName, preparedStatements] = first;
     const database = this.getDatabase(bindingName);
 
     const results = await database.batch(preparedStatements as D1PreparedStatement[]);

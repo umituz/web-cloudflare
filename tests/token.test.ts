@@ -23,7 +23,7 @@ describe('TokenService', () => {
   it('rejects a tampered token', async () => {
     const token = await service.generateToken(basePayload);
     const [encodedPayload, encodedSignature] = token.split('.');
-    const tampered = `${encodedPayload.slice(0, -2)}XX.${encodedSignature}`;
+    const tampered = `${(encodedPayload ?? '').slice(0, -2)}XX.${encodedSignature}`;
     expect(await service.verifyToken(tampered)).toBeNull();
   });
 

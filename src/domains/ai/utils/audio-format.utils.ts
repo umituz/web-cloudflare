@@ -243,7 +243,7 @@ export class AudioFormatUtils {
       let max = 0;
 
       for (let j = start; j < end && j < data.length; j++) {
-        max = Math.max(max, Math.abs(data[j]));
+        max = Math.max(max, Math.abs(data[j] ?? 0));
       }
 
       waveform.push(max / 32768);
@@ -277,7 +277,7 @@ export class AudioFormatUtils {
     if (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) {
       return true;
     }
-    if (header[0] === 0xFF && (header[1] & 0xE0) === 0xE0) {
+    if (header[0] === 0xFF && ((header[1] ?? 0) & 0xE0) === 0xE0) {
       return true;
     }
     return false;
@@ -315,7 +315,7 @@ export class AudioFormatUtils {
   }
 
   private static isAAC(header: Uint8Array): boolean {
-    return (header[0] === 0xFF && (header[1] & 0xF0) === 0xF0);
+    return (header[0] === 0xFF && ((header[1] ?? 0) & 0xF0) === 0xF0);
   }
 
   private static isM4A(header: Uint8Array): boolean {
@@ -404,7 +404,7 @@ export class AudioFormatUtils {
         const bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
 
         if (bitrateIndex > 0 && bitrateIndex < 16 && sampleRateIndex < 3) {
-          bitrateSum += bitrates[bitrateIndex];
+          bitrateSum += bitrates[bitrateIndex] ?? 0;
           frameCount++;
         }
 
@@ -441,7 +441,7 @@ export class AudioFormatUtils {
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
+      binary += String.fromCharCode(bytes[i] ?? 0);
     }
     return btoa(binary);
   }

@@ -54,16 +54,16 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
     const computedHex = Array.from(new Uint8Array(hashBuffer), (b) =>
       b.toString(16).padStart(2, '0')
     ).join('');
-    return secureCompare(computedHex, parts[1]);
+    return secureCompare(computedHex, parts[1] ?? '');
   }
 
   if (parts.length !== 4 || parts[0] !== 'pbkdf2') {
     return false;
   }
 
-  const iterations = parseInt(parts[1], 10);
-  const salt = new Uint8Array(parts[2].match(/.{2}/g)!.map((h) => parseInt(h, 16)));
-  const expectedHex = parts[3];
+  const iterations = parseInt(parts[1] ?? '', 10);
+  const salt = new Uint8Array((parts[2] ?? '').match(/.{2}/g)!.map((h) => parseInt(h, 16)));
+  const expectedHex = parts[3] ?? '';
 
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(

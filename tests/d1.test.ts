@@ -109,8 +109,8 @@ describe('D1TransactionWrapper', () => {
     await txn.commit();
 
     expect(executed).toHaveLength(2);
-    expect(executed[0].params).toEqual([1]);
-    expect(executed[1].params).toEqual([2]);
+    expect(executed[0]?.params).toEqual([1]);
+    expect(executed[1]?.params).toEqual([2]);
   });
 
   it('rejects statements after commit or rollback', async () => {
@@ -137,8 +137,8 @@ describe('D1Service.batch', () => {
     ]);
 
     expect(executed).toHaveLength(2);
-    expect(executed[0].params).toEqual([42]);
-    expect(executed[1].params).toEqual([42]);
+    expect(executed[0]?.params).toEqual([42]);
+    expect(executed[1]?.params).toEqual([42]);
   });
 
   it('insert/update/delete validate table and column identifiers', async () => {

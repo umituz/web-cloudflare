@@ -66,7 +66,10 @@ export class WorkflowService {
       const entries = Array.from(this.stepStateCache.entries());
       const toRemove = Math.floor(this.maxCacheSize * 0.5);
       for (let i = 0; i < toRemove; i++) {
-        this.stepStateCache.delete(entries[i][0]);
+        const entry = entries[i];
+        if (entry) {
+          this.stepStateCache.delete(entry[0]);
+        }
       }
     }
   }

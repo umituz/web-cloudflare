@@ -464,7 +464,9 @@ export class WorkersAIService implements IWorkersAIService {
       return await Promise.all(promises);
     } else {
       for (let i = 0; i < texts.length; i++) {
-        const result = await this.generateSpeech(texts[i], options);
+        const text = texts[i];
+        if (text === undefined) continue;
+        const result = await this.generateSpeech(text, options);
         results.push({ ...result, index: i });
         options.onProgress?.(i + 1, texts.length);
       }

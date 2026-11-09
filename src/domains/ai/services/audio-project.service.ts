@@ -369,7 +369,10 @@ export class AudioProjectService {
       const entries = Array.from(this.cache.entries());
       const toRemove = this.cache.size - this.maxCacheSize;
       for (let i = 0; i < toRemove; i++) {
-        this.cache.delete(entries[i][0]);
+        const entry = entries[i];
+        if (entry) {
+          this.cache.delete(entry[0]);
+        }
       }
     }
   }
