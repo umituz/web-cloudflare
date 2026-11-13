@@ -1,4 +1,13 @@
-import type { WorkersAIBinding } from '../../../config/types';
+export interface ImageGenerationBinding {
+  run(model: string, inputs: Record<string, unknown>): Promise<unknown>;
+}
+
+export interface ImageGenerationEnv {
+  AI?: ImageGenerationBinding;
+  bindings?: {
+    AI?: ImageGenerationBinding;
+  };
+}
 
 export interface ImageModelInfo {
   id: string;
@@ -102,18 +111,13 @@ const IMAGE_MODELS: Record<string, ImageModelInfo> = {
 export const DEFAULT_IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
 export class ImageGenerationService {
-  private env: {
-    AI?: WorkersAIBinding;
-    bindings?: {
-      AI?: WorkersAIBinding;
-    };
-  };
+  private env: ImageGenerationEnv;
 
-  constructor(env: { AI?: WorkersAIBinding; bindings?: { AI?: WorkersAIBinding } }) {
+  constructor(env: ImageGenerationEnv) {
     this.env = env;
   }
 
-  private getAI(): WorkersAIBinding | null {
+  private getAI(): ImageGenerationBinding | null {
     return this.env.bindings?.AI || this.env.AI || null;
   }
 
@@ -343,9 +347,6 @@ export class ImageGenerationService {
 
 export const imageGenerationService = new ImageGenerationService({});
 
-export function createImageGenerationService(env: {
-  AI?: WorkersAIBinding;
-  bindings?: { AI?: WorkersAIBinding };
-}): ImageGenerationService {
+export function createImageGenerationService(env: ImageGenerationEnv): ImageGenerationService {
   return new ImageGenerationService(env);
 }

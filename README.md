@@ -955,6 +955,13 @@ Unsupported parameters are rejected with a clear error instead of being
 dropped silently (`Model … does not accept width/height`, `… does not accept
 a seed`), so callers can never ship a no-op setting by accident.
 
+The service module is self-contained (no ambient `@cloudflare/workers-types`
+globals): projects that hand-roll their binding types can import it directly —
+
+```ts
+import { createImageGenerationService } from '@umituz/web-cloudflare/src/domains/ai/services/image-generation.service';
+```
+
 ## ⚛️ React Hooks for Cloudflare Pages
 
 **Package**: `@umituz/web-cloudflare/pages/react`

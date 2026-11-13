@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   ImageGenerationService,
   DEFAULT_IMAGE_MODEL,
+  type ImageGenerationBinding,
 } from '../src/domains/ai/services/image-generation.service';
-import type { WorkersAIBinding } from '../src/config/types';
 
 const PNG_BYTES = new Uint8Array([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
@@ -28,11 +28,11 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 function makeBinding(
   handler: (model: string, inputs: Record<string, unknown>) => unknown
-): WorkersAIBinding {
+): ImageGenerationBinding {
   return {
     run: vi.fn(async (model: string, inputs: Record<string, unknown>) =>
       handler(model, inputs)
-    ) as WorkersAIBinding['run'],
+    ) as ImageGenerationBinding['run'],
   };
 }
 
