@@ -23,3 +23,14 @@ export {
   audioStreamingService,
   createAudioStreamingService
 } from './audio-streaming.service';
+export {
+  ImageGenerationService,
+  imageGenerationService,
+  createImageGenerationService,
+  DEFAULT_IMAGE_MODEL
+} from './image-generation.service';
+export type {
+  ImageModelInfo,
+  ImageGenerationRequest,
+  ImageGenerationResult
+} from './image-generation.service';

@@ -1,7 +1,7 @@
 {
   "name": "@umituz/web-cloudflare",
   "version": "1.11.0",
-  "description": "Comprehensive Cloudflare Workers & Pages integration with config-based patterns, middleware, router, workflows, AI (with audio/music generation, TTS, ASR), React hooks, multi-tenant support, and the cf-ship deploy CLI",
+  "description": "Comprehensive Cloudflare Workers & Pages integration with config-based patterns, middleware, router, workflows, AI (with text-to-image, audio/music generation, TTS, ASR), React hooks, multi-tenant support, and the cf-ship deploy CLI",
   "bin": {
     "cf-ship": "./bin/cf-ship.mjs"
   },
@@ -133,7 +133,12 @@
     "server-sent-events",
     "range-requests",
     "hls",
-    "audio-project"
+    "audio-project",
+    "text-to-image",
+    "image-generation",
+    "flux",
+    "flux-1-schnell",
+    "text-to-image-generation"
   ],
   "author": "umituz",
   "license": "MIT",

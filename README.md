@@ -697,7 +697,10 @@ import type { Tenant, TenantContext, TenantRoute } from '@umituz/web-cloudflare/
 - `@cf/mistral/mistral-7b-instruct` - Fast & efficient (208 neurons/1K tokens)
 
 **Image Generation**:
+- `@cf/black-forest-labs/flux-1-schnell` - Fast distilled FLUX.1, JSON input (default)
+- `@cf/black-forest-labs/flux-2-klein-4b` / `flux-2-klein-9b` - FLUX.2 [klein], multipart input
 - `@cf/stabilityai/stable-diffusion-xl-base-1.0` - Image generation (2778 neurons/1K tokens)
+- `@cf/bytedance/stable-diffusion-xl-lightning`, `@cf/lykon/dreamshaper-8-lcm` - fast SD variants
 
 **Embeddings**:
 - `@cf/openai/clip-vit-base-patch32` - Text/image embeddings (52 neurons/1K tokens)
@@ -909,6 +912,48 @@ await workflows.resumeExecution(execution.id, 'generate-tts');
 - `batch-tts-generation` - Batch TTS with parallel processing
 - `podcast-automation` - Script → TTS → Music → Master → RSS
 - `audiobook-creation` - Parse chapters → TTS → Combine → Metadata
+
+### 🖼️ Text-to-Image Generation ⭐ NEW
+
+**Package**: `@umituz/web-cloudflare/ai`
+
+Text-to-image generation via the Workers AI binding, with per-model input modes
+verified against the Workers AI docs (FLUX.1 speaks JSON, FLUX.2 speaks
+multipart form-data) and output normalization for every documented response
+shape (base64 `{image}`, raw bytes, `ReadableStream`).
+
+```ts
+import { createImageGenerationService } from '@umituz/web-cloudflare/ai';
+
+const images = createImageGenerationService(env); // env.AI binding
+
+const result = await images.generateImage({
+  prompt: 'a lighthouse at dusk, warm window light',
+  model: '@cf/black-forest-labs/flux-2-klein-4b', // optional, defaults to flux-1-schnell
+  width: 1280,        // clamped to 256–1536, multiples of 8 (models with size support)
+  height: 720,
+  steps: 25,          // clamped to the model's max
+  timeoutMs: 30_000,  // default 30s
+});
+
+// result: { bytes: Uint8Array, mimeType: 'image/png' | 'image/jpeg' | 'image/webp',
+//           width, height, model, latency } — mime sniffed from magic bytes
+```
+
+**Model catalog** (`getImageModels()` / `getImageModelInfo(model)`):
+
+| Model | Input mode | Size | Steps (default) | Seed |
+| --- | --- | --- | --- | --- |
+| `@cf/black-forest-labs/flux-1-schnell` (default) | JSON | ✗ | 1–8 (4) | ✓ |
+| `@cf/black-forest-labs/flux-2-klein-4b` | multipart | ✓ | 1–50 (25) | ✗ |
+| `@cf/black-forest-labs/flux-2-klein-9b` | multipart | ✓ | 1–50 (25) | ✗ |
+| `@cf/stabilityai/stable-diffusion-xl-base-1.0` | JSON | ✓ | 1–50 (20) | ✓ |
+| `@cf/bytedance/stable-diffusion-xl-lightning` | JSON | ✓ | 1–50 (4) | ✗ |
+| `@cf/lykon/dreamshaper-8-lcm` | JSON | ✓ | 1–50 (4) | ✓ |
+
+Unsupported parameters are rejected with a clear error instead of being
+dropped silently (`Model … does not accept width/height`, `… does not accept
+a seed`), so callers can never ship a no-op setting by accident.
 
 ## ⚛️ React Hooks for Cloudflare Pages
 
