@@ -18,6 +18,7 @@
     "./analytics": "./src/domains/analytics/index.ts",
     "./workflows": "./src/domains/workflows/index.ts",
     "./ai": "./src/domains/ai/index.ts",
+    "./ai/image-generation": "./src/domains/ai/services/image-generation.service.ts",
     "./wrangler": "./src/domains/wrangler/index.ts",
     "./pages": "./src/domains/pages/index.ts",
     "./pages/react": "./src/domains/pages/react/index.ts",
